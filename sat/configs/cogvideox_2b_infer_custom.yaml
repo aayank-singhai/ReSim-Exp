@@ -2,11 +2,11 @@ args:
   latent_channels: 16
   mode: inference
   # load: "CogVideoX-2b-sat/transformer"
-  load: "/cpfs01/user/yangjiazhi/workspace/DVGen/VAE-study/CogVideo/ckpts/CogVideoX-2b-sat/transformer"
+  load: "/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/ckpts/CogVideoX-2b-sat/transformer"
   batch_size: 1
   input_type: txt
   # input_file: test.txt
-  input_file: "/cpfs01/user/yangjiazhi/workspace/DVGen/VAE-study/CogVideo/sat/configs/test.txt"
+  input_file: "/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/sat/configs/test.txt"
   sampling_num_frames: 13  # Must be 13, 11 or 9
   sampling_fps: 8
   fp16: True
@@ -91,14 +91,14 @@ model:
           target: sgm.modules.encoders.modules.FrozenT5Embedder
           params:
             # model_dir: "google/t5-v1_1-xxl"
-            model_dir: "/cpfs01/user/yangjiazhi/workspace/DVGen/VAE-study/CogVideo/ckpts/CogVideoX-2b-sat/t5-v1_1-xxl"
+            model_dir: "/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/ckpts/CogVideoX-2b-sat/t5-v1_1-xxl"
             max_length: 226
 
   first_stage_config:
     target: vae_modules.autoencoder.VideoAutoencoderInferenceWrapper
     params:
       cp_size: 1
-      ckpt_path: "/cpfs01/user/yangjiazhi/workspace/DVGen/VAE-study/CogVideo/ckpts/CogVideoX-2b-sat/vae/3d-vae.pt"
+      ckpt_path: "/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/ckpts/CogVideoX-2b-sat/vae/3d-vae.pt"
       ignore_keys: [ 'loss' ]
 
       loss_config:
