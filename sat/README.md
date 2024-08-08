@@ -42,12 +42,27 @@ Then unzip, the model structure should look like this:
 
 Next, clone the T5 model, which is not used for training and fine-tuning, but must be used.
 
-```shell
-git lfs install 
-git clone https://huggingface.co/google/t5-v1_1-xxl.git
+```
+git clone https://huggingface.co/THUDM/CogVideoX-2b.git
+mkdir t5-v1_1-xxl
+mv CogVideoX-2b/text_encoder/* CogVideoX-2b/tokenizer/* t5-v1_1-xxl
 ```
 
-**We don't need the tf_model.h5** file. This file can be deleted.
+By following the above approach, you will obtain a safetensor format T5 file. Ensure that there are no errors when
+loading it into Deepspeed in Finetune.
+
+```
+├── added_tokens.json
+├── config.json
+├── model-00001-of-00002.safetensors
+├── model-00002-of-00002.safetensors
+├── model.safetensors.index.json
+├── special_tokens_map.json
+├── spiece.model
+└── tokenizer_config.json
+
+0 directories, 8 files
+```
 
 3. Modify the file `configs/cogvideox_2b_infer.yaml`.
 
@@ -100,6 +115,17 @@ bash inference.sh
 
 ## Fine-Tuning the Model
 
+### Preparing the Environment
+
+Please note that currently, SAT needs to be installed from the source code for proper fine-tuning. We will address this
+issue in future stable releases.
+
+```
+git clone https://github.com/THUDM/SwissArmyTransformer.git
+cd SwissArmyTransformer
+pip install -e .
+```
+
 ### Preparing the Dataset
 
 The dataset format should be as follows:
@@ -123,7 +149,8 @@ For style fine-tuning, please prepare at least 50 videos and labels with similar
 
 ### Modifying the Configuration File
 
-We support both `Lora` and `full-parameter fine-tuning` methods. Please note that both fine-tuning methods only apply to the `transformer` part. The `VAE part` is not modified. `T5` is only used as an Encoder.
+We support both `Lora` and `full-parameter fine-tuning` methods. Please note that both fine-tuning methods only apply to
+the `transformer` part. The `VAE part` is not modified. `T5` is only used as an Encoder.
 
 the `configs/cogvideox_2b_sft.yaml` (for full fine-tuning) as follows.
 
@@ -145,6 +172,8 @@ the `configs/cogvideox_2b_sft.yaml` (for full fine-tuning) as follows.
   valid_data: [ "your val data path" ] # Training and validation sets can be the same
   split: 1,0,0 # Ratio of training, validation, and test sets
   num_workers: 8 # Number of worker threads for data loading
+  force_train: True # Allow missing keys when loading ckpt (refer to T5 and VAE which are loaded independently)
+  only_log_video_latents: True # Avoid using VAE decoder when eval to save memory
 ```
 
 If you wish to use Lora fine-tuning, you also need to modify:

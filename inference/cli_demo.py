@@ -11,21 +11,41 @@ Run the script:
 """
 
 import argparse
+import tempfile
+from typing import Union, List
 
+import PIL
+import imageio
+import numpy as np
 import torch
 from diffusers import CogVideoXPipeline
-from diffusers.utils import export_to_video
+
+
+def export_to_video_imageio(
+        video_frames: Union[List[np.ndarray], List[PIL.Image.Image]], output_video_path: str = None, fps: int = 8
+) -> str:
+    """
+    Export the video frames to a video file using imageio lib to Avoid "green screen" issue (for example CogVideoX)
+    """
+    if output_video_path is None:
+        output_video_path = tempfile.NamedTemporaryFile(suffix=".mp4").name
+    if isinstance(video_frames[0], PIL.Image.Image):
+        video_frames = [np.array(frame) for frame in video_frames]
+    with imageio.get_writer(output_video_path, fps=fps) as writer:
+        for frame in video_frames:
+            writer.append_data(frame)
+    return output_video_path
 
 
 def generate_video(
-    prompt: str,
-    model_path: str,
-    output_path: str = "./output.mp4",
-    num_inference_steps: int = 50,
-    guidance_scale: float = 6.0,
-    num_videos_per_prompt: int = 1,
-    device: str = "cuda",
-    dtype: torch.dtype = torch.float16,
+        prompt: str,
+        model_path: str,
+        output_path: str = "./output.mp4",
+        num_inference_steps: int = 50,
+        guidance_scale: float = 6.0,
+        num_videos_per_prompt: int = 1,
+        device: str = "cuda",
+        dtype: torch.dtype = torch.float16,
 ):
     """
     Generates a video based on the given prompt and saves it to the specified path.
@@ -42,8 +62,11 @@ def generate_video(
     """
 
     # Load the pre-trained CogVideoX pipeline with the specified precision (float16) and move it to the specified device
-    pipe = CogVideoXPipeline.from_pretrained(model_path, torch_dtype=dtype).to(device)
-    pipe.enable_sequential_cpu_offload() # Enable sequential CPU offload for faster inference
+    # add device_map="balanced" in the from_pretrained function and remove
+    # `pipe.enable_model_cpu_offload()` to enable Multi GPUs (2 or more and each one must have more than 20GB memory) inference.
+    pipe = CogVideoXPipeline.from_pretrained(model_path, torch_dtype=dtype)
+    pipe.enable_model_cpu_offload()
+
     # Encode the prompt to get the prompt embeddings
     prompt_embeds, _ = pipe.encode_prompt(
         prompt=prompt,  # The textual description for video generation
@@ -64,7 +87,7 @@ def generate_video(
     ).frames[0]
 
     # Export the generated frames to a video file. fps must be 8
-    export_to_video(video, output_path, fps=8)
+    export_to_video_imageio(video, output_path, fps=8)
 
 
 if __name__ == "__main__":

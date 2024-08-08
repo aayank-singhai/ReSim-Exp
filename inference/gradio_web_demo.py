@@ -9,7 +9,6 @@ import torch
 from diffusers import CogVideoXPipeline
 from datetime import datetime, timedelta
 from openai import OpenAI
-import spaces
 import imageio
 import moviepy.editor as mp
 from typing import List, Union
@@ -17,7 +16,8 @@ import PIL
 
 dtype = torch.bfloat16
 device = "cuda" if torch.cuda.is_available() else "cpu"
-pipe = CogVideoXPipeline.from_pretrained("THUDM/CogVideoX-2b", torch_dtype=dtype).to(device)
+pipe = CogVideoXPipeline.from_pretrained("THUDM/CogVideoX-2b", torch_dtype=dtype)
+pipe.enable_model_cpu_offload()
 
 sys_prompt = """You are part of a team of bots that creates videos. You work with an assistant bot that will draw anything you say in square brackets.
 
@@ -88,7 +88,6 @@ def convert_prompt(prompt: str, retry_times: int = 3) -> str:
     return prompt
 
 
-@spaces.GPU(duration=240)
 def infer(
         prompt: str,
         num_inference_steps: int,
