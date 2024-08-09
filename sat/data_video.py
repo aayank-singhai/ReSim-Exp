@@ -364,6 +364,7 @@ class SFTDataset(Dataset):
         self.captions_list = []
         self.num_frames_list = []
         self.fps_list = []
+        # self.data_dir = data_dir
 
         decord.bridge.set_bridge("torch")
         for root, dirnames, filenames in os.walk(data_dir):

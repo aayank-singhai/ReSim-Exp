@@ -130,7 +130,8 @@ def sampling_main(args, model_cls):
     else:
         raise NotImplementedError
 
-    image_size = [480, 720]
+    # image_size = [480, 720]  # * Officially supported size
+    image_size = [512, 896]  # !!! DEBUG
 
     sample_func = model.sample
     T, H, W, C, F = args.sampling_num_frames, image_size[0], image_size[1], args.latent_channels, 8

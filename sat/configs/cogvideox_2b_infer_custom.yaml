@@ -42,8 +42,15 @@ model:
       elementwise_affine: True
       num_frames: 49
       time_compressed_rate: 4
-      latent_width: 90
-      latent_height: 60
+      
+      # * For (480, 720), originally supported
+      # latent_width: 90
+      # latent_height: 60
+
+      # !!! DEBUG: For (512, 896)
+      latent_width: 112
+      latent_height: 64
+
       num_layers: 30
       patch_size: 2
       in_channels: 16

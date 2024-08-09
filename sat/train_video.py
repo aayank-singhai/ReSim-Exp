@@ -211,6 +211,7 @@ if __name__ == "__main__":
     args = argparse.Namespace(**vars(args), **vars(known))
 
     data_class = get_obj_from_str(args.data_config["target"])
+    # import pdb; pdb.set_trace()
     create_dataset_function = partial(data_class.create_dataset_function, **args.data_config["params"])
 
     import yaml
@@ -221,6 +222,10 @@ if __name__ == "__main__":
             base_config = yaml.safe_load(f)
         configs.append(base_config)
     args.log_config = configs
+
+
+    # import pdb; pdb.set_trace()
+
 
     training_main(
         args,
