@@ -11,3 +11,6 @@ local_save/
 ckpts/
 tmp/
 outputs/
+nuscenes/
+nuscenes
+custom_data/
