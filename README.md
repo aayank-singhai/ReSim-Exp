@@ -1,6 +1,7 @@
 # CogVideo && CogVideoX
 
 [中文阅读](./README_zh.md)
+[日本語で読む](./README_ja.md)
 
 <div align="center">
 <img src=resources/logo.svg width="50%"/>
@@ -20,9 +21,11 @@
 
 ## Update and News
 
-- 🔥 **News**: ```2024/8/7```: CogVideoX has been integrated into `diffusers` version 0.30.0. Inference can now be performed
+- 🔥 **News**: ```2024/8/7```: CogVideoX has been integrated into `diffusers` version 0.30.0. Inference can now be
+  performed
   on a single 3090 GPU. For more details, please refer to the [code](inference/cli_demo.py).
-- 🔥 **News**: ```2024/8/6```: We have also open-sourced **3D Causal VAE** used in **CogVideoX-2B**, which can reconstruct
+- 🔥 **News**: ```2024/8/6```: We have also open-sourced **3D Causal VAE** used in **CogVideoX-2B**, which can
+  reconstruct
   the video almost losslessly.
 - 🔥 **News**: ```2024/8/6```: We have open-sourced **CogVideoX-2B**，the first model in the CogVideoX series of video
   generation models.
@@ -54,9 +57,9 @@ Jump to a specific section:
 
 ### Prompt Optimization
 
-Before running the model, please refer to [this guide](inference/convert_demo.py) to see how we use the GLM-4 model to
-optimize the prompt. This is crucial because the model is trained with long prompts, and a good prompt directly affects
-the quality of the generated video.
+Before running the model, please refer to [this guide](inference/convert_demo.py) to see how we use large models like
+GLM-4 (or other comparable products, such as GPT-4) to optimize the model. This is crucial because the model is trained
+with long prompts, and a good prompt directly impacts the quality of the video generation.
 
 ### SAT
 
@@ -122,6 +125,15 @@ along with related basic information:
 | Quantized Inference                       | Not Supported                                                                                                                                                                                       |          
 | Download Link (HF diffusers Model)        | 🤗 [Huggingface](https://huggingface.co/THUDM/CogVideoX-2B)   [🤖 ModelScope](https://modelscope.cn/models/ZhipuAI/CogVideoX-2b)   [💫 WiseModel](https://wisemodel.cn/models/ZhipuAI/CogVideoX-2b) |
 | Download Link (SAT Model)                 | [SAT](./sat/README.md)                                                                                                                                                                              |
+
+## Friendly Links
+
+We highly welcome contributions from the community and actively contribute to the open-source community. The following
+works have already been adapted for CogVideoX, and we invite everyone to use them:
+
++ [Xorbits Inference](https://github.com/xorbitsai/inference): A powerful and comprehensive distributed inference
+  framework, allowing you to easily deploy your own models or the latest cutting-edge open-source models with just one
+  click.
 
 ## Project Structure
 
