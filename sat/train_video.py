@@ -200,7 +200,11 @@ def forward_step(data_iterator, model, args, timers, data_class=None):
 
 
 if __name__ == "__main__":
+
+    print(os.environ)
+
     if "OMPI_COMM_WORLD_LOCAL_RANK" in os.environ:
+        print("OMPI_COMM_WORLD_LOCAL_RANK", os.environ["OMPI_COMM_WORLD_LOCAL_RANK"])
         os.environ["LOCAL_RANK"] = os.environ["OMPI_COMM_WORLD_LOCAL_RANK"]
         os.environ["WORLD_SIZE"] = os.environ["OMPI_COMM_WORLD_SIZE"]
         os.environ["RANK"] = os.environ["OMPI_COMM_WORLD_RANK"]
