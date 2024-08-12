@@ -1,14 +1,24 @@
+
+import torch
+# !!! Try this !!!
+# the first flag below was False when we tested this script but True makes A100 training a lot faster:
+# * Not working?
+torch.backends.cuda.matmul.allow_tf32 = True
+torch.backends.cudnn.allow_tf32 = True
+import torch.distributed
+import torchvision
+
 import os
 import argparse
 from functools import partial
 from PIL import Image
 import numpy as np
-import torch.distributed
-import torchvision
+# import torch.distributed
+# import torchvision
 from omegaconf import OmegaConf
 import imageio
 
-import torch
+# import torch
 
 from sat import mpu
 from sat.training.deepspeed_training import training_main
@@ -214,6 +224,9 @@ if __name__ == "__main__":
     args = get_args(args_list)
     args = argparse.Namespace(**vars(args), **vars(known))
 
+    # * override exp name as config name
+    args.experiment_name = os.path.basename(args.base[0]).replace('.yaml', '')
+
     data_class = get_obj_from_str(args.data_config["target"])
     # import pdb; pdb.set_trace()
     create_dataset_function = partial(data_class.create_dataset_function, **args.data_config["params"])
@@ -227,6 +240,7 @@ if __name__ == "__main__":
         configs.append(base_config)
     args.log_config = configs
 
+    # import pdb; pdb.set_trace()
 
     # import pdb; pdb.set_trace()
 

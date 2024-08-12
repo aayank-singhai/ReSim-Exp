@@ -45,7 +45,7 @@ class SATVideoDiffusionEngine(nn.Module):
         no_cond_log = model_config.get("disable_first_stage_autocast", False)
         not_trainable_prefixes = model_config.get("not_trainable_prefixes", ["first_stage_model", "conditioner"])
         compile_model = model_config.get("compile_model", False)
-        en_and_decode_n_samples_a_time = model_config.get("en_and_decode_n_samples_a_time", None)
+        en_and_decode_n_samples_a_time = model_config.get("en_and_decode_n_samples_a_time", None)  # TODO: Set this to avoid OOM.
         lr_scale = model_config.get("lr_scale", None)
         lora_train = model_config.get("lora_train", False)
         self.use_pd = model_config.get("use_pd", False)  # progressive distillation
@@ -294,7 +294,15 @@ class SATVideoDiffusionEngine(nn.Module):
         if not self.latent_input:
             log["inputs"] = x.to(torch.float32)
         x = x.permute(0, 2, 1, 3, 4).contiguous()
+
+        # !! DEBUG, remove
+        # print("x.shape", x.shape)  # [1, 3, 49, 480, 720], T=49
+
+        # import pdb; pdb.set_trace()
+
         z = self.encode_first_stage(x, batch)
+        # [1, 16, 13, 60, 90]
+        
         if not only_log_video_latents:
             log["reconstructions"] = self.decode_first_stage(z).to(torch.float32)
             log["reconstructions"] = log["reconstructions"].permute(0, 2, 1, 3, 4).contiguous()

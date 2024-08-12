@@ -359,7 +359,7 @@ class VideoDataset(MetaDistributedWebDataset):
 class SFTDataset(Dataset):
 
     # !!! TODO: Loading to slow.
-    def __init__(self, data_dir, video_size, fps, max_num_frames, skip_frms_num=3):
+    def __init__(self, data_dir, video_size, fps, max_num_frames, skip_frms_num=3, prefix_prompt=""):
         """
         skip_frms_num: ignore the first and the last xx frames, avoiding transitions.
         """
@@ -391,6 +391,13 @@ class SFTDataset(Dataset):
                     caption = open(caption_path, "r").read().splitlines()[0]
                 else:
                     caption = ""
+
+                if prefix_prompt != "":
+                    prefix_prompt = prefix_prompt.strip()
+                    prefix_prompt = prefix_prompt[0].upper() + prefix_prompt[1:]
+                    if not prefix_prompt.endswith("."):
+                        prefix_prompt += "."
+                    caption = prefix_prompt + " " + caption
                 self.captions_list.append(caption)
                 # self.num_frames_list.append(num_frames)
                 self.fps_list.append(fps)

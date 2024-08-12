@@ -16,7 +16,7 @@ def add_model_config_args(parser):
     """Model arguments"""
 
     group = parser.add_argument_group("model", "model configuration")
-    group.add_argument("--base", type=str, nargs="*", help="config for input and saving")
+    group.add_argument("--base", type=str, nargs="*", help="config for input and saving")  # nargs will initialize a list
     group.add_argument(
         "--model-parallel-size", type=int, default=1, help="size of the model parallel. only use if you are an expert."
     )
