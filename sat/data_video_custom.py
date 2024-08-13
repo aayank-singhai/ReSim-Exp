@@ -402,6 +402,8 @@ class SFTDataset(Dataset):
                 # self.num_frames_list.append(num_frames)
                 self.fps_list.append(fps)
 
+    # TODO: random sample instead of deterministic sampling
+    # TODO: support image list
     def read_video_clip(self, video_path):
         vr = VideoReader(uri=video_path, height=-1, width=-1)
         actual_fps = vr.get_avg_fps()
@@ -452,9 +454,12 @@ class SFTDataset(Dataset):
                     torch.from_numpy(temp_frms) if type(temp_frms) is not torch.Tensor else temp_frms
                 )
 
+        # * Padding
         tensor_frms = pad_last_frame(
             tensor_frms, num_frames
-        )  # the len of indices may be less than num_frames, due to round error
+        )  # the len of indices may be less than num_frames, due to round error\
+
+        # * Transforms
         tensor_frms = tensor_frms.permute(0, 3, 1, 2)  # [T, H, W, C] -> [T, C, H, W]
         tensor_frms = resize_for_rectangle_crop(tensor_frms, video_size, reshape_mode="center")
         tensor_frms = (tensor_frms - 127.5) / 127.5
