@@ -57,7 +57,7 @@ deepspeed:
   optimizer:
     type: sat.ops.FusedEmaAdam
     params:
-      lr: 0.0002  # TODO: Smaller LR. 
+      lr: 0.0002
       betas: [0.9, 0.95]
       eps: 1e-8
       weight_decay: 1e-4
@@ -70,10 +70,9 @@ deepspeed:
 model:
   scale_factor: 1.15258426
   disable_first_stage_autocast: true
-  not_trainable_prefixes: ['all'] ## Using Lora
+  # not_trainable_prefixes: ['all'] ## Using Lora
   log_keys:
     - txt
-  en_and_decode_n_samples_a_time: 17
   
   denoiser_config:
     target: sgm.modules.diffusionmodules.denoiser.DiscreteDenoiser
@@ -124,10 +123,10 @@ model:
             height_interpolation: 1.875
             width_interpolation: 1.875
 
-        lora_config: ## Using Lora
-          target: sat.model.finetune.lora2.LoraMixin
-          params:
-            r: 128
+        # lora_config: ## Using Lora
+        #   target: sat.model.finetune.lora2.LoraMixin
+        #   params:
+        #     r: 128
 
         patch_embed_config:
           target: dit_video_concat.ImagePatchEmbeddingMixin

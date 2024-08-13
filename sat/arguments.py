@@ -180,6 +180,7 @@ def initialize_distributed(args):
     """Initialize torch.distributed."""
     if torch.distributed.is_initialized():
         if mpu.model_parallel_is_initialized():
+            # TODO: Check here.
             if args.model_parallel_size != mpu.get_model_parallel_world_size():
                 raise ValueError(
                     "model_parallel_size is inconsistent with prior configuration."
