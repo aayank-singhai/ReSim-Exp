@@ -5,6 +5,7 @@ import os
 import imageio
 import random
 from tqdm import tqdm
+import argparse
 
 def load_json(json_path):
     print("Loading json: {}".format(json_path))
@@ -37,7 +38,6 @@ def get_frame_list(start_frame, end_frame):
     for i in range(start_frame, end_frame + 1):
         frame_list.append(str(i).zfill(len_num) + f'.{ext}')
     return frame_list
-
 
 def compute_optical_flow_score(video_path, flow_fps=2, flow_map_size=16.0, flow_resize=True):
     # Open the video file
@@ -102,8 +102,13 @@ def compute_optical_flow_score(video_path, flow_fps=2, flow_map_size=16.0, flow_
 
     return global_motion_score
 
+def cv2_resize(img, expected_size):
+    h, w = img.shape[:2]
+    scale_factor = expected_size / min(h, w)
+    img = cv2.resize(img, (int(w * scale_factor), int(h * scale_factor)), interpolation=cv2.INTER_LINEAR)
+    return img
 
-def compute_optical_flow_score_from_images(img_path_list, video_fps=10, flow_fps=2, num_frames=None, flow_map_size=16.0, flow_resize=True, bottom_half=False, bottom_center=False):
+def compute_optical_flow_score_from_images(img_path_list, video_fps=10, flow_fps=2, num_frames=None, img_size=128, flow_map_size=16.0, img_resize=False, flow_resize=True, bottom_half=False, bottom_center=False):
     if num_frames is not None:
         img_path_list = img_path_list[:num_frames]
 
@@ -119,6 +124,8 @@ def compute_optical_flow_score_from_images(img_path_list, video_fps=10, flow_fps
     if prev_frame is None:
         print("Error reading first image")
         return None
+    if img_resize:
+        prev_frame = cv2_resize(prev_frame, img_size)
     
     # Convert to grayscale
     prev_gray = cv2.cvtColor(prev_frame, cv2.COLOR_BGR2GRAY)
@@ -135,6 +142,8 @@ def compute_optical_flow_score_from_images(img_path_list, video_fps=10, flow_fps
         if frame is None:
             print("Error reading image: {}".format(img_path))
             continue
+        if img_resize:
+            frame = cv2_resize(frame, img_size)
         
         gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
         
@@ -177,9 +186,6 @@ def compute_optical_flow_score_from_images(img_path_list, video_fps=10, flow_fps
         flow_x_score = np.mean(flow_x)
         flow_y_score = np.mean(flow_y)
 
-        # flow_y_score_left = np.mean([
-            
-        # ])
     else:
         global_motion_score = 0.0
         flow_x_score, flow_y_score = 0.0, 0.0
@@ -193,19 +199,19 @@ def compute_optical_flow_score_from_images(img_path_list, video_fps=10, flow_fps
     # TODO: Use the bottom to determine if it stops
     # if abs(flow_x_score) < static_threshold or abs(flow_y_score) < static_threshold:
     if abs(flow_y_score) < static_threshold:
-        # direction = "Static"
-        direction = 0
+        direction = "Static"  # !!! Use number, not string
+        # direction = 0
     elif abs(flow_x_score) >= turning_threshold and \
         abs(flow_x_score) >= determine_factor *  abs(flow_y_score):
         if flow_x_score > 0:
-            # direction = "Turning_Left"
-            direction = 2
+            direction = "Turning_Left"
+            # direction = 2
         else:
-            # direction = "Turning_Right"
-            direction = 3
+            direction = "Turning_Right"
+            # direction = 3
     else:
-        # direction = "Moving_Forward"
-        direction = 1
+        direction = "Moving_Forward"
+        # direction = 1
 
     return global_motion_score, direction, flow_x_score, flow_y_score
 
@@ -230,7 +236,7 @@ def test_img_path_list(indexes=None):
 
     # save_folder = '/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/custom_data/tmp_data/test_optical_flow'
     # save_folder = '/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/custom_data/tmp_data/test_optical_flow_fps5'
-    save_folder = '/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/custom_data/tmp_data/test_random_from_all_direction_11-FPS_10'
+    save_folder = '/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/custom_data/tmp_data/test_random_from_all_direction_12-img_resized'
     os.makedirs(save_folder, exist_ok=True)
 
     # json_path = '/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/custom_data/youtube_json/debug.json'
@@ -261,7 +267,11 @@ def test_img_path_list(indexes=None):
             os.path.join(data_root, folder_name, n) for n in img_list
         ]
 
-        optical_flow_score, direction, flow_x_score, flow_y_score = compute_optical_flow_score_from_images(img_list, video_fps=10, flow_fps=FLOW_FPS, flow_resize=False, bottom_half=False, bottom_center=True)  # * Only use the bottom center part of the flow
+        # * TESTED, Good config
+        # optical_flow_score, direction, flow_x_score, flow_y_score = compute_optical_flow_score_from_images(img_list, video_fps=10, flow_fps=FLOW_FPS, flow_resize=False, img_resize=True, bottom_half=False, bottom_center=True)  # * Only use the bottom center part of the flow
+        
+        # * TESTED, Good config (resizing is fine.)
+        optical_flow_score, direction, flow_x_score, flow_y_score = compute_optical_flow_score_from_images(img_list, video_fps=10, num_frames=25, flow_fps=FLOW_FPS, flow_resize=False, img_resize=True, bottom_half=False, bottom_center=True)  # * Only use the bottom center part of the flow
 
         video_path = os.path.join(save_folder, f"flow_{ind}_score_{optical_flow_score:.2f}_flow_x_{flow_x_score:.2f}_flow_y_{flow_y_score:.2f}_{direction}.mp4")
         img_path_list_to_video(img_list, out_path=video_path, fps=10)
@@ -269,17 +279,22 @@ def test_img_path_list(indexes=None):
         print("flow score", optical_flow_score)
 
 
-def process_full_json(json_path):
+def process_full_json(json_path, n_split=1, split_ind=0):
     FLOW_FPS = 2  # * 2 for efficiency, 10 for accuracy
 
     infos = load_json(json_path)
     data_root = infos['meta']['data_root']
     clip_infos = infos['clips']
 
-    num_clips = len(clip_infos)
-    for clip_ind, clip in enumerate(tqdm(clip_infos)):
+    # split clip_infos
+    if n_split > 1:
+        n_clips = len(clip_infos)
+        split_size = n_clips // n_split
+        start_ind = split_ind * split_size
+        end_ind = (split_ind + 1) * split_size if split_ind != n_split - 1 else n_clips
+        clip_infos = clip_infos[start_ind:end_ind]
 
-        # print('ratio', clip_ind / num_clips)
+    for clip_ind, clip in enumerate(tqdm(clip_infos)):
 
         folder_name, first_frame, end_frame = clip['folder_name'], clip['first_frame'], clip['end_frame']
         img_list = get_frame_list(first_frame, end_frame)
@@ -289,7 +304,7 @@ def process_full_json(json_path):
 
         # * num_frames = 25
         # * only use the first 25 frames for flow.
-        flow_magnitude_score, direction, flow_x_score, flow_y_score = compute_optical_flow_score_from_images(img_list, video_fps=10, num_frames=25, flow_fps=FLOW_FPS, flow_resize=False, bottom_half=False, bottom_center=True)  # * Only use the bottom center part of the flow
+        flow_magnitude_score, direction, flow_x_score, flow_y_score = compute_optical_flow_score_from_images(img_list, video_fps=10, num_frames=25, flow_fps=FLOW_FPS, flow_resize=False, img_resize=True, bottom_half=False, bottom_center=True)  # * Only use the bottom center part of the flow
         
         # write new attributes
         clip_infos[clip_ind]['flow_magnitude_score'] = round(float(flow_magnitude_score), 4)
@@ -300,16 +315,22 @@ def process_full_json(json_path):
     infos['info_annos'] = dict()
     infos['info_annos']['flow'] = {
         'flow_model': 'opencv',
-        'flow_fps': FLOW_FPS
+        'flow_fps': FLOW_FPS,
     }
     infos['clips'] = clip_infos
-    dump_json(infos, json_path.replace('.json', '_flow.json'))
-
+    dump_json(infos, json_path.replace('.json', f'_flow_split_{split_ind}_of_{n_split}.json'))
 
 if __name__ == '__main__':
     # test_img_path_list([2171538, 5193019, 2364535])
     # test_img_path_list()
 
-    # json_path = '/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/custom_data/youtube_json/debug.json'  # * debug json
-    json_path = '/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/custom_data/youtube_json/YouTube_svd_clip-len-49_interval-10_5M.json'
-    process_full_json(json_path)
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--n_split", type=int, default=1)
+    parser.add_argument("--split_ind", type=int, default=0)
+    args = parser.parse_args()
+    
+    n_split = args.n_split
+    split_ind = args.split_ind
+    # json_path = '/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/custom_data/youtube_json/splits/debug.json'  # * debug json
+    json_path = '/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/custom_data/youtube_json/splits/YouTube_svd_clip-len-49_interval-10_5M.json'
+    process_full_json(json_path, n_split, split_ind)
