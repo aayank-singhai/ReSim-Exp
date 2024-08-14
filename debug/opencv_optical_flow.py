@@ -4,6 +4,7 @@ import json
 import os
 import imageio
 import random
+from tqdm import tqdm
 
 def load_json(json_path):
     print("Loading json: {}".format(json_path))
@@ -102,7 +103,10 @@ def compute_optical_flow_score(video_path, flow_fps=2, flow_map_size=16.0, flow_
     return global_motion_score
 
 
-def compute_optical_flow_score_from_images(img_path_list, video_fps=10, flow_fps=2, flow_map_size=16.0, flow_resize=True, bottom_half=False, bottom_center=False):
+def compute_optical_flow_score_from_images(img_path_list, video_fps=10, flow_fps=2, num_frames=None, flow_map_size=16.0, flow_resize=True, bottom_half=False, bottom_center=False):
+    if num_frames is not None:
+        img_path_list = img_path_list[:num_frames]
+
     # downsample the frequency for efficiency
     interval = video_fps // flow_fps
     img_path_list = img_path_list[::interval]
@@ -189,19 +193,19 @@ def compute_optical_flow_score_from_images(img_path_list, video_fps=10, flow_fps
     # TODO: Use the bottom to determine if it stops
     # if abs(flow_x_score) < static_threshold or abs(flow_y_score) < static_threshold:
     if abs(flow_y_score) < static_threshold:
-        direction = "Static"
+        # direction = "Static"
+        direction = 0
     elif abs(flow_x_score) >= turning_threshold and \
         abs(flow_x_score) >= determine_factor *  abs(flow_y_score):
         if flow_x_score > 0:
-            direction = "Turning_Left"
+            # direction = "Turning_Left"
+            direction = 2
         else:
-            direction = "Turning_Right"
+            # direction = "Turning_Right"
+            direction = 3
     else:
-        # if flow_y_score > 0:
-        #     direction = "Moving_Forward"
-        # else:
-        #     direction = "Moving_Backward"
-        direction = "Moving_Forward"
+        # direction = "Moving_Forward"
+        direction = 1
 
     return global_motion_score, direction, flow_x_score, flow_y_score
 
@@ -235,9 +239,9 @@ def test_img_path_list(indexes=None):
     data_root = debug_info['meta']['data_root']
     clip_infos = debug_info['clips']
 
-    # FLOW_FPS = 2
+    FLOW_FPS = 2
     # FLOW_FPS = 5
-    FLOW_FPS = 10  # * Higher FPS can better distinguish highway driving and static
+    # FLOW_FPS = 10  # * Higher FPS can better distinguish highway driving and static
 
     # * fps 2 and 5 yield similar results, use 2 for efficiency
     
@@ -265,5 +269,47 @@ def test_img_path_list(indexes=None):
         print("flow score", optical_flow_score)
 
 
+def process_full_json(json_path):
+    FLOW_FPS = 2  # * 2 for efficiency, 10 for accuracy
+
+    infos = load_json(json_path)
+    data_root = infos['meta']['data_root']
+    clip_infos = infos['clips']
+
+    num_clips = len(clip_infos)
+    for clip_ind, clip in enumerate(tqdm(clip_infos)):
+
+        # print('ratio', clip_ind / num_clips)
+
+        folder_name, first_frame, end_frame = clip['folder_name'], clip['first_frame'], clip['end_frame']
+        img_list = get_frame_list(first_frame, end_frame)
+        img_list = [
+            os.path.join(data_root, folder_name, n) for n in img_list
+        ]
+
+        # * num_frames = 25
+        # * only use the first 25 frames for flow.
+        flow_magnitude_score, direction, flow_x_score, flow_y_score = compute_optical_flow_score_from_images(img_list, video_fps=10, num_frames=25, flow_fps=FLOW_FPS, flow_resize=False, bottom_half=False, bottom_center=True)  # * Only use the bottom center part of the flow
+        
+        # write new attributes
+        clip_infos[clip_ind]['flow_magnitude_score'] = round(float(flow_magnitude_score), 4)
+        clip_infos[clip_ind]['flow_score_xy'] = [round(float(flow_x_score), 4), round(float(flow_y_score), 4)]
+        clip_infos[clip_ind]['flow_direction'] = direction
+
+    # dump back
+    infos['info_annos'] = dict()
+    infos['info_annos']['flow'] = {
+        'flow_model': 'opencv',
+        'flow_fps': FLOW_FPS
+    }
+    infos['clips'] = clip_infos
+    dump_json(infos, json_path.replace('.json', '_flow.json'))
+
+
 if __name__ == '__main__':
-    test_img_path_list([2171538, 5193019, 2364535])
+    # test_img_path_list([2171538, 5193019, 2364535])
+    # test_img_path_list()
+
+    # json_path = '/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/custom_data/youtube_json/debug.json'  # * debug json
+    json_path = '/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/custom_data/youtube_json/YouTube_svd_clip-len-49_interval-10_5M.json'
+    process_full_json(json_path)
