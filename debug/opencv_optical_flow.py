@@ -226,7 +226,7 @@ def test_img_path_list(indexes=None):
 
     # save_folder = '/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/custom_data/tmp_data/test_optical_flow'
     # save_folder = '/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/custom_data/tmp_data/test_optical_flow_fps5'
-    save_folder = '/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/custom_data/tmp_data/test_random_from_all_direction_9-center'
+    save_folder = '/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/custom_data/tmp_data/test_random_from_all_direction_11-FPS_10'
     os.makedirs(save_folder, exist_ok=True)
 
     # json_path = '/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/custom_data/youtube_json/debug.json'
@@ -235,7 +235,10 @@ def test_img_path_list(indexes=None):
     data_root = debug_info['meta']['data_root']
     clip_infos = debug_info['clips']
 
-    FLOW_FPS = 2
+    # FLOW_FPS = 2
+    # FLOW_FPS = 5
+    FLOW_FPS = 10  # * Higher FPS can better distinguish highway driving and static
+
     # * fps 2 and 5 yield similar results, use 2 for efficiency
     
     if indexes is None:
@@ -263,4 +266,4 @@ def test_img_path_list(indexes=None):
 
 
 if __name__ == '__main__':
-    test_img_path_list()
+    test_img_path_list([2171538, 5193019, 2364535])
