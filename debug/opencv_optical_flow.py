@@ -102,7 +102,7 @@ def compute_optical_flow_score(video_path, flow_fps=2, flow_map_size=16.0, flow_
     return global_motion_score
 
 
-def compute_optical_flow_score_from_images(img_path_list, video_fps=10, flow_fps=2, flow_map_size=16.0, flow_resize=True):
+def compute_optical_flow_score_from_images(img_path_list, video_fps=10, flow_fps=2, flow_map_size=16.0, flow_resize=True, bottom_half=False, bottom_center=False):
     # downsample the frequency for efficiency
     interval = video_fps // flow_fps
     img_path_list = img_path_list[::interval]
@@ -122,6 +122,10 @@ def compute_optical_flow_score_from_images(img_path_list, video_fps=10, flow_fps
     # Storage for flow maps
     flow_maps = []
 
+    # Aggregate flow vectors for driving directions
+    flow_x = []
+    flow_y = []
+
     for img_path in img_path_list[1:]:
         frame = cv2.imread(img_path)
         if frame is None:
@@ -140,9 +144,24 @@ def compute_optical_flow_score_from_images(img_path_list, video_fps=10, flow_fps
             flow_resized = cv2.resize(flow, (int(width * scale_factor), int(height * scale_factor)), interpolation=cv2.INTER_LINEAR)
         else:
             flow_resized = flow
+
+        # * Only use bottom half of the flow, to avoid considering the flow of the background.
+        new_height, new_width = flow_resized.shape[:2]
+
+        assert not (bottom_half and bottom_center)
+        if bottom_half:
+            flow_resized = flow_resized[new_height//2:]
+        elif bottom_center:
+            flow_resized = flow_resized[new_height//3 : 2*new_height//3]
+            flow_resized = flow_resized[:, new_width//3: 2*new_width//3]
         
         # Store the flow map
         flow_maps.append(flow_resized)
+        
+        # flow_x.append(np.mean(flow_resized[..., 0]))
+        # flow_y.append(np.mean(flow_resized[..., 1]))
+        flow_x.append(flow_resized[..., 0])
+        flow_y.append(flow_resized[..., 1])
         
         prev_gray = gray
     
@@ -151,10 +170,40 @@ def compute_optical_flow_score_from_images(img_path_list, video_fps=10, flow_fps
         flow_maps_array = np.array(flow_maps)
         flow_magnitude = np.sqrt(np.square(flow_maps_array[..., 0]) + np.square(flow_maps_array[..., 1]))
         global_motion_score = np.mean(flow_magnitude)
+        flow_x_score = np.mean(flow_x)
+        flow_y_score = np.mean(flow_y)
+
+        # flow_y_score_left = np.mean([
+            
+        # ])
     else:
         global_motion_score = 0.0
+        flow_x_score, flow_y_score = 0.0, 0.0
+        
+    # Driving Direction
+    # TODO: Decide stop/static state.
+    determine_factor = 5  # * 2 for more strict
+    turning_threshold = 0.6  # * Empirical threshold
+    static_threshold = 0.04
 
-    return global_motion_score
+    # TODO: Use the bottom to determine if it stops
+    # if abs(flow_x_score) < static_threshold or abs(flow_y_score) < static_threshold:
+    if abs(flow_y_score) < static_threshold:
+        direction = "Static"
+    elif abs(flow_x_score) >= turning_threshold and \
+        abs(flow_x_score) >= determine_factor *  abs(flow_y_score):
+        if flow_x_score > 0:
+            direction = "Turning_Left"
+        else:
+            direction = "Turning_Right"
+    else:
+        # if flow_y_score > 0:
+        #     direction = "Moving_Forward"
+        # else:
+        #     direction = "Moving_Backward"
+        direction = "Moving_Forward"
+
+    return global_motion_score, direction, flow_x_score, flow_y_score
 
 # Example usage:
 # video_path = 'path_to_your_video.mp4'
@@ -170,10 +219,15 @@ def test_video():
     print(f"Optical Flow Score: {score}")
 
 
-def test_img_path_list():
+# * 只计算下半部分的 flow
+
+def test_img_path_list(indexes=None):
+    n_samples = 200
+
     # save_folder = '/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/custom_data/tmp_data/test_optical_flow'
     # save_folder = '/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/custom_data/tmp_data/test_optical_flow_fps5'
-    save_folder = '/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/custom_data/tmp_data/test_random_from_all'
+    save_folder = '/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/custom_data/tmp_data/test_random_from_all_direction_9-center'
+    os.makedirs(save_folder, exist_ok=True)
 
     # json_path = '/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/custom_data/youtube_json/debug.json'
     json_path = '/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/custom_data/youtube_json/YouTube_svd_clip-len-49_interval-10_5M.json'
@@ -184,12 +238,12 @@ def test_img_path_list():
     FLOW_FPS = 2
     # * fps 2 and 5 yield similar results, use 2 for efficiency
     
-    # !! Only use 10
-    # head = 10
-    # clip_infos = clip_infos[::head]
-    selected_index = [
-        random.randint(0, len(clip_infos) - 1) for _ in range(50)
-    ]
+    if indexes is None:
+        selected_index = [
+            random.randint(0, len(clip_infos) - 1) for _ in range(n_samples)
+        ]
+    else:
+        selected_index = indexes
 
     # for ind in range(len(clip_infos)):
     for ind in selected_index:
@@ -200,9 +254,9 @@ def test_img_path_list():
             os.path.join(data_root, folder_name, n) for n in img_list
         ]
 
-        optical_flow_score = compute_optical_flow_score_from_images(img_list, video_fps=10, flow_fps=FLOW_FPS)
+        optical_flow_score, direction, flow_x_score, flow_y_score = compute_optical_flow_score_from_images(img_list, video_fps=10, flow_fps=FLOW_FPS, flow_resize=False, bottom_half=False, bottom_center=True)  # * Only use the bottom center part of the flow
 
-        video_path = os.path.join(save_folder, f"flow_{ind}_score_{optical_flow_score:.2f}.mp4")
+        video_path = os.path.join(save_folder, f"flow_{ind}_score_{optical_flow_score:.2f}_flow_x_{flow_x_score:.2f}_flow_y_{flow_y_score:.2f}_{direction}.mp4")
         img_path_list_to_video(img_list, out_path=video_path, fps=10)
 
         print("flow score", optical_flow_score)
