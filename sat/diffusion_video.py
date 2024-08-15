@@ -24,6 +24,8 @@ from sat import mpu
 import random
 
 
+
+
 class SATVideoDiffusionEngine(nn.Module):
     def __init__(self, args, **kwargs):
         super().__init__()
@@ -45,7 +47,8 @@ class SATVideoDiffusionEngine(nn.Module):
         no_cond_log = model_config.get("disable_first_stage_autocast", False)
         not_trainable_prefixes = model_config.get("not_trainable_prefixes", ["first_stage_model", "conditioner"])
         compile_model = model_config.get("compile_model", False)
-        en_and_decode_n_samples_a_time = model_config.get("en_and_decode_n_samples_a_time", None)  # TODO: Set this to avoid OOM.
+        en_and_decode_n_samples_a_time = model_config.get("en_and_decode_n_samples_a_time", None)
+        en_and_decode_n_frames_a_time = model_config.get("en_and_decode_n_frames_a_time", None)  # TODO: Set this to avoid OOM.
         lr_scale = model_config.get("lr_scale", None)
         lora_train = model_config.get("lora_train", False)
         self.use_pd = model_config.get("use_pd", False)  # progressive distillation
@@ -54,6 +57,7 @@ class SATVideoDiffusionEngine(nn.Module):
         self.input_key = input_key
         self.not_trainable_prefixes = not_trainable_prefixes
         self.en_and_decode_n_samples_a_time = en_and_decode_n_samples_a_time
+        self.en_and_decode_n_frames_a_time = en_and_decode_n_frames_a_time
         self.lr_scale = lr_scale
         self.lora_train = lora_train
         self.noised_image_input = model_config.get("noised_image_input", False)
@@ -142,12 +146,44 @@ class SATVideoDiffusionEngine(nn.Module):
             batch["lr_input"] = lr_z
 
         x = x.permute(0, 2, 1, 3, 4).contiguous()
+        print("before auto enc:")
+
+        # mega_bytes = 1024.0 * 1024.0
+        # print(f"allocated: {torch.cuda.memory_allocated() / mega_bytes} , cached: {torch.cuda.memory_cached() / mega_bytes}, max: {torch.cuda.max_memory_reserved() / mega_bytes}")
+        # import pdb; pdb.set_trace()  # !!! DEBUG
+
+        # !!! Memory Bottleneck (Takes a lot of memory)
         x = self.encode_first_stage(x, batch)
         x = x.permute(0, 2, 1, 3, 4).contiguous()
 
+        mega_bytes = 1024.0 * 1024.0
+        print("after auto enc:")
+        print(f"allocated: {torch.cuda.memory_allocated() / mega_bytes} , cached: {torch.cuda.memory_cached() / mega_bytes}, max: {torch.cuda.max_memory_reserved() / mega_bytes}")
+        # torch.cuda.reset_peak_memory_stats()
+        # * Naive AutoEnc:
+        # - after auto enc: allocated: 13475.39501953125 , cached: 14642.0, max: 72912.0
+        # - auto-encoding is memory consuming.
+
+        # * Sliced AutoEnc:
+        # - after auto enc: allocated: 13475.39501953125 , cached: 14642.0, max: 72912.0
+        # - even use a small chunk (size-9), still takes a lot of memory. Why?? [bug: split on sample, not frames]
+        # - Bugfixed: 
+        # import pdb; pdb.set_trace()  # !!! DEBUG
+
+        # * Check here?
         gc.collect()
         torch.cuda.empty_cache()
+        # print("after clean caches:")
+        # print(f"allocated: {torch.cuda.memory_allocated() / mega_bytes} , cached: {torch.cuda.memory_cached() / mega_bytes}, max: {torch.cuda.max_memory_reserved() / mega_bytes}")
+        # - allocated: 13346.77001953125 , cached: 13596.0, max: 14642.0
+        # import pdb; pdb.set_trace()   # !!! DEBUG
+
         loss, loss_dict = self(x, batch)
+
+        # print("after forward the whole model:")
+        # print(f"allocated: {torch.cuda.memory_allocated() / mega_bytes} , cached: {torch.cuda.memory_cached() / mega_bytes}, max: {torch.cuda.max_memory_reserved() / mega_bytes}")
+        # # - allocated: 16119.99462890625 , cached: 18124.0, max: 18124.0
+        # import pdb; pdb.set_trace()   # !!! DEBUG
         return loss, loss_dict
 
     def get_input(self, batch):
@@ -173,20 +209,43 @@ class SATVideoDiffusionEngine(nn.Module):
 
     @torch.no_grad()
     def encode_first_stage(self, x, batch):
+
+        # x: torch.Size([1, 3, 49, 512, 896]   (b c t h w)
         frame = x.shape[2]
 
+        # NOTE: No need to scale for pre-encoding
         if frame > 1 and self.latent_input:
             x = x.permute(0, 2, 1, 3, 4).contiguous()
             return x * self.scale_factor  # already encoded
 
         use_cp = False
 
-        n_samples = default(self.en_and_decode_n_samples_a_time, x.shape[0])
-        n_rounds = math.ceil(x.shape[0] / n_samples)
+        # * Split on batch
+        n_sample_per_round = default(self.en_and_decode_n_samples_a_time, x.shape[0])
+        n_sample_rounds = math.ceil(x.shape[0] / n_sample_per_round)
+
+        n_frame_per_round = default(self.en_and_decode_n_frames_a_time, x.shape[2])
+        assert n_frame_per_round in [49, 17]
+        # n_frame_rounds = math.ceil(x.shape[2] / n_frame_per_round)
+        
         all_out = []
         with torch.autocast("cuda", enabled=not self.disable_first_stage_autocast):
-            for n in range(n_rounds):
-                out = self.first_stage_model.encode(x[n * n_samples : (n + 1) * n_samples])
+            for sr_ind in range(n_sample_rounds):
+                x_sample = x[sr_ind * n_sample_per_round : (sr_ind + 1) * n_sample_per_round]
+                out = []
+                if n_frame_per_round == 17:
+                    # slice the video, overlap: 1
+                    # tmp_chunks = [x_sample[:,:,:17], x_sample[:,:,16:33], x_sample[:,:,32:49]]
+                    chunk_left_right = [[0, 17], [16, 33], [32, 49]]
+                    for ch_ind, (left, right) in enumerate(chunk_left_right):
+                        chunk = x_sample[:,:,left:right].contiguous()
+                        chunk = self.first_stage_model.encode(chunk)
+                        if ch_ind > 0:
+                            chunk = chunk[:,:,1:].contiguous()  # Remove overlap
+                        out.append(chunk)
+                else:
+                    out.append(self.first_stage_model.encode(x_sample))
+                out = torch.cat(out, dim=2)
                 all_out.append(out)
         z = torch.cat(all_out, dim=0)
         z = self.scale_factor * z

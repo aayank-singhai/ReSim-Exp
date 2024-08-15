@@ -855,6 +855,7 @@ class ContextParallelDecoder3D(nn.Module):
             chan_out=out_ch,
             kernel_size=3,
         )
+        
 
     def forward(self, z, use_cp=True):
         global _USE_CP

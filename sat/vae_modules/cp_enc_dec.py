@@ -713,6 +713,14 @@ class ContextParallelResnetBlock3D(nn.Module):
         return x + h
 
 
+
+def count_params(model, verbose=False):
+    total_params = sum(p.numel() for p in model.parameters())
+    if verbose:
+        print(f'{model.__class__.__name__} has {total_params * 1.e-6:.2f} M params')
+    return total_params
+
+# * ContextParallelEncoder3D has 92.22 M params.
 class ContextParallelEncoder3D(nn.Module):
     def __init__(
         self,
@@ -806,6 +814,8 @@ class ContextParallelEncoder3D(nn.Module):
             chan_out=2 * z_channels if double_z else z_channels,
             kernel_size=3,
         )
+        count_params(self, verbose=True)
+        print("Encoder3D initialized.")
 
     def forward(self, x):
         # timestep embedding
@@ -835,7 +845,7 @@ class ContextParallelEncoder3D(nn.Module):
 
         return h
 
-
+# * ContextParallelDecoder3D has 123.37 M params
 class ContextParallelDecoder3D(nn.Module):
     def __init__(
         self,
@@ -947,6 +957,8 @@ class ContextParallelDecoder3D(nn.Module):
             chan_out=out_ch,
             kernel_size=3,
         )
+        count_params(self, verbose=True)
+        print("Decoder3D initialized.")
 
     def forward(self, z, clear_fake_cp_cache=True):
         self.last_z_shape = z.shape

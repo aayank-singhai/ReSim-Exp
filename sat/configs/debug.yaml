@@ -26,7 +26,6 @@ data:
     params:
       # video_size: [480, 720]
 
-      # !!! DEBUG: For (512, 896)
       video_size: [512, 896]
       fps: 12
       max_num_frames: 49
@@ -76,6 +75,9 @@ model:
   not_trainable_prefixes: ['all'] ## Using Lora
   log_keys:
     - txt
+  # en_and_decode_n_samples_a_time: 17
+  # en_and_decode_n_samples_a_time: 9
+  en_and_decode_n_frames_a_time: 17
   
   denoiser_config:
     target: sgm.modules.diffusionmodules.denoiser.DiscreteDenoiser
