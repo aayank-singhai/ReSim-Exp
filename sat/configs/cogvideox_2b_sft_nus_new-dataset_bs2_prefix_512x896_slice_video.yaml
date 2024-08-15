@@ -33,8 +33,8 @@ data:
       prefix_prompt: "This video depicts a realistic view from the driver's perspective of a car driving on the road."
 
 deepspeed:
-  train_micro_batch_size_per_gpu: 1
-  # train_micro_batch_size_per_gpu: 2
+  # train_micro_batch_size_per_gpu: 1
+  train_micro_batch_size_per_gpu: 2
   gradient_accumulation_steps: 1
   steps_per_print: 50
   gradient_clipping: 0.1
@@ -75,7 +75,6 @@ model:
   not_trainable_prefixes: ['all'] ## Using Lora
   log_keys:
     - txt
-  en_and_decode_n_frames_a_time: 17
   
   denoiser_config:
     target: sgm.modules.diffusionmodules.denoiser.DiscreteDenoiser
