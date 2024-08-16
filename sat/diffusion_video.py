@@ -146,8 +146,8 @@ class SATVideoDiffusionEngine(nn.Module):
             batch["lr_input"] = lr_z
 
         x = x.permute(0, 2, 1, 3, 4).contiguous()
-        print("before auto enc:")
 
+        # print("before auto enc:")
         # mega_bytes = 1024.0 * 1024.0
         # print(f"allocated: {torch.cuda.memory_allocated() / mega_bytes} , cached: {torch.cuda.memory_cached() / mega_bytes}, max: {torch.cuda.max_memory_reserved() / mega_bytes}")
         # import pdb; pdb.set_trace()  # !!! DEBUG
@@ -156,9 +156,9 @@ class SATVideoDiffusionEngine(nn.Module):
         x = self.encode_first_stage(x, batch)
         x = x.permute(0, 2, 1, 3, 4).contiguous()
 
-        mega_bytes = 1024.0 * 1024.0
-        print("after auto enc:")
-        print(f"allocated: {torch.cuda.memory_allocated() / mega_bytes} , cached: {torch.cuda.memory_cached() / mega_bytes}, max: {torch.cuda.max_memory_reserved() / mega_bytes}")
+        # mega_bytes = 1024.0 * 1024.0
+        # print("after auto enc:")
+        # print(f"allocated: {torch.cuda.memory_allocated() / mega_bytes} , cached: {torch.cuda.memory_cached() / mega_bytes}, max: {torch.cuda.max_memory_reserved() / mega_bytes}")
         # torch.cuda.reset_peak_memory_stats()
         # * Naive AutoEnc:
         # - after auto enc: allocated: 13475.39501953125 , cached: 14642.0, max: 72912.0
