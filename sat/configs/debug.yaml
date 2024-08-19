@@ -9,7 +9,9 @@ args:
   no_load_rng: True
   train_iters: 10000
   eval_iters: 1
-  eval_interval: 100  # * Log video every 100 iterations
+  eval_interval: 2  # * Log video every 100 iterations
+  # !! DEBUG
+
   eval_batch_size: 1
   save: ckpts
   save_interval: 1000  # * Save checkpoints
@@ -78,6 +80,7 @@ model:
   log_keys:
     - txt
   en_and_decode_n_frames_a_time: 17
+  cond_inds: [0, 1, 2]
   
   denoiser_config:
     target: sgm.modules.diffusionmodules.denoiser.DiscreteDenoiser
@@ -234,6 +237,8 @@ model:
     params:
       num_steps: 50
       verbose: True
+      fixed_frames: 3  # [0, 1, 2]
+      cond_inds: [0, 1, 2]
 
       discretization_config:
         target: sgm.modules.diffusionmodules.discretizer.ZeroSNRDDPMDiscretization

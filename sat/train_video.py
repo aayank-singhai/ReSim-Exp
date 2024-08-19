@@ -240,10 +240,6 @@ if __name__ == "__main__":
         configs.append(base_config)
     args.log_config = configs
 
-    # import pdb; pdb.set_trace()
-
-    # import pdb; pdb.set_trace()
-
 
     training_main(
         args,

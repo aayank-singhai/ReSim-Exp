@@ -477,10 +477,11 @@ class SdeditEDMSampler(EulerEDMSampler):
 
 
 class VideoDDIMSampler(BaseDiffusionSampler):
-    def __init__(self, fixed_frames=0, sdedit=False, **kwargs):
+    def __init__(self, fixed_frames=0, sdedit=False, cond_inds=None, **kwargs):
         super().__init__(**kwargs)
         self.fixed_frames = fixed_frames
         self.sdedit = sdedit
+        self.cond_inds = cond_inds
 
     def prepare_sampling_loop(self, x, cond, uc=None, num_steps=None):
         alpha_cumprod_sqrt, timesteps = self.discretization(
@@ -502,6 +503,9 @@ class VideoDDIMSampler(BaseDiffusionSampler):
 
     def denoise(self, x, denoiser, alpha_cumprod_sqrt, cond, uc, timestep=None, idx=None, scale=None, scale_emb=None):
         additional_model_inputs = {}
+
+        if self.cond_inds is not None:
+            additional_model_inputs['cond_inds'] = self.cond_inds
 
         if isinstance(scale, torch.Tensor) == False and scale == 1:
             additional_model_inputs["idx"] = x.new_ones([x.shape[0]]) * timestep
@@ -642,7 +646,7 @@ class VPSDEDPMPP2MSampler(VideoDDIMSampler):
         )
 
         if self.fixed_frames > 0:
-            prefix_frames = x[:, : self.fixed_frames]
+            prefix_frames = x[:, :self.fixed_frames]  # ! Dimension index not right?
         old_denoised = None
         for i in self.get_sigma_gen(num_sigmas):
             if self.fixed_frames > 0:

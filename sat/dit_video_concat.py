@@ -57,7 +57,8 @@ class ImagePatchEmbeddingMixin(BaseMixin):
 
         if self.cond_emb_proj is not None:
             emb = rearrange(emb, '(b t) ... -> b t ...', b=B, t=T)  # [1, 13, 1920, 64, 112]
-            cond_inds = kwargs["cond_inds"]
+            # import pdb; pdb.set_trace()  # check cond_inds, exist in training. not exist in inference.
+            cond_inds = kwargs["cond_inds"]  # !!! cond_inds not in kwargs
             cond_emb = self.cond_emb_proj(kwargs["emb"]).unsqueeze(1)  # [1, 512] -> [1, 1, 1920]
             
             cond_mask = torch.zeros(emb.shape).to(emb) # [1, 13, 1920, 64, 112]
@@ -882,6 +883,7 @@ class DiffusionTransformer(BaseModel):
         kwargs["text_length"] = context.shape[1]
 
         kwargs["input_ids"] = kwargs["position_ids"] = kwargs["attention_mask"] = torch.ones((1, 1)).to(x.dtype)
+        # import pdb; pdb.set_trace()  # check cond_inds, exist
         output = super().forward(**kwargs)[0]
 
         return output

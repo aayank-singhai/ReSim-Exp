@@ -53,6 +53,8 @@ class SATVideoDiffusionEngine(nn.Module):
         lora_train = model_config.get("lora_train", False)
         self.use_pd = model_config.get("use_pd", False)  # progressive distillation
 
+        self.cond_inds = model_config.get("cond_inds", None)
+
         self.log_keys = log_keys
         self.input_key = input_key
         self.not_trainable_prefixes = not_trainable_prefixes
@@ -94,6 +96,8 @@ class SATVideoDiffusionEngine(nn.Module):
         self.disable_first_stage_autocast = disable_first_stage_autocast
         self.no_cond_log = no_cond_log
         self.device = args.device
+
+        
 
     def disable_untrainable_params(self):
         total_trainable = 0
@@ -231,7 +235,7 @@ class SATVideoDiffusionEngine(nn.Module):
         uc: Union[Dict, None] = None,
         batch_size: int = 16,
         shape: Union[None, Tuple, List] = None,
-        prefix=None,
+        prefix=None,   # TODO: Enable this?
         concat_images=None,
         **kwargs,
     ):
@@ -242,6 +246,7 @@ class SATVideoDiffusionEngine(nn.Module):
         if prefix is not None:
             randn = torch.cat([prefix, randn[:, prefix.shape[1] :]], dim=1)
 
+        # import pdb; pdb.set_trace()
         # broadcast noise
         mp_size = mpu.get_model_parallel_world_size()
         if mp_size > 1:
@@ -320,6 +325,9 @@ class SATVideoDiffusionEngine(nn.Module):
         )
 
         sampling_kwargs = {}
+        # if self.cond_inds is not None:
+        #     sampling_kwargs
+        #     pass
 
         N = min(x.shape[0], N)
         x = x.to(self.device)[:N]
@@ -339,6 +347,15 @@ class SATVideoDiffusionEngine(nn.Module):
             log["reconstructions"] = self.decode_first_stage(z).to(torch.float32)
             log["reconstructions"] = log["reconstructions"].permute(0, 2, 1, 3, 4).contiguous()
         z = z.permute(0, 2, 1, 3, 4).contiguous()
+
+        # z: torch.Size([1, 13, 16, 64, 112])  b t c h w
+
+        if self.cond_inds is not None:
+            # import pdb; pdb.set_trace()
+            # assert isinstance(self.cond_inds, list)
+            sampling_kwargs['prefix'] = z[:, self.cond_inds]
+
+        # import pdb; pdb.set_trace()  # * check the shape of z
 
         log.update(self.log_conditionings(batch, N))
 
