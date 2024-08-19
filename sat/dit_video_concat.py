@@ -18,16 +18,19 @@ from sgm.modules.diffusionmodules.util import (
     timestep_embedding,
 )
 from sat.ops.layernorm import LayerNorm, RMSNorm
+from sgm.util import append_dims
 
 
 class ImagePatchEmbeddingMixin(BaseMixin):
     def __init__(
         self,
         in_channels,
-        hidden_size,
+        hidden_size,  # * 1920
         patch_size,
         bias=True,
         text_hidden_size=None,
+        # use_cond_emb=False,
+        cond_emb_in_dim=None,
     ):
         super().__init__()
         self.proj = nn.Conv2d(in_channels, hidden_size, kernel_size=patch_size, stride=patch_size, bias=bias)
@@ -36,12 +39,33 @@ class ImagePatchEmbeddingMixin(BaseMixin):
         else:
             self.text_proj = None
 
+        if cond_emb_in_dim is not None:
+            self.cond_emb_proj = nn.Linear(cond_emb_in_dim, hidden_size)
+            # * zero_init
+            nn.init.constant_(self.cond_emb_proj.weight, 0)
+            nn.init.constant_(self.cond_emb_proj.bias, 0)
+        else:
+            self.cond_emb_proj = None
+        
+    # TODO: add cond_emb here.
     def word_embedding_forward(self, input_ids, **kwargs):
         # now is 3d patch
-        images = kwargs["images"]  # (b,t,c,h,w)
+        images = kwargs["images"]  # (b,t,c,h,w)  [1, 13, 16, 64, 112]
         B, T = images.shape[:2]
-        emb = images.view(-1, *images.shape[2:])
-        emb = self.proj(emb)  # ((b t),d,h/2,w/2)
+        emb = images.view(-1, *images.shape[2:])  # [13 (b*t), 16, 64, 112]
+        emb = self.proj(emb)  # ((b t),d,h/2,w/2) # * Conv2d(16, 1920, kernel_size=(2, 2), stride=(2, 2)), downsampling
+
+        if self.cond_emb_proj is not None:
+            emb = rearrange(emb, '(b t) ... -> b t ...', b=B, t=T)  # [1, 13, 1920, 64, 112]
+            cond_inds = kwargs["cond_inds"]
+            cond_emb = self.cond_emb_proj(kwargs["emb"]).unsqueeze(1)  # [1, 512] -> [1, 1, 1920]
+            
+            cond_mask = torch.zeros(emb.shape).to(emb) # [1, 13, 1920, 64, 112]
+            cond_mask[:, cond_inds] = 1
+
+            emb = emb + cond_mask * append_dims(cond_emb, cond_mask.ndim)
+            emb = rearrange(emb, 'b t ... -> (b t) ...')
+
         emb = emb.view(B, T, *emb.shape[1:])
         emb = emb.flatten(3).transpose(2, 3)  # (b,t,n,d)
         emb = rearrange(emb, "b t n d -> b (t n) d")
@@ -495,6 +519,7 @@ class SwiGLUMixin(BaseMixin):
         return x
 
 
+# * Main Transformer Layer
 class AdaLNMixin(BaseMixin):
     def __init__(
         self,
@@ -560,7 +585,7 @@ class AdaLNMixin(BaseMixin):
             text_shift_mlp,
             text_scale_mlp,
             text_gate_mlp,
-        ) = adaLN_modulation(kwargs["emb"]).chunk(12, dim=1)
+        ) = adaLN_modulation(kwargs["emb"]).chunk(12, dim=1)  # * modulations for img and text
         gate_msa, gate_mlp, text_gate_msa, text_gate_mlp = (
             gate_msa.unsqueeze(1),
             gate_mlp.unsqueeze(1),
@@ -831,14 +856,18 @@ class DiffusionTransformer(BaseModel):
         return
 
     def forward(self, x, timesteps=None, context=None, y=None, **kwargs):
-        b, t, d, h, w = x.shape
+        b, t, d, h, w = x.shape  # * [1, 13, 16, 64, 112]
         if x.dtype != self.dtype:
             x = x.to(self.dtype)
         assert (y is not None) == (
             self.num_classes is not None
         ), "must specify y if and only if the model is class-conditional"
-        t_emb = timestep_embedding(timesteps, self.model_channels, repeat_only=False, dtype=self.dtype)
-        emb = self.time_embed(t_emb)
+        t_emb = timestep_embedding(timesteps, self.model_channels, repeat_only=False, dtype=self.dtype)  # * [1, 1920]
+        
+        # TODO: Why compress t_emb here??? 1920 -> 512, why not directly map it to 512
+        emb = self.time_embed(t_emb)  # * [1, 512]
+
+        # import pdb; pdb.set_trace()
 
         if self.num_classes is not None:
             # assert y.shape[0] == x.shape[0]
@@ -848,7 +877,7 @@ class DiffusionTransformer(BaseModel):
 
         kwargs["seq_length"] = t * h * w // (self.patch_size**2)
         kwargs["images"] = x
-        kwargs["emb"] = emb
+        kwargs["emb"] = emb  # * Used in AdaLNMixin and FinalLayerMixin  [1, 512]
         kwargs["encoder_outputs"] = context
         kwargs["text_length"] = context.shape[1]
 

@@ -147,43 +147,16 @@ class SATVideoDiffusionEngine(nn.Module):
 
         x = x.permute(0, 2, 1, 3, 4).contiguous()
 
-        # print("before auto enc:")
-        # mega_bytes = 1024.0 * 1024.0
-        # print(f"allocated: {torch.cuda.memory_allocated() / mega_bytes} , cached: {torch.cuda.memory_cached() / mega_bytes}, max: {torch.cuda.max_memory_reserved() / mega_bytes}")
-        # import pdb; pdb.set_trace()  # !!! DEBUG
-
-        # !!! Memory Bottleneck (Takes a lot of memory)
+        # TODO: Memory Bottleneck (Takes a lot of memory)
         x = self.encode_first_stage(x, batch)
         x = x.permute(0, 2, 1, 3, 4).contiguous()
 
-        # mega_bytes = 1024.0 * 1024.0
-        # print("after auto enc:")
-        # print(f"allocated: {torch.cuda.memory_allocated() / mega_bytes} , cached: {torch.cuda.memory_cached() / mega_bytes}, max: {torch.cuda.max_memory_reserved() / mega_bytes}")
-        # torch.cuda.reset_peak_memory_stats()
-        # * Naive AutoEnc:
-        # - after auto enc: allocated: 13475.39501953125 , cached: 14642.0, max: 72912.0
-        # - auto-encoding is memory consuming.
-
-        # * Sliced AutoEnc:
-        # - after auto enc: allocated: 13475.39501953125 , cached: 14642.0, max: 72912.0
-        # - even use a small chunk (size-9), still takes a lot of memory. Why?? [bug: split on sample, not frames]
-        # - Bugfixed: 
-        # import pdb; pdb.set_trace()  # !!! DEBUG
-
-        # * Check here?
+        # TODO: Check here?
         gc.collect()
         torch.cuda.empty_cache()
-        # print("after clean caches:")
-        # print(f"allocated: {torch.cuda.memory_allocated() / mega_bytes} , cached: {torch.cuda.memory_cached() / mega_bytes}, max: {torch.cuda.max_memory_reserved() / mega_bytes}")
-        # - allocated: 13346.77001953125 , cached: 13596.0, max: 14642.0
-        # import pdb; pdb.set_trace()   # !!! DEBUG
 
         loss, loss_dict = self(x, batch)
 
-        # print("after forward the whole model:")
-        # print(f"allocated: {torch.cuda.memory_allocated() / mega_bytes} , cached: {torch.cuda.memory_cached() / mega_bytes}, max: {torch.cuda.max_memory_reserved() / mega_bytes}")
-        # # - allocated: 16119.99462890625 , cached: 18124.0, max: 18124.0
-        # import pdb; pdb.set_trace()   # !!! DEBUG
         return loss, loss_dict
 
     def get_input(self, batch):

@@ -24,18 +24,23 @@ class Denoiser(nn.Module):
 
     def forward(
         self,
-        network: nn.Module,
-        input: torch.Tensor,
-        sigma: torch.Tensor,
+        network: nn.Module,  # * v prediction
+        input: torch.Tensor,  # noised_input
+        sigma: torch.Tensor,  # alphas_cumprod_sqrt, float
         cond: Dict,
         **additional_model_inputs,
     ) -> torch.Tensor:
         sigma = self.possibly_quantize_sigma(sigma)
         sigma_shape = sigma.shape
         sigma = append_dims(sigma, input.ndim)
+        # VideoScaling
+        # c_skip = alphas_cumprod_sqrt
+        # c_out = -((1 - alphas_cumprod_sqrt**2) ** 0.5)
+        # c_in = torch.ones_like(alphas_cumprod_sqrt, device=alphas_cumprod_sqrt.device)  # 1
+        # c_noise = additional_model_inputs["idx"].clone()  # ->* timestep
         c_skip, c_out, c_in, c_noise = self.scaling(sigma, **additional_model_inputs)
         c_noise = self.possibly_quantize_c_noise(c_noise.reshape(sigma_shape))
-        return network(input * c_in, c_noise, cond, **additional_model_inputs) * c_out + input * c_skip
+        return network(input * c_in, c_noise, cond, **additional_model_inputs) * c_out + input * c_skip  # go to DiffusionTransformer
 
 
 class DiscreteDenoiser(Denoiser):

@@ -20,7 +20,7 @@ class Discretization:
             sigmas = self.get_sigmas(n, device=device, return_idx=return_idx)
         sigmas = append_zero(sigmas) if do_append_zero else sigmas
         if return_idx:
-            return sigmas if not flip else torch.flip(sigmas, (0,)), idx
+            return sigmas if not flip else torch.flip(sigmas, (0,)), idx   # * sigmas get flipped here
         else:
             return sigmas if not flip else torch.flip(sigmas, (0,))
 
@@ -123,4 +123,6 @@ class ZeroSNRDDPMDiscretization(Discretization):
         if return_idx:
             return torch.flip(alphas_cumprod_sqrt, (0,)), timesteps
         else:
-            return torch.flip(alphas_cumprod_sqrt, (0,))  # sqrt(alpha_t): 0 -> 0.99
+            return torch.flip(alphas_cumprod_sqrt, (0,))
+            # after flipping: sqrt(alpha_t): 0 -> 0.998 (not 1 in the end.)
+            # ??? Why reverse this???? -- Answer: Flipped in DiscreteSampling

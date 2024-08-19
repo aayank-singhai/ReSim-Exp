@@ -55,6 +55,6 @@ class VideoScaling:  # similar to VScaling
     ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
         c_skip = alphas_cumprod_sqrt
         c_out = -((1 - alphas_cumprod_sqrt**2) ** 0.5)
-        c_in = torch.ones_like(alphas_cumprod_sqrt, device=alphas_cumprod_sqrt.device)
-        c_noise = additional_model_inputs["idx"].clone()
+        c_in = torch.ones_like(alphas_cumprod_sqrt, device=alphas_cumprod_sqrt.device)  # 1
+        c_noise = additional_model_inputs["idx"].clone()  # * timestep
         return c_skip, c_out, c_in, c_noise

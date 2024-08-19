@@ -1,5 +1,3 @@
-# * Current: Implement predictive mode.
-
 args:
   checkpoint_activations: True ## using gradient checkpointing
   model_parallel_size: 1
@@ -20,15 +18,15 @@ args:
   # num_workers: 0  # !!! DEBUG
   num_workers: 8
   force_train: True
-  # only_log_video_latents: True
-  only_log_video_latents: False
+  only_log_video_latents: True  # * Save memory
+  # only_log_video_latents: False
 
 data:
     target: data_video_custom.SFTDataset
     params:
       # video_size: [480, 720]
 
-      video_size: [512, 896]
+      video_size: [720, 1280]
       fps: 12
       max_num_frames: 49
       skip_frms_num: 3.
@@ -61,7 +59,7 @@ deepspeed:
   optimizer:
     type: sat.ops.FusedEmaAdam
     params:
-      lr: 0.0002
+      lr: 0.00002
       betas: [0.9, 0.95]
       eps: 1e-8
       weight_decay: 1e-4
@@ -97,7 +95,7 @@ model:
   network_config:
     target: dit_video_concat.DiffusionTransformer
     params:
-      time_embed_dim: &t_emb_dim 512
+      time_embed_dim: 512
       elementwise_affine: True
       num_frames: 49
       time_compressed_rate: 4
@@ -106,9 +104,13 @@ model:
       # latent_width: 90
       # latent_height: 60
 
-      # * Custom: For (512, 896)
-      latent_width: 112
-      latent_height: 64
+      # # !!! DEBUG: For (512, 896)
+      # latent_width: 112
+      # latent_height: 64
+
+      # For (720, 1280)
+      latent_width: 160
+      latent_height: 90
 
       num_layers: 30
       patch_size: 2
@@ -135,9 +137,13 @@ model:
             # height_interpolation: 1.875  # * cur_height // 256
             # width_interpolation: 1.875   # * cur_width  // 384
 
-            # !!! DEBUG: For (512, 896) 
-            height_interpolation: 2.0   # * cur_height // 256
-            width_interpolation:  2.3333   # * cur_width  // 384
+            # For (512, 896) 
+            # height_interpolation: 2.0   # * cur_height // 256
+            # width_interpolation:  2.3333   # * cur_width  // 384
+
+            # For (720, 1280) 
+            height_interpolation: 2.8125   # * cur_height // 256
+            width_interpolation:  3.3333   # * cur_width  // 384
 
         lora_config: ## Using Lora
           target: sat.model.finetune.lora2.LoraMixin
@@ -148,7 +154,6 @@ model:
           target: dit_video_concat.ImagePatchEmbeddingMixin
           params:
             text_hidden_size: 4096
-            cond_emb_in_dim: *t_emb_dim
 
         adaln_layer_config:
           target: dit_video_concat.AdaLNMixin
@@ -218,7 +223,6 @@ model:
     target: sgm.modules.diffusionmodules.loss.VideoDiffusionLoss
     params:
       offset_noise_level: 0
-      cond_inds: [0, 1, 2]
       sigma_sampler_config:
         target: sgm.modules.diffusionmodules.sigma_sampling.DiscreteSampling
         params:

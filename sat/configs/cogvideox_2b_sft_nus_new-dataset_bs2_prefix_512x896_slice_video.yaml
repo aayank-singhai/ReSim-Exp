@@ -59,7 +59,7 @@ deepspeed:
   optimizer:
     type: sat.ops.FusedEmaAdam
     params:
-      lr: 0.0002
+      lr: 0.0002  # * Large LR significantly overfits to nus distribution (with similar camera noise pattern).
       betas: [0.9, 0.95]
       eps: 1e-8
       weight_decay: 1e-4

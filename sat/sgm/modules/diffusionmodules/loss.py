@@ -71,20 +71,32 @@ class StandardDiffusionLoss(nn.Module):
 
 
 class VideoDiffusionLoss(StandardDiffusionLoss):
-    def __init__(self, block_scale=None, block_size=None, min_snr_value=None, fixed_frames=0, **kwargs):
+    def __init__(self, block_scale=None, block_size=None, min_snr_value=None, fixed_frames=0, cond_inds=None, **kwargs):
         self.fixed_frames = fixed_frames
         self.block_scale = block_scale
         self.block_size = block_size
         self.min_snr_value = min_snr_value
         super().__init__(**kwargs)
+        self.cond_inds = cond_inds  # [0, 1, 2] video latents <--> corresponding [0, 8] (n=9) video frames
 
     def __call__(self, network, denoiser, conditioner, input, batch):
         cond = conditioner(batch)
         additional_model_inputs = {key: batch[key] for key in self.batch2model_keys.intersection(batch)}
 
         alphas_cumprod_sqrt, idx = self.sigma_sampler(input.shape[0], return_idx=True)
-        alphas_cumprod_sqrt = alphas_cumprod_sqrt.to(input.device)
+        alphas_cumprod_sqrt = alphas_cumprod_sqrt.to(input.device)  # a float
         idx = idx.to(input.device)
+
+        # print(f"idx:{idx}, alpha_t:{alphas_cumprod_sqrt}")
+        # idx:tensor([26], device='cuda:0'), alpha_t:tensor([0.9631], device='cuda:0')
+         # idx:tensor([335], device='cuda:0'), alpha_t:tensor([0.5044], device='cuda:0')
+        # idx:tensor([510], device='cuda:1'), alpha_t:tensor([0.2985], device='cuda:1')
+
+        cond_inds = self.cond_inds
+        
+        if cond_inds is not None:
+            cond_mask = torch.zeros(input.shape).to(input.device) # [1, 13, 16, 64, 112]
+            cond_mask[:, cond_inds] = 1
 
         noise = torch.randn_like(input)
 
@@ -96,20 +108,35 @@ class VideoDiffusionLoss(StandardDiffusionLoss):
         torch.distributed.broadcast(noise, src=src, group=mpu.get_model_parallel_group())
         torch.distributed.broadcast(alphas_cumprod_sqrt, src=src, group=mpu.get_model_parallel_group())
 
-        additional_model_inputs["idx"] = idx
+        additional_model_inputs["idx"] = idx  # TODO: Check idx
 
         if self.offset_noise_level > 0.0:
             noise = (
                 noise + append_dims(torch.randn(input.shape[0]).to(input.device), input.ndim) * self.offset_noise_level
             )
 
+        # x_t
         noised_input = input.float() * append_dims(alphas_cumprod_sqrt, input.ndim) + noise * append_dims(
             (1 - alphas_cumprod_sqrt**2) ** 0.5, input.ndim
         )
+        # noised_input: torch.Size([1, 13, 16, 64, 112])
+        # TODO: Replace with clean latents here.
+        if cond_inds is not None:
+            additional_model_inputs['cond_inds'] = cond_inds
+            noised_input = input.float() * cond_mask+ \
+                           noised_input * (1 - cond_mask)
 
         model_output = denoiser(network, noised_input, alphas_cumprod_sqrt, cond, **additional_model_inputs)
-        w = append_dims(1 / (1 - alphas_cumprod_sqrt**2), input.ndim)  # v-pred
+        # model_output: torch.Size([1, 13, 16, 64, 112]), b t c h w
+        w = append_dims(1 / (1 - alphas_cumprod_sqrt**2), input.ndim)  # v-pred  torch.Size([1, 1, 1, 1, 1])
+        b, t = model_output.shape[:2]
 
+        # TODO: Exclude the condition frames from loss
+        if cond_inds is not None:
+            model_output = model_output[~cond_mask.bool()].reshape(b, -1, *model_output.shape[2:])
+            input = input[~cond_mask.bool()].reshape(b, -1, *input.shape[2:])
+
+        # TODO: Try this, min_snr
         if self.min_snr_value is not None:
             w = min(w, self.min_snr_value)
         return self.get_loss(model_output, input, w)
