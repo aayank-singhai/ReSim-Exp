@@ -181,9 +181,9 @@ def create_youtube_json():
     dump_json(clip_infos, out_path)
 
 
-def merge_json_dir(json_dir):
+def merge_json_dir(json_dir, merged_json_path, end_identifier):
     json_files = [
-        f for f in os.listdir(json_dir) if f.startswith('YouTube') and f.endswith('_of_20.json')
+        f for f in os.listdir(json_dir) if f.startswith('YouTube') and f.endswith(end_identifier)
     ]
     
     print("Total number of json files: ", len(json_files))
@@ -191,7 +191,7 @@ def merge_json_dir(json_dir):
     def get_ind(filename):
         # full_020_desc_blip2.json
         # return int(filename.split('_')[1])
-        ind = filename.replace('_of_20.json','').split('_')[-1]
+        ind = filename.replace(end_identifier,'').split('_')[-1]
         return int(ind)
     
     json_files.sort(key=get_ind)
@@ -229,7 +229,7 @@ def merge_json_dir(json_dir):
 
     assert total_cnt == meta['num_clips'], f"{total_cnt} != {meta['num_clips']}"
     # merged_json_path = os.path.join('/cpfs01/user/yangjiazhi/workspace/Ask-Anything/video_chat/youtube_process', 'full_merged.json')
-    merged_json_path = '/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/custom_data/youtube_json/YouTube_merged.json'
+    # merged_json_path = '/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/custom_data/youtube_json/YouTube_merged.json'
     dump_json(merged, merged_json_path)
     print(f'Merged JSON file saved to: {merged_json_path}')
     print(f'Total counts: {total_cnt}')
@@ -240,6 +240,16 @@ def traverse_youtube_json(json_path, out_root, random=False):
 
     infos = load_json(json_path)
     clips = infos['clips']
+    n_total = len(clips)
+
+    stats = {
+        'Static': 0,
+        'Moving_Forward': 0,
+        'Turning_Left': 0,
+        'Turning_Right': 0,
+        'Highly_Static': 0,
+    }
+
     i = 0
     if random:
         import random
@@ -254,8 +264,12 @@ def traverse_youtube_json(json_path, out_root, random=False):
                     break
     else:
         for ind, clip in enumerate(tqdm(clips)):
-            if clip['flow_direction'] in ['Turning_Left']:
-                debug_visualize_one_clip(infos=infos, out_root=out_root, select_ind=ind)
+            stats[clip['flow_direction']] += 1
+        print(stats)
+        for k, v in stats.items():
+            print(k, f"ratio: {v / n_total * 100 :.3f}")
+            # if clip['flow_direction'] in ['Turning_Left']:
+            #     debug_visualize_one_clip(infos=infos, out_root=out_root, select_ind=ind)
 
 
             # # if clip['flow_direction'] == "Static":
@@ -349,18 +363,18 @@ if __name__ == '__main__':
     youtube_json_prefix = '/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/custom_data/youtube_json/splits/YouTube_svd_clip-len-49_interval-10_5M_flow_split_'
 
     # !!! DEBUG
-    # youtube_json = '/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/custom_data/youtube_json/YouTube_svd_clip-len-49_interval-10_5M_flow_round2.json'
+    youtube_json = '/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/custom_data/youtube_json/YouTube_svd_clip-len-49_interval-10_5M_flow_round2.json'
     # youtube_json = '/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/custom_data/youtube_json/splits/YouTube_svd_clip-len-49_interval-10_5M_flow_split_0_of_20.json'
 
-    # RANDOM = False
-    # out_root = '/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/custom_data/traverse_youtube/check_left'
-    # traverse_youtube_json(youtube_json, out_root=out_root, random=RANDOM)
+    RANDOM = False
+    out_root = '/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/custom_data/traverse_youtube/ROUND2_Statics'
+    traverse_youtube_json(youtube_json, out_root=out_root, random=RANDOM)
 
-    # merge_json_dir('/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/custom_data/youtube_json/splits')
+    # merge_json_dir('/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/custom_data/youtube_json/splits', '/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/custom_data/youtube_json/YouTube_svd_clip-len-49_interval-10_5M_flow_round2.json', end_identifier='_of_20_round2.json')
 
-    parser = argparse.ArgumentParser()
-    parser.add_argument("n_split", type=int)
-    parser.add_argument("split_ind", type=int)
-    args = parser.parse_args()
-    round2_rectify_direction(youtube_json_prefix, n_split=args.n_split, split_ind=args.split_ind)
-    print("Successful")
+    # parser = argparse.ArgumentParser()
+    # parser.add_argument("n_split", type=int)
+    # parser.add_argument("split_ind", type=int)
+    # args = parser.parse_args()
+    # round2_rectify_direction(youtube_json_prefix, n_split=args.n_split, split_ind=args.split_ind)
+    # print("Successful")
