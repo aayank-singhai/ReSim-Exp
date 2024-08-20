@@ -1,5 +1,3 @@
-# * Current: Implement predictive mode.
-
 args:
   checkpoint_activations: True ## using gradient checkpointing
   model_parallel_size: 1
@@ -9,9 +7,7 @@ args:
   no_load_rng: True
   train_iters: 10000
   eval_iters: 1
-  eval_interval: 2  # * Log video every 100 iterations
-  # !! DEBUG
-
+  eval_interval: 100  # * Log video every 100 iterations
   eval_batch_size: 1
   save: ckpts
   save_interval: 1000  # * Save checkpoints
@@ -37,8 +33,8 @@ data:
       prefix_prompt: "This video depicts a realistic view from the driver's perspective of a car driving on the road."
 
 deepspeed:
-  train_micro_batch_size_per_gpu: 1
-  # train_micro_batch_size_per_gpu: 2
+  # train_micro_batch_size_per_gpu: 1
+  train_micro_batch_size_per_gpu: 2
   gradient_accumulation_steps: 1
   steps_per_print: 50
   gradient_clipping: 0.1
@@ -63,7 +59,7 @@ deepspeed:
   optimizer:
     type: sat.ops.FusedEmaAdam
     params:
-      lr: 0.0002
+      lr: 0.0002  # * Large LR significantly overfits to nus distribution (with similar camera noise pattern).
       betas: [0.9, 0.95]
       eps: 1e-8
       weight_decay: 1e-4
@@ -79,7 +75,9 @@ model:
   not_trainable_prefixes: ['all'] ## Using Lora
   log_keys:
     - txt
-  en_and_decode_n_frames_a_time: 17
+
+  en_and_decode_n_samples_a_time: 1  # * split samples
+  en_and_decode_n_frames_a_time: 17  # * split frames
   cond_inds: &cond_inds [0, 1, 2]
   
   denoiser_config:
@@ -109,7 +107,7 @@ model:
       # latent_width: 90
       # latent_height: 60
 
-      # * Custom: For (512, 896)
+      # !!! DEBUG: For (512, 896)
       latent_width: 112
       latent_height: 64
 
