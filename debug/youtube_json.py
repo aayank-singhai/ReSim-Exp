@@ -110,12 +110,16 @@ def process_clips(start_ind, clip_length, format_length, ext_str, DATA_ROOT, fol
     return successful_clip
 
 
-def create_youtube_json():
+def create_youtube_json(clip_length=49):
     DEBUG = False  # * DEBUG This Script
+    TRAIN = False   # * Train or val
 
     DATA_ROOT = '/cpfs01/shared/opendrivelab/GenAD_Datasets/YouTube/'
-    json_path = '/cpfs01/shared/opendrivelab/opendrivelab_hdd/gaoshenyuan/YouTube_svd.json'
-    # val_json = '/cpfs01/shared/opendrivelab/opendrivelab_hdd/gaoshenyuan/YouTube_svd_val.json'
+
+    if TRAIN:
+        json_path = '/cpfs01/shared/opendrivelab/opendrivelab_hdd/gaoshenyuan/YouTube_svd.json'  # * Train
+    else:
+        json_path = '/cpfs01/shared/opendrivelab/opendrivelab_hdd/gaoshenyuan/YouTube_svd_val.json'  # * Val
     infos = load_json(json_path)
 
     if DEBUG:
@@ -126,9 +130,11 @@ def create_youtube_json():
         out_path = os.path.join(out_path, 'debug.json')
     else:
         out_path = os.path.join(out_path, os.path.basename(json_path))
+    
     # clip_length = 49  # 4.9s
-    clip_length = 101  #  10s
+    # clip_length = 101  #  10s
     interval = 10  # * 1s
+
     clip_infos = dict()
     clip_infos['meta'] = {
         'data_root': DATA_ROOT,
@@ -179,6 +185,13 @@ def create_youtube_json():
     clip_infos['meta']['num_incomplete'] = n_incomplete
 
     dump_json(clip_infos, out_path)
+
+
+
+# clip_length: 49 or 101
+create_youtube_json(clip_length=101)
+print("successful!")
+import pdb; pdb.set_trace()
 
 
 def merge_json_dir(json_dir, merged_json_path, end_identifier):
