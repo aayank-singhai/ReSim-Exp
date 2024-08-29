@@ -304,7 +304,16 @@ def process_full_json(json_path, n_split=1, split_ind=0):
 
         # * num_frames = 25
         # * only use the first 25 frames for flow.
-        flow_magnitude_score, direction, flow_x_score, flow_y_score = compute_optical_flow_score_from_images(img_list, video_fps=10, num_frames=25, flow_fps=FLOW_FPS, flow_resize=False, img_resize=True, bottom_half=False, bottom_center=True)  # * Only use the bottom center part of the flow
+        flow_magnitude_score, direction, flow_x_score, flow_y_score = compute_optical_flow_score_from_images(
+            img_list, 
+            video_fps=10, 
+            num_frames=25, 
+            flow_fps=FLOW_FPS, 
+            flow_resize=False, 
+            img_resize=True, 
+            bottom_half=False, 
+            bottom_center=True
+        )  # * Only use the bottom center part of the flow
         
         # write new attributes
         clip_infos[clip_ind]['flow_magnitude_score'] = round(float(flow_magnitude_score), 4)
@@ -332,5 +341,6 @@ if __name__ == '__main__':
     n_split = args.n_split
     split_ind = args.split_ind
     # json_path = '/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/custom_data/youtube_json/splits/debug.json'  # * debug json
-    json_path = '/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/custom_data/youtube_json/splits/YouTube_svd_clip-len-49_interval-10_5M.json'
+    # json_path = '/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/custom_data/youtube_json/splits/YouTube_svd_clip-len-49_interval-10_5M.json'
+    json_path = '/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/custom_data/youtube_json/YouTube_svd_val_clip-len-49_interval-10_78k.json'
     process_full_json(json_path, n_split, split_ind)
