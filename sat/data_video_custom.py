@@ -18,6 +18,43 @@ from torchvision.transforms import InterpolationMode
 import decord
 from decord import VideoReader
 from torch.utils.data import Dataset
+from tqdm import tqdm
+import imageio
+import json
+from PIL import Image
+
+
+def load_json(json_path):
+    print("Loading json: {}".format(json_path))
+    with open(json_path) as f:
+        data = json.load(f)
+    return data
+
+def dump_json(data, json_path):
+    with open(json_path, 'w') as f:
+        json.dump(data, f, indent=2)
+    print("Dumped to: {}".format(json_path))
+
+def img_path_list_to_video(img_path_list, out_path='test.mp4', fps=10):
+    writer = imageio.get_writer(out_path, fps=fps)
+    for img_path in img_path_list:
+        img = imageio.imread(img_path)
+        writer.append_data(img)
+    writer.close()
+
+def get_frame_list(start_frame, end_frame):
+    # eg:
+    # start_frame: "000000000.jpg"
+    # end_frame: "000000039.jpg"
+    # return: ["000000000.jpg", "000000001.jpg", ..., "000000039.jpg"]
+    ext = start_frame.split('.')[-1]
+    len_num = len(start_frame.split('.')[0])
+    start_frame = int(start_frame.split('.')[0])
+    end_frame = int(end_frame.split('.')[0])
+    frame_list = []
+    for i in range(start_frame, end_frame + 1):
+        frame_list.append(str(i).zfill(len_num) + f'.{ext}')
+    return frame_list
 
 
 def read_video(
@@ -375,13 +412,44 @@ class SFTDataset(Dataset):
         self.max_num_frames = max_num_frames
         self.skip_frms_num = skip_frms_num
         # self.data_dir = data_dir
+        self.prefix_prompt = prefix_prompt
+        if data_dir.endswith(".json"):
+            self.load_data_json(data_dir)
+        else:
+            self.load_data_dir(data_dir)
+        
+    def load_data_json(self, data_json):
+        infos = load_json(data_json)
+        data_root = infos['meta']['data_root']
+        clip_infos = infos['clips']
 
+        for clip in tqdm(clip_infos):
+            # folder_name, first_frame, end_frame = clip['folder_name'], clip['first_frame'], clip['end_frame']
+            # img_list = get_frame_list(first_frame, end_frame)
+            # img_list = [
+            #     os.path.join(data_root, folder_name, n) for n in img_list
+            # ]
+            self.videos_list.append((data_root, clip['folder_name'], clip['first_frame'], clip['end_frame']))
+            caption = clip.get("flow_direction", "")
+            caption = caption.replace("_", " ")
+            caption = caption[0].upper() + caption[1:]
+            if not caption.endswith("."):
+                caption += "."
+            # if prefix_prompt != "":
+            #     prefix_prompt = prefix_prompt.strip()
+            #     prefix_prompt = prefix_prompt[0].upper() + prefix_prompt[1:]
+            #     if not prefix_prompt.endswith("."):
+            #         prefix_prompt += "."
+            #     caption = prefix_prompt + " " + caption
+            self.captions_list.append(caption)
+            self.fps_list.append(self.fps)
+
+    def load_data_dir(self, data_dir):
         decord.bridge.set_bridge("torch")
         for root, dirnames, filenames in os.walk(data_dir):
             for filename in filenames:
                 if not filename.endswith(".mp4"):
                     continue
-                # if filename.endswith(".mp4"):
                 video_path = os.path.join(root, filename)
                 self.videos_list.append(video_path)
                 
@@ -392,15 +460,14 @@ class SFTDataset(Dataset):
                 else:
                     caption = ""
 
-                if prefix_prompt != "":
-                    prefix_prompt = prefix_prompt.strip()
-                    prefix_prompt = prefix_prompt[0].upper() + prefix_prompt[1:]
-                    if not prefix_prompt.endswith("."):
-                        prefix_prompt += "."
-                    caption = prefix_prompt + " " + caption
+                # if prefix_prompt != "":
+                #     prefix_prompt = prefix_prompt.strip()
+                #     prefix_prompt = prefix_prompt[0].upper() + prefix_prompt[1:]
+                #     if not prefix_prompt.endswith("."):
+                #         prefix_prompt += "."
+                #     caption = prefix_prompt + " " + caption
                 self.captions_list.append(caption)
-                # self.num_frames_list.append(num_frames)
-                self.fps_list.append(fps)
+                self.fps_list.append(self.fps)
 
     # TODO: random sample instead of deterministic sampling
     # TODO: support image list
@@ -465,14 +532,64 @@ class SFTDataset(Dataset):
         tensor_frms = (tensor_frms - 127.5) / 127.5
         return num_frames, tensor_frms
 
+    def read_img_list(self, img_path_list):
+        video_size, fps, max_num_frames, skip_frms_num = \
+            self.video_size, self.fps, self.max_num_frames, self.skip_frms_num
+
+        tensor_frms = []
+        for img_path in img_path_list:
+            if not os.path.exists(img_path):
+                print("Image not found: {}".format(img_path))
+                # raise FileNotFoundError, "Image not found: {}".format(img_path)
+            image = Image.open(img_path)
+            if not image.mode == "RGB":
+                image = image.convert("RGB")
+            image = np.array(image)  # H, W, C
+            image = torch.from_numpy(image)
+            tensor_frms.append(image)
+            # image = torch.from_numpy(image).permute(2, 0, 1) # [C, H, W]
+        tensor_frms = torch.stack(tensor_frms, dim=0)  # T, H, W, C
+        
+        tensor_frms = pad_last_frame(
+            tensor_frms, max_num_frames
+        )  # the len of indices may be less than num_frames, due to round error\
+        tensor_frms = tensor_frms.permute(0, 3, 1, 2)  # [T, H, W, C] -> [T, C, H, W]
+        tensor_frms = resize_for_rectangle_crop(tensor_frms, video_size, reshape_mode="center")
+        tensor_frms = (tensor_frms - 127.5) / 127.5
+        return max_num_frames, tensor_frms
+
     def __getitem__(self, index):
-        video_path = self.videos_list[index]
-        num_frames, video_clip = self.read_video_clip(video_path)
+        while True:
+            video_path = self.videos_list[index]
+            if isinstance(video_path, tuple):
+                data_root, folder_name, first_frame, end_frame = video_path
+                img_list = get_frame_list(first_frame, end_frame)
+                img_list = [
+                    os.path.join(data_root, folder_name, n) for n in img_list
+                ]
+                try:
+                    num_frames, video_clip = self.read_img_list(img_list)
+                    break
+                except Exception as e:
+                    print("Broken data, skipping: {}".format(video_path))
+                    index = random.randint(0, self.length - 1)
+                    continue
+            else:
+                num_frames, video_clip = self.read_video_clip(video_path)
+
+        # Add prefix
+        caption = self.captions_list[index]
+        prefix_prompt = self.prefix_prompt
+        if prefix_prompt != "":
+            prefix_prompt = prefix_prompt.strip()
+            prefix_prompt = prefix_prompt[0].upper() + prefix_prompt[1:]
+            if not prefix_prompt.endswith("."):
+                prefix_prompt += "."
+            caption = prefix_prompt + " " + caption
 
         item = {
             "mp4": video_clip,
-            "txt": self.captions_list[index],
-            # "num_frames": self.num_frames_list[index],
+            "txt": caption,
             "num_frames": num_frames,
             "fps": self.fps_list[index],
         }
