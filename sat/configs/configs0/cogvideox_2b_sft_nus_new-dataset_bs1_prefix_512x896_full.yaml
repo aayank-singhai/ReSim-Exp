@@ -1,4 +1,6 @@
-# * Current: Implement predictive mode.
+## Log:
+## Notably bad performance
+## Broken generation
 
 args:
   checkpoint_activations: True ## using gradient checkpointing
@@ -9,17 +11,13 @@ args:
   no_load_rng: True
   train_iters: 10000
   eval_iters: 1
-  eval_interval: 2  # * Log video every 100 iterations
-  # !! DEBUG
-
+  eval_interval: 100  # * Log video every 100 iterations
   eval_batch_size: 1
   save: ckpts
   save_interval: 1000  # * Save checkpoints
-  log_interval: 2
-     # * Log info 
-  # train_data: ["/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/custom_data/youtube_json/YouTube_svd_clip-len-49_interval-10_5M_flow_round2.json"]
-  train_data: ["/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/custom_data/youtube_json/YouTube_svd_val_clip-len-49_interval-10_78k_flow.json"]  # ! For debugging.
-  valid_data: ["/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/custom_data/youtube_json/YouTube_svd_val_clip-len-49_interval-10_78k_flow.json"]
+  log_interval: 20   # * Log info
+  train_data: ["/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/custom_data/nus_sweeps"]
+  valid_data: ["/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/custom_data/nus_sweeps"]
   split: 1,0,0
   # num_workers: 0  # !!! DEBUG
   num_workers: 8
@@ -78,13 +76,9 @@ deepspeed:
 model:
   scale_factor: 1.15258426
   disable_first_stage_autocast: true
-  not_trainable_prefixes: ['all'] ## Using Lora
+  # not_trainable_prefixes: ['all'] ## Using Lora
   log_keys:
     - txt
-  en_and_decode_n_frames_a_time: 17
-  truncate_n_frames_decode: 8
-
-  cond_inds: &cond_inds [0, 1, 2]
   
   denoiser_config:
     target: sgm.modules.diffusionmodules.denoiser.DiscreteDenoiser
@@ -104,7 +98,7 @@ model:
   network_config:
     target: dit_video_concat.DiffusionTransformer
     params:
-      time_embed_dim: &t_emb_dim 512
+      time_embed_dim: 512
       elementwise_affine: True
       num_frames: 49
       time_compressed_rate: 4
@@ -113,7 +107,7 @@ model:
       # latent_width: 90
       # latent_height: 60
 
-      # * Custom: For (512, 896)
+      # !!! DEBUG: For (512, 896)
       latent_width: 112
       latent_height: 64
 
@@ -146,16 +140,15 @@ model:
             height_interpolation: 2.0   # * cur_height // 256
             width_interpolation:  2.3333   # * cur_width  // 384
 
-        lora_config: ## Using Lora
-          target: sat.model.finetune.lora2.LoraMixin
-          params:
-            r: 128
+        # lora_config: ## Using Lora
+        #   target: sat.model.finetune.lora2.LoraMixin
+        #   params:
+        #     r: 128
 
         patch_embed_config:
           target: dit_video_concat.ImagePatchEmbeddingMixin
           params:
             text_hidden_size: 4096
-            cond_emb_in_dim: *t_emb_dim
 
         adaln_layer_config:
           target: dit_video_concat.AdaLNMixin
@@ -225,7 +218,6 @@ model:
     target: sgm.modules.diffusionmodules.loss.VideoDiffusionLoss
     params:
       offset_noise_level: 0
-      cond_inds: *cond_inds
       sigma_sampler_config:
         target: sgm.modules.diffusionmodules.sigma_sampling.DiscreteSampling
         params:
@@ -241,8 +233,6 @@ model:
     params:
       num_steps: 50
       verbose: True
-      fixed_frames: 3  # [0, 1, 2]
-      cond_inds: *cond_inds
 
       discretization_config:
         target: sgm.modules.diffusionmodules.discretizer.ZeroSNRDDPMDiscretization

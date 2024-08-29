@@ -1,5 +1,3 @@
-# * Current: Implement predictive mode.
-
 args:
   checkpoint_activations: True ## using gradient checkpointing
   model_parallel_size: 1
@@ -7,18 +5,15 @@ args:
   mode: finetune
   load: "/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/ckpts/CogVideoX-2b-sat/transformer"
   no_load_rng: True
-  train_iters: 10000
+  # train_iters: 10000
+  train_iters: 20000
   eval_iters: 1
-  eval_interval: 2  # * Log video every 100 iterations
-  # !! DEBUG
-
+  eval_interval: 250  # * Log video every 100 iterations
   eval_batch_size: 1
   save: ckpts
   save_interval: 1000  # * Save checkpoints
-  log_interval: 2
-     # * Log info 
-  # train_data: ["/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/custom_data/youtube_json/YouTube_svd_clip-len-49_interval-10_5M_flow_round2.json"]
-  train_data: ["/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/custom_data/youtube_json/YouTube_svd_val_clip-len-49_interval-10_78k_flow.json"]  # ! For debugging.
+  log_interval: 20   # * Log info 
+  train_data: ["/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/custom_data/youtube_json/YouTube_svd_clip-len-49_interval-10_5M_flow_round2.json"]
   valid_data: ["/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/custom_data/youtube_json/YouTube_svd_val_clip-len-49_interval-10_78k_flow.json"]
   split: 1,0,0
   # num_workers: 0  # !!! DEBUG
@@ -65,7 +60,7 @@ deepspeed:
   optimizer:
     type: sat.ops.FusedEmaAdam
     params:
-      lr: 0.0002
+      lr: 0.00005
       betas: [0.9, 0.95]
       eps: 1e-8
       weight_decay: 1e-4
@@ -78,12 +73,13 @@ deepspeed:
 model:
   scale_factor: 1.15258426
   disable_first_stage_autocast: true
-  not_trainable_prefixes: ['all'] ## Using Lora
+  # not_trainable_prefixes: ['all'] ## Using Lora
   log_keys:
     - txt
-  en_and_decode_n_frames_a_time: 17
-  truncate_n_frames_decode: 8
 
+  en_and_decode_n_samples_a_time: 1  # * split samples
+  en_and_decode_n_frames_a_time: 17  # * split frames
+  truncate_n_frames_decode: 8
   cond_inds: &cond_inds [0, 1, 2]
   
   denoiser_config:
@@ -113,7 +109,7 @@ model:
       # latent_width: 90
       # latent_height: 60
 
-      # * Custom: For (512, 896)
+      # !!! DEBUG: For (512, 896)
       latent_width: 112
       latent_height: 64
 
@@ -146,10 +142,10 @@ model:
             height_interpolation: 2.0   # * cur_height // 256
             width_interpolation:  2.3333   # * cur_width  // 384
 
-        lora_config: ## Using Lora
-          target: sat.model.finetune.lora2.LoraMixin
-          params:
-            r: 128
+        # lora_config: ## Using Lora
+        #   target: sat.model.finetune.lora2.LoraMixin
+        #   params:
+        #     r: 128
 
         patch_embed_config:
           target: dit_video_concat.ImagePatchEmbeddingMixin
