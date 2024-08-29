@@ -60,6 +60,12 @@ class SATVideoDiffusionEngine(nn.Module):
         self.not_trainable_prefixes = not_trainable_prefixes
         self.en_and_decode_n_samples_a_time = en_and_decode_n_samples_a_time
         self.en_and_decode_n_frames_a_time = en_and_decode_n_frames_a_time
+
+        self.truncate_n_frames_decode = model_config.get("truncate_n_frames_decode", None)
+        # * 13 latents for 49 frames
+        # * 8 latents for 33 frames
+        # * 6 latents for 25 frames
+
         self.lr_scale = lr_scale
         self.lora_train = lora_train
         self.noised_image_input = model_config.get("noised_image_input", False)
@@ -166,16 +172,24 @@ class SATVideoDiffusionEngine(nn.Module):
     def get_input(self, batch):
         return batch[self.input_key].to(self.dtype)
 
+    # TODO: Sliced video decoding
     @torch.no_grad()
     def decode_first_stage(self, z):
         z = 1.0 / self.scale_factor * z
         n_samples = default(self.en_and_decode_n_samples_a_time, z.shape[0])
         n_rounds = math.ceil(z.shape[0] / n_samples)
+
+        n_frame_per_frame = default(self.en_and_decode_n_frames_a_time, z.shape[2])
+
         all_out = []
+        # * torch.Size([1, 16, 13, 64, 112])   b c t h w
+        if self.truncate_n_frames_decode is not None:
+            z = z[:, :, :self.truncate_n_frames_decode].contiguous()
+
         with torch.autocast("cuda", enabled=not self.disable_first_stage_autocast):
             for n in range(n_rounds):
                 if isinstance(self.first_stage_model.decoder, VideoDecoder):
-                    kwargs = {"timesteps": len(z[n * n_samples : (n + 1) * n_samples])}
+                    kwargs = {"timesteps": len(z[n * n_samples : (n + 1) * n_samples])}  # TODO: Check is it right?
                 else:
                     kwargs = {}
                 use_cp = False
