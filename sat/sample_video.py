@@ -111,6 +111,39 @@ def resize_for_rectangle_crop(arr, image_size, reshape_mode="random"):
     arr = TT.functional.crop(arr, top=top, left=left, height=image_size[0], width=image_size[1])
     return arr
 
+def get_all_file_from_dir(dir, ext=".pt"):
+    out_files = []
+    for root, dirs, files in os.walk(dir):
+        for file in files:
+            if file.endswith(ext):
+                file_path = os.path.join(root, file)
+                out_files.append(file_path)
+    return out_files
+
+@torch.no_grad()
+def decode_latents(model, latents):
+    if not isinstance(latents, list):
+        latents = [latents]
+    for latent_file in latents:
+        if isinstance(latent_file, str):
+            # latent_path
+            latent = torch.load(latent_file).to(model.device)  # torch.Size([1, 16, 13, 90, 160])
+            
+            # * truncate
+            # TODO: RM Hard Code
+            # TRUNCATE = 5
+            TRUNCATE = 7
+            latent = latent[:, :, :TRUNCATE].contiguous()
+            
+            # import pdb; pdb.set_trace()
+            recon = model.first_stage_model.decode(latent).to(torch.float32)
+
+            samples_x = recon.permute(0, 2, 1, 3, 4).contiguous()
+            samples = torch.clamp((samples_x + 1.0) / 2.0, min=0.0, max=1.0).cpu()
+
+            save_path = latent_file.replace(".pt", ".mp4")
+            if mpu.get_model_parallel_rank() == 0:
+                save_video_as_grid_and_mp4(samples, save_path, fps=args.sampling_fps)
 
 def sampling_main(args, model_cls):
     if isinstance(model_cls, type):
@@ -127,6 +160,11 @@ def sampling_main(args, model_cls):
         rank, world_size = mpu.get_data_parallel_rank(), mpu.get_data_parallel_world_size()
         print("rank and world_size", rank, world_size)
         data_iter = read_from_file(args.input_file, rank=rank, world_size=world_size)
+    elif args.input_type == "latent_dir":
+        latent_files = get_all_file_from_dir(args.input_file)
+        print("show latent_files\n", latent_files[:5])
+        decode_latents(model, latent_files)
+        return
     else:
         raise NotImplementedError
 
