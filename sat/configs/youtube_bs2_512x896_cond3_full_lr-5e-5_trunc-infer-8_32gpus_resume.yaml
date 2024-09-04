@@ -1,38 +1,89 @@
 args:
-  latent_channels: 16
-  mode: inference
-  # load: "CogVideoX-2b-sat/transformer"
+  checkpoint_activations: True ## using gradient checkpointing
+  model_parallel_size: 1
+  experiment_name: nus
+  mode: finetune
   # load: "/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/ckpts/CogVideoX-2b-sat/transformer"
-  load: "/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/sat/ckpts/cogvideox_2b_sft_nus_new-dataset_bs1_prefix_720x1280_slice_video_lr-2e-5-08-19-08-46"
+  load: "/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/sat/ckpts/youtube_bs2_512x896_cond3_full_lr-5e-5_trunc-infer-8_32gpus-08-30-06-07"
+  
+  no_load_rng: True
+  # train_iters: 10000
+  train_iters: 20000
+  eval_iters: 1
+  eval_interval: 250  # * Log video every 100 iterations
+  eval_batch_size: 1
+  save: ckpts
+  save_interval: 1000  # * Save checkpoints
+  log_interval: 20   # * Log info 
+  train_data: ["/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/custom_data/youtube_json/YouTube_svd_clip-len-49_interval-10_5M_flow_round2.json"]
+  valid_data: ["/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/custom_data/youtube_json/YouTube_svd_val_clip-len-49_interval-10_78k_flow.json"]
+  split: 1,0,0
+  # num_workers: 0  # !!! DEBUG
+  num_workers: 8
+  force_train: True
+  # only_log_video_latents: True
+  only_log_video_latents: False
 
-  batch_size: 1
-  # input_type: txt
-  input_type: latent_dir
+data:
+    target: data_video_custom.SFTDataset
+    params:
+      # video_size: [480, 720]
 
-  # input_file: test.txt
-  # input_file: "/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/sat/configs/test.txt"
-  # input_file: /cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/sat/ckpts/cogvideox_2b_sft_nus_new-dataset_bs1_prefix_720x1280_slice_video_lr-2e-5-08-19-08-46/video/latents
-  input_file: /cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/sat/ckpts/youtube_bs1_720x1280_cond3_full_lr-5e-5_trunc-infer-8_16gpus_finetune-09-02-17-11/video/latents
+      video_size: [512, 896]
+      fps: 12  # TODO: Change to 10
+      max_num_frames: 49
+      skip_frms_num: 3.
+      prefix_prompt: "This video depicts a realistic view from the driver's perspective of a car driving on the road."
 
-  # sampling_num_frames: 13  # Must be 13, 11 or 9
-  sampling_num_frames: 49
+deepspeed:
+  # train_micro_batch_size_per_gpu: 1
+  train_micro_batch_size_per_gpu: 2
+  gradient_accumulation_steps: 1
+  steps_per_print: 50
+  gradient_clipping: 0.1
+  zero_optimization:
+    stage: 2
+    cpu_offload: false
+    contiguous_gradients: false
+    overlap_comm: true
+    reduce_scatter: true
+    reduce_bucket_size: 1000000000
+    allgather_bucket_size: 1000000000
+    load_from_fp32_weights: false
+  zero_allow_untested_optimizer: true
+  bf16:
+    enabled: False
+  fp16:
+    enabled: True
+    loss_scale: 0
+    loss_scale_window: 400
+    hysteresis: 2
+    min_loss_scale: 1
+  optimizer:
+    type: sat.ops.FusedEmaAdam
+    params:
+      lr: 0.00005
+      betas: [0.9, 0.95]
+      eps: 1e-8
+      weight_decay: 1e-4
+  activation_checkpointing:
+    partition_activations: false
+    contiguous_memory_optimization: false
+  wall_clock_breakdown: false
 
-  # sampling_fps: 8
-  # sampling_fps: 12  # * For nus
-  sampling_fps: 10  # * For youtube
-
-  fp16: True
-  # output_dir: outputs/
-  output_dir: /cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/outputs/
-  force_inference: True
 
 model:
   scale_factor: 1.15258426
   disable_first_stage_autocast: true
-  not_trainable_prefixes: ['all'] ## Using Lora
+  # not_trainable_prefixes: ['all'] ## Using Lora
   log_keys:
     - txt
 
+  en_and_decode_n_samples_a_time: 1  # * split samples
+  en_and_decode_n_frames_a_time: 17  # * split frames
+  truncate_n_frames_decode: 8
+  cond_inds: &cond_inds [0, 1, 2]
+  
   denoiser_config:
     target: sgm.modules.diffusionmodules.denoiser.DiscreteDenoiser
     params:
@@ -51,27 +102,18 @@ model:
   network_config:
     target: dit_video_concat.DiffusionTransformer
     params:
-      time_embed_dim: 512
+      time_embed_dim: &t_emb_dim 512
       elementwise_affine: True
       num_frames: 49
-
-      # num_frames: 65  # * weights not aligned
-
       time_compressed_rate: 4
       
       # * For (480, 720), originally supported
       # latent_width: 90
       # latent_height: 60
 
-
-      # * Modify here according to the config
       # !!! DEBUG: For (512, 896)
-      # latent_width: 112
-      # latent_height: 64
-
-      # For (720, 1280)
-      latent_width: 160
-      latent_height: 90
+      latent_width: 112
+      latent_height: 64
 
       num_layers: 30
       patch_size: 2
@@ -82,6 +124,7 @@ model:
       num_attention_heads: 30
 
       transformer_args:
+        checkpoint_activations: True ## using gradient checkpointing
         vocab_size: 1
         max_sequence_length: 64
         layernorm_order: pre
@@ -97,24 +140,20 @@ model:
             # height_interpolation: 1.875  # * cur_height // 256
             # width_interpolation: 1.875   # * cur_width  // 384
 
-            # For (512, 896) 
-            # height_interpolation: 2.0   # * cur_height // 256
-            # width_interpolation:  2.3333   # * cur_width  // 384
+            # !!! DEBUG: For (512, 896) 
+            height_interpolation: 2.0   # * cur_height // 256
+            width_interpolation:  2.3333   # * cur_width  // 384
 
-            # * Modify here according to the config
-            # For (720, 1280) 
-            height_interpolation: 2.8125   # * cur_height // 256
-            width_interpolation:  3.3333   # * cur_width  // 384
-
-        lora_config: ## Using Lora
-          target: sat.model.finetune.lora2.LoraMixin
-          params:
-            r: 128
+        # lora_config: ## Using Lora
+        #   target: sat.model.finetune.lora2.LoraMixin
+        #   params:
+        #     r: 128
 
         patch_embed_config:
           target: dit_video_concat.ImagePatchEmbeddingMixin
           params:
             text_hidden_size: 4096
+            cond_emb_in_dim: *t_emb_dim
 
         adaln_layer_config:
           target: dit_video_concat.AdaLNMixin
@@ -184,6 +223,7 @@ model:
     target: sgm.modules.diffusionmodules.loss.VideoDiffusionLoss
     params:
       offset_noise_level: 0
+      cond_inds: *cond_inds
       sigma_sampler_config:
         target: sgm.modules.diffusionmodules.sigma_sampling.DiscreteSampling
         params:
@@ -199,6 +239,8 @@ model:
     params:
       num_steps: 50
       verbose: True
+      fixed_frames: 3  # [0, 1, 2]
+      cond_inds: *cond_inds
 
       discretization_config:
         target: sgm.modules.diffusionmodules.discretizer.ZeroSNRDDPMDiscretization
