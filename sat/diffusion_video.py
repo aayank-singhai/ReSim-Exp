@@ -199,7 +199,7 @@ class SATVideoDiffusionEngine(nn.Module):
         return out
 
     @torch.no_grad()
-    def encode_first_stage(self, x, batch):
+    def encode_first_stage(self, x):
 
         # x: torch.Size([1, 3, 49, 512, 896]   (b c t h w)
         frame = x.shape[2]
@@ -249,7 +249,7 @@ class SATVideoDiffusionEngine(nn.Module):
         uc: Union[Dict, None] = None,
         batch_size: int = 16,
         shape: Union[None, Tuple, List] = None,
-        prefix=None,   # TODO: Enable this?
+        prefix=None,   # * enabled for predictive mode: sampling_kwargs['prefix'] = z[:, self.cond_inds]
         concat_images=None,
         **kwargs,
     ):
@@ -275,7 +275,13 @@ class SATVideoDiffusionEngine(nn.Module):
             self.model, input, sigma, c, concat_images=concat_images, **addtional_model_inputs
         )
 
-        samples = self.sampler(denoiser, randn, cond, uc=uc, scale=scale, scale_emb=scale_emb)
+        if self.cond_inds is not None:
+            fixed_frames = len(self.cond_inds)
+        else:
+            fixed_frames = None
+
+        samples = self.sampler(denoiser, randn, cond, uc=uc, scale=scale, scale_emb=scale_emb,
+                                fixed_frames=fixed_frames)
         samples = samples.to(self.dtype)
         return samples
 
@@ -339,9 +345,6 @@ class SATVideoDiffusionEngine(nn.Module):
         )
 
         sampling_kwargs = {}
-        # if self.cond_inds is not None:
-        #     sampling_kwargs
-        #     pass
 
         N = min(x.shape[0], N)
         x = x.to(self.device)[:N]
@@ -352,9 +355,7 @@ class SATVideoDiffusionEngine(nn.Module):
         # !! DEBUG, remove
         # print("x.shape", x.shape)  # [1, 3, 49, 480, 720], T=49
 
-        # import pdb; pdb.set_trace()
-
-        z = self.encode_first_stage(x, batch)
+        z = self.encode_first_stage(x)
         # [1, 16, 13, 60, 90]
         
         if not only_log_video_latents:
@@ -365,11 +366,7 @@ class SATVideoDiffusionEngine(nn.Module):
         # z: torch.Size([1, 13, 16, 64, 112])  b t c h w
 
         if self.cond_inds is not None:
-            # import pdb; pdb.set_trace()
-            # assert isinstance(self.cond_inds, list)
             sampling_kwargs['prefix'] = z[:, self.cond_inds]
-
-        # import pdb; pdb.set_trace()  # * check the shape of z
 
         log.update(self.log_conditionings(batch, N))
 

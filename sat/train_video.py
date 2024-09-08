@@ -228,7 +228,6 @@ if __name__ == "__main__":
     args.experiment_name = os.path.basename(args.base[0]).replace('.yaml', '')
 
     data_class = get_obj_from_str(args.data_config["target"])
-    # import pdb; pdb.set_trace()
     create_dataset_function = partial(data_class.create_dataset_function, **args.data_config["params"])
 
     import yaml

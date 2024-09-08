@@ -477,7 +477,7 @@ class SdeditEDMSampler(EulerEDMSampler):
 
 
 class VideoDDIMSampler(BaseDiffusionSampler):
-    def __init__(self, fixed_frames=0, sdedit=False, cond_inds=None, **kwargs):
+    def __init__(self, fixed_frames=None, sdedit=False, cond_inds=None, **kwargs):
         super().__init__(**kwargs)
         self.fixed_frames = fixed_frames
         self.sdedit = sdedit
@@ -640,16 +640,19 @@ class VPSDEDPMPP2MSampler(VideoDDIMSampler):
 
         return x, denoised
 
-    def __call__(self, denoiser, x, cond, uc=None, num_steps=None, scale=None, scale_emb=None):
+    def __call__(self, denoiser, x, cond, uc=None, num_steps=None, scale=None, scale_emb=None, fixed_frames=None):
+
+        fixed_frames = fixed_frames or self.fixed_frames
+
         x, s_in, alpha_cumprod_sqrt, num_sigmas, cond, uc, timesteps = self.prepare_sampling_loop(
             x, cond, uc, num_steps
         )
 
-        if self.fixed_frames > 0:
+        if fixed_frames is not None:
             prefix_frames = x[:, :self.fixed_frames]  # ! Dimension index not right?
         old_denoised = None
         for i in self.get_sigma_gen(num_sigmas):
-            if self.fixed_frames > 0:
+            if fixed_frames is not None:
                 if self.sdedit:
                     rd = torch.randn_like(prefix_frames)
                     noised_prefix_frames = alpha_cumprod_sqrt[i] * prefix_frames + rd * append_dims(
@@ -673,7 +676,7 @@ class VPSDEDPMPP2MSampler(VideoDDIMSampler):
                 scale_emb=scale_emb,
             )
 
-        if self.fixed_frames > 0:
+        if fixed_frames is not None:
             x = torch.cat([prefix_frames, x[:, self.fixed_frames :]], dim=1)
 
         return x

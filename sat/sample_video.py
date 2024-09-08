@@ -5,6 +5,7 @@ from typing import List, Union
 from tqdm import tqdm
 from omegaconf import ListConfig
 import imageio
+from functools import partial
 
 import torch
 import numpy as np
@@ -14,6 +15,9 @@ import torchvision.transforms as TT
 from sat.model.base_model import get_model
 from sat.training.model_io import load_checkpoint
 from sat import mpu
+from sat.data_utils import make_loaders
+from sgm.util import get_obj_from_str, isheatmap, exists
+
 
 from diffusion_video import SATVideoDiffusionEngine
 from arguments import get_args
@@ -145,6 +149,8 @@ def decode_latents(model, latents):
             if mpu.get_model_parallel_rank() == 0:
                 save_video_as_grid_and_mp4(samples, save_path, fps=args.sampling_fps)
 
+            del latent, recon, samples_x, samples
+
 def sampling_main(args, model_cls):
     if isinstance(model_cls, type):
         model = get_model(args, model_cls)
@@ -153,6 +159,8 @@ def sampling_main(args, model_cls):
 
     load_checkpoint(model, args)
     model.eval()
+
+    predictive_mode = False
 
     if args.input_type == "cli":
         data_iter = read_from_cli()
@@ -165,22 +173,51 @@ def sampling_main(args, model_cls):
         print("show latent_files\n", latent_files[:5])
         decode_latents(model, latent_files)
         return
+    elif args.input_type == "dataset":
+        data_class = get_obj_from_str(args.data_config["target"])
+        create_dataset_function = partial(data_class.create_dataset_function, **args.data_config["params"])
+        train_data, val_data, test_data = make_loaders(args, create_dataset_function)
+        data_iter = val_data
+        predictive_mode = True
     else:
         raise NotImplementedError
+    
 
     # image_size = [480, 720]  # * Officially supported size
     image_size = [512, 896]  # !!! DEBUG
+    # image_size = args.video_size
 
     sample_func = model.sample
     T, H, W, C, F = args.sampling_num_frames, image_size[0], image_size[1], args.latent_channels, 8
     num_samples = [1]
     force_uc_zero_embeddings = ["txt"]
     device = model.device
+
+    os.makedirs(args.output_dir, exist_ok=True)
+
     with torch.no_grad():
-        for text, cnt in tqdm(data_iter):
+        # for text, cnt in tqdm(data_iter):
+        for ind_batch, batch in enumerate(tqdm(data_iter)):
+            if args.input_type != "dataset":
+                text, _ = batch
+            else:
+                text = batch["txt"][0]
+
+            if predictive_mode:
+                x = batch["mp4"].to(device).to(model.dtype)
+                x = x.permute(0, 2, 1, 3, 4).contiguous()
+                z = model.encode_first_stage(x)
+                z = z.permute(0, 2, 1, 3, 4).contiguous()
+                # torch.Size([1, 13, 16, 64, 112])
+            else:
+                z = None
+
             # reload model on GPU
             model.to(device)
-            print("rank:", rank, "start to process", text, cnt)
+            # print("rank:", rank, "start to process", text, cnt)
+            # print("rank:", rank, "start to process", text, ind_batch)
+            print("start to process", text, ind_batch)
+
             # TODO: broadcast image2video
             value_dict = {
                 "prompt": text,
@@ -191,6 +228,7 @@ def sampling_main(args, model_cls):
             batch, batch_uc = get_batch(
                 get_unique_embedder_keys_from_conditioner(model.conditioner), value_dict, num_samples
             )
+
             for key in batch:
                 if isinstance(batch[key], torch.Tensor):
                     print(key, batch[key].shape)
@@ -198,6 +236,7 @@ def sampling_main(args, model_cls):
                     print(key, [len(l) for l in batch[key]])
                 else:
                     print(key, batch[key])
+            
             c, uc = model.conditioner.get_unconditional_conditioning(
                 batch,
                 batch_uc=batch_uc,
@@ -208,13 +247,24 @@ def sampling_main(args, model_cls):
                 if not k == "crossattn":
                     c[k], uc[k] = map(lambda y: y[k][: math.prod(num_samples)].to("cuda"), (c, uc))
             for index in range(args.batch_size):
-                # reload model on GPU
+                sampling_kwargs = dict()
+
+                # ! DEBUG                
+                if args.input_type == "dataset":
+                    sampling_kwargs['prefix'] = z[:, [0, 1, 2]]
+
+
+                # reload model on GPUp
                 model.to(device)
+
+                # import pdb; pdb.set_trace()
+
                 samples_z = sample_func(
                     c,
                     uc=uc,
                     batch_size=1,
                     shape=(T, C, H // F, W // F),
+                    **sampling_kwargs,
                 )
                 samples_z = samples_z.permute(0, 2, 1, 3, 4).contiguous()
 
@@ -249,9 +299,19 @@ def sampling_main(args, model_cls):
                 samples_x = recon.permute(0, 2, 1, 3, 4).contiguous()
                 samples = torch.clamp((samples_x + 1.0) / 2.0, min=0.0, max=1.0).cpu()
 
+                # save_path = os.path.join(
+                #     args.output_dir, str(cnt) + "_" + text.replace(" ", "_").replace("/", "")[:120], str(index)
+                # )
+
+                # save_path = os.path.join(
+                #     args.output_dir, str(ind_batch) + "_" + text.replace(" ", "_").replace("/", "")[:120], str(index)
+                # )
+
+                print("text:", text)
                 save_path = os.path.join(
-                    args.output_dir, str(cnt) + "_" + text.replace(" ", "_").replace("/", "")[:120], str(index)
+                    args.output_dir, str(ind_batch)
                 )
+
                 if mpu.get_model_parallel_rank() == 0:
                     save_video_as_grid_and_mp4(samples, save_path, fps=args.sampling_fps)
 

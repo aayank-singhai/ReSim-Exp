@@ -9,7 +9,12 @@ RANK=${RANK:-0}
 CFG=$1
 GPUS=$2
 NNODES=$3
-SEED=${5:-42}  # * Need to change your seed if resume a model (trained with seed 42)
+SEED=${4:-42}  # * Need to change your seed if resume a model (trained with seed 42)
+
+# [Finished] Round1: 42
+# [Current] Round2: 17
+# [TODO] Round3: 3407
+
 
 WORK_DIR="/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/sat/runs/logs"
 

@@ -72,7 +72,7 @@ class StandardDiffusionLoss(nn.Module):
 
 class VideoDiffusionLoss(StandardDiffusionLoss):
     def __init__(self, block_scale=None, block_size=None, min_snr_value=None, fixed_frames=0, cond_inds=None, **kwargs):
-        self.fixed_frames = fixed_frames
+        self.fixed_frames = fixed_frames  # TODO: Remove this?
         self.block_scale = block_scale
         self.block_size = block_size
         self.min_snr_value = min_snr_value
@@ -89,7 +89,7 @@ class VideoDiffusionLoss(StandardDiffusionLoss):
 
         # print(f"idx:{idx}, alpha_t:{alphas_cumprod_sqrt}")
         # idx:tensor([26], device='cuda:0'), alpha_t:tensor([0.9631], device='cuda:0')
-         # idx:tensor([335], device='cuda:0'), alpha_t:tensor([0.5044], device='cuda:0')
+        # idx:tensor([335], device='cuda:0'), alpha_t:tensor([0.5044], device='cuda:0')
         # idx:tensor([510], device='cuda:1'), alpha_t:tensor([0.2985], device='cuda:1')
 
         cond_inds = self.cond_inds
@@ -120,7 +120,6 @@ class VideoDiffusionLoss(StandardDiffusionLoss):
             (1 - alphas_cumprod_sqrt**2) ** 0.5, input.ndim
         )
         # noised_input: torch.Size([1, 13, 16, 64, 112])
-        # TODO: Replace with clean latents here.
         if cond_inds is not None:
             additional_model_inputs['cond_inds'] = cond_inds
             noised_input = input.float() * cond_mask+ \
@@ -131,14 +130,15 @@ class VideoDiffusionLoss(StandardDiffusionLoss):
         w = append_dims(1 / (1 - alphas_cumprod_sqrt**2), input.ndim)  # v-pred  torch.Size([1, 1, 1, 1, 1])
         b, t = model_output.shape[:2]
 
-        # TODO: Exclude the condition frames from loss
         if cond_inds is not None:
             model_output = model_output[~cond_mask.bool()].reshape(b, -1, *model_output.shape[2:])
             input = input[~cond_mask.bool()].reshape(b, -1, *input.shape[2:])
 
         # TODO: Try this, min_snr
         if self.min_snr_value is not None:
-            w = min(w, self.min_snr_value)
+            # w = min(w, self.min_snr_value)  # Minor issue here: w might not be a tensor
+            w = torch.where(w > self.min_snr_value, self.min_snr_value, w)
+
         return self.get_loss(model_output, input, w)
 
     def get_loss(self, model_output, target, w):
