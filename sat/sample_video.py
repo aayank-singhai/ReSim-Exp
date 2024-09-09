@@ -139,7 +139,6 @@ def decode_latents(model, latents):
             TRUNCATE = 7
             latent = latent[:, :, :TRUNCATE].contiguous()
             
-            # import pdb; pdb.set_trace()
             recon = model.first_stage_model.decode(latent).to(torch.float32)
 
             samples_x = recon.permute(0, 2, 1, 3, 4).contiguous()
@@ -182,10 +181,9 @@ def sampling_main(args, model_cls):
     else:
         raise NotImplementedError
     
-
-    # image_size = [480, 720]  # * Officially supported size
-    image_size = [512, 896]  # !!! DEBUG
-    # image_size = args.video_size
+    # * Custom configs for sampling
+    image_size = args.sampling_video_size  # * Remember set image size in your config
+    n_prediction_round = args.n_prediction_round
 
     sample_func = model.sample
     T, H, W, C, F = args.sampling_num_frames, image_size[0], image_size[1], args.latent_channels, 8
@@ -196,7 +194,6 @@ def sampling_main(args, model_cls):
     os.makedirs(args.output_dir, exist_ok=True)
 
     with torch.no_grad():
-        # for text, cnt in tqdm(data_iter):
         for ind_batch, batch in enumerate(tqdm(data_iter)):
             if args.input_type != "dataset":
                 text, _ = batch
@@ -246,74 +243,81 @@ def sampling_main(args, model_cls):
             for k in c:
                 if not k == "crossattn":
                     c[k], uc[k] = map(lambda y: y[k][: math.prod(num_samples)].to("cuda"), (c, uc))
+            
             for index in range(args.batch_size):
-                sampling_kwargs = dict()
+                samples_tot = []
+                for ind_round in range(n_prediction_round):
+                    is_end = (ind_round == n_prediction_round - 1)
 
-                # ! DEBUG                
-                if args.input_type == "dataset":
-                    sampling_kwargs['prefix'] = z[:, [0, 1, 2]]
+                    sampling_kwargs = dict()
 
+                    if args.input_type == "dataset":
+                        if ind_round == 0:
+                            cond_inds = [0, 1, 2]
+                        else:
+                            cond_inds = [-3, -2, -1]   # * Auto-regressive
 
-                # reload model on GPUp
-                model.to(device)
+                        sampling_kwargs['prefix'] = z[:, cond_inds]
 
-                # import pdb; pdb.set_trace()
+                    # reload model on GPUp
+                    model.to(device)
 
-                samples_z = sample_func(
-                    c,
-                    uc=uc,
-                    batch_size=1,
-                    shape=(T, C, H // F, W // F),
-                    **sampling_kwargs,
-                )
-                samples_z = samples_z.permute(0, 2, 1, 3, 4).contiguous()
+                    samples_z = sample_func(
+                        c,
+                        uc=uc,
+                        batch_size=1,
+                        shape=(T, C, H // F, W // F),
+                        **sampling_kwargs,
+                    )
+                    samples_z = samples_z.permute(0, 2, 1, 3, 4).contiguous()  # !!! Check shape
+                    # samples_z: torch.Size([1, 16, 13, 64, 112])
 
-                # Unload the model from GPU to save GPU memory
-                model.to("cpu")
-                torch.cuda.empty_cache()
-                first_stage_model = model.first_stage_model
-                first_stage_model = first_stage_model.to(device)
+                    # Unload the model from GPU to save GPU memory
+                    model.to("cpu")
+                    torch.cuda.empty_cache()
+                    first_stage_model = model.first_stage_model
+                    first_stage_model = first_stage_model.to(device)
 
-                latent = 1.0 / model.scale_factor * samples_z
+                    latent = 1.0 / model.scale_factor * samples_z
 
-                # Decode latent serial to save GPU memory
-                recons = []
-                loop_num = (T - 1) // 2
-                for i in range(loop_num):
-                    if i == 0:
-                        start_frame, end_frame = 0, 3
-                    else:
-                        start_frame, end_frame = i * 2 + 1, i * 2 + 3
-                    if i == loop_num - 1:
-                        clear_fake_cp_cache = True
-                    else:
-                        clear_fake_cp_cache = False
-                    with torch.no_grad():
-                        recon = first_stage_model.decode(
-                            latent[:, :, start_frame:end_frame].contiguous(), clear_fake_cp_cache=clear_fake_cp_cache
-                        )
+                    # Decode latent serial to save GPU memory
+                    # TODO: Check here.
+                    recons = []
+                    loop_num = (T - 1) // 2
+                    for i in range(loop_num):
+                        if i == 0:
+                            start_frame, end_frame = 0, 3
+                        else:
+                            start_frame, end_frame = i * 2 + 1, i * 2 + 3
+                        if i == loop_num - 1:
+                            clear_fake_cp_cache = True
+                        else:
+                            clear_fake_cp_cache = False
+                        with torch.no_grad():
+                            recon = first_stage_model.decode(
+                                latent[:, :, start_frame:end_frame].contiguous(), clear_fake_cp_cache=clear_fake_cp_cache
+                            )
 
-                    recons.append(recon)
+                        recons.append(recon)
 
-                recon = torch.cat(recons, dim=2).to(torch.float32)
-                samples_x = recon.permute(0, 2, 1, 3, 4).contiguous()
-                samples = torch.clamp((samples_x + 1.0) / 2.0, min=0.0, max=1.0).cpu()
+                    recon = torch.cat(recons, dim=2).to(torch.float32)
+                    samples_x = recon.permute(0, 2, 1, 3, 4).contiguous()
+                    samples = torch.clamp((samples_x + 1.0) / 2.0, min=0.0, max=1.0).cpu() # !!! Check shape
+                    # samples: torch.Size([1, 49, 3, 512, 896])
 
-                # save_path = os.path.join(
-                #     args.output_dir, str(cnt) + "_" + text.replace(" ", "_").replace("/", "")[:120], str(index)
-                # )
+                    if ind_round != 0:
+                        samples = samples[:, 4 * (len(cond_inds) - 1) + 1 :]
 
-                # save_path = os.path.join(
-                #     args.output_dir, str(ind_batch) + "_" + text.replace(" ", "_").replace("/", "")[:120], str(index)
-                # )
+                    samples_tot.append(samples)
+                    save_path = os.path.join(
+                        args.output_dir, str(ind_batch)
+                    )
 
-                print("text:", text)
-                save_path = os.path.join(
-                    args.output_dir, str(ind_batch)
-                )
+                    z = samples_z.permute(0, 2, 1, 3, 4).contiguous()
 
-                if mpu.get_model_parallel_rank() == 0:
-                    save_video_as_grid_and_mp4(samples, save_path, fps=args.sampling_fps)
+                    if is_end and mpu.get_model_parallel_rank() == 0:
+                        samples_tot = torch.cat(samples_tot, dim=1)
+                        save_video_as_grid_and_mp4(samples_tot, save_path, fps=args.sampling_fps)
 
 
 if __name__ == "__main__":

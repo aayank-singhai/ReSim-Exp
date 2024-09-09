@@ -8,7 +8,8 @@ from omegaconf import OmegaConf
 from sat.helpers import print_rank0
 from sat import mpu
 from sat.arguments import set_random_seed
-from sat.arguments import add_training_args, add_evaluation_args, add_data_args
+# from sat.arguments import add_training_args, add_evaluation_args, add_data_args
+from sat.arguments import add_training_args, add_data_args
 import torch.distributed
 
 
@@ -47,6 +48,29 @@ def add_sampling_config_args(parser):
     group.add_argument("--only-log-video-latents", type=bool, default=False)
     group.add_argument("--latent-channels", type=int, default=32)
     group.add_argument("--image2video", action="store_true")
+
+    return parser
+
+
+
+def add_evaluation_args(parser):
+    """Evaluation arguments."""
+
+    group = parser.add_argument_group('validation', 'validation configurations')
+
+    group.add_argument('--eval-batch-size', type=int, default=None,
+                       help='Data Loader batch size for evaluation datasets.'
+                            'Defaults to `--batch-size`')
+    group.add_argument('--eval-iters', type=int, default=100,
+                       help='number of iterations to run for evaluation'
+                            'validation/test for')
+    group.add_argument('--eval-interval', type=int, default=None,
+                       help='interval between running evaluation on validation set')
+    group.add_argument('--strict-eval', action='store_true',
+                       help='won\'t enlarge or randomly map eval-data, and eval full eval-data.')
+    
+    group.add_argument('--sampling_video_size', type=list, default=[480, 720])
+    group.add_argument('--n_prediction_round', type=int, default=1)
 
     return parser
 

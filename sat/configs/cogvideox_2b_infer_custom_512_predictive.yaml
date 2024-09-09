@@ -18,19 +18,19 @@ args:
   # * Num of Latent frames
   sampling_num_frames: 13  # Must be 13, 11 or 9
 
-  # sampling_fps: 8
+  # sampling_fps: 8  # * Original
   # sampling_fps: 12  # * For nus
   sampling_fps: &fps 10  # * For youtube
 
   fp16: True
-  # output_dir: outputs/
-  output_dir: /cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/outputs/pred
+  output_dir: /cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/outputs/pred_debug2
   force_inference: True
 
   epochs: 1
   valid_data: ["/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/custom_data/youtube_json/YouTube_svd_val_clip-len-49_interval-10_78k_flow.json"]
 
-  # video_size: &video_size [512, 896]
+  sampling_video_size: [512, 896]
+  n_prediction_round: 2  # * Debug
 
 data:
     target: data_video_custom.SFTDataset
@@ -147,7 +147,6 @@ model:
           ucg_rate: 0.1
           target: sgm.modules.encoders.modules.FrozenT5Embedder
           params:
-            # model_dir: "google/t5-v1_1-xxl"
             model_dir: "/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/ckpts/CogVideoX-2b-sat/t5-v1_1-xxl"
             max_length: 226
 
