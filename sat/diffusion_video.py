@@ -199,7 +199,7 @@ class SATVideoDiffusionEngine(nn.Module):
         return out
 
     @torch.no_grad()
-    def encode_first_stage(self, x):
+    def encode_first_stage(self, x, batch):
 
         # x: torch.Size([1, 3, 49, 512, 896]   (b c t h w)
         frame = x.shape[2]
@@ -355,7 +355,7 @@ class SATVideoDiffusionEngine(nn.Module):
         # !! DEBUG, remove
         # print("x.shape", x.shape)  # [1, 3, 49, 480, 720], T=49
 
-        z = self.encode_first_stage(x)
+        z = self.encode_first_stage(x, batch)
         # [1, 16, 13, 60, 90]
         
         if not only_log_video_latents:

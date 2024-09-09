@@ -203,7 +203,7 @@ def sampling_main(args, model_cls):
             if predictive_mode:
                 x = batch["mp4"].to(device).to(model.dtype)
                 x = x.permute(0, 2, 1, 3, 4).contiguous()
-                z = model.encode_first_stage(x)
+                z = model.encode_first_stage(x, batch)
                 z = z.permute(0, 2, 1, 3, 4).contiguous()
                 # torch.Size([1, 13, 16, 64, 112])
             else:

@@ -71,13 +71,15 @@ class StandardDiffusionLoss(nn.Module):
 
 
 class VideoDiffusionLoss(StandardDiffusionLoss):
-    def __init__(self, block_scale=None, block_size=None, min_snr_value=None, fixed_frames=0, cond_inds=None, **kwargs):
+    def __init__(self, block_scale=None, block_size=None, min_snr_value=None, fixed_frames=0, cond_inds=None, apply_cond_aug=False,
+                **kwargs):
         self.fixed_frames = fixed_frames  # TODO: Remove this?
         self.block_scale = block_scale
         self.block_size = block_size
         self.min_snr_value = min_snr_value
         super().__init__(**kwargs)
         self.cond_inds = cond_inds  # [0, 1, 2] video latents <--> corresponding [0, 8] (n=9) video frames
+        self.apply_cond_aug = apply_cond_aug  # apply aug on conditioning frames
 
     def __call__(self, network, denoiser, conditioner, input, batch):
         cond = conditioner(batch)
@@ -122,7 +124,17 @@ class VideoDiffusionLoss(StandardDiffusionLoss):
         # noised_input: torch.Size([1, 13, 16, 64, 112])
         if cond_inds is not None:
             additional_model_inputs['cond_inds'] = cond_inds
-            noised_input = input.float() * cond_mask+ \
+
+            aug_input = input.clone()
+            if self.apply_cond_aug:
+                # * Apply augmentation on conditioning frames.
+                log_cond_aug_dist = torch.distributions.Normal(-3.0, 0.5)  # * Following SVD
+                log_cond_aug = log_cond_aug_dist.sample()
+                cond_aug = torch.exp(log_cond_aug)
+                aug_input = aug_input + cond_aug * torch.randn_like(aug_input)
+
+            # * Replace noised latents with conditioning ones.
+            noised_input = aug_input.float() * cond_mask + \
                            noised_input * (1 - cond_mask)
 
         model_output = denoiser(network, noised_input, alphas_cumprod_sqrt, cond, **additional_model_inputs)
