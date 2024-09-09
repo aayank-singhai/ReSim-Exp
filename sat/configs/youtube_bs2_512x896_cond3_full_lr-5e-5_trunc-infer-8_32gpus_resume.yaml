@@ -30,7 +30,7 @@ data:
       # video_size: [480, 720]
 
       video_size: [512, 896]
-      fps: 12  # TODO: Change to 10
+      fps: 10  # TODO: Change to 10
       max_num_frames: 49
       skip_frms_num: 3.
       prefix_prompt: "This video depicts a realistic view from the driver's perspective of a car driving on the road."
@@ -237,7 +237,7 @@ model:
   sampler_config:
     target: sgm.modules.diffusionmodules.sampling.VPSDEDPMPP2MSampler
     params:
-      num_steps: 50
+      num_steps: 50  # TODO: Can we use less steps to speed up?? (GameNGen only uses 4)
       verbose: True
       fixed_frames: 3  # [0, 1, 2]
       cond_inds: *cond_inds
