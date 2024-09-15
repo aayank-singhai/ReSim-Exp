@@ -87,7 +87,7 @@ class VideoDiffusionLoss(StandardDiffusionLoss):
 
         alphas_cumprod_sqrt, idx = self.sigma_sampler(input.shape[0], return_idx=True)
         alphas_cumprod_sqrt = alphas_cumprod_sqrt.to(input.device)  # a float
-        idx = idx.to(input.device)
+        idx = idx.to(input.device)  # t
 
         # print(f"idx:{idx}, alpha_t:{alphas_cumprod_sqrt}")
         # idx:tensor([26], device='cuda:0'), alpha_t:tensor([0.9631], device='cuda:0')
@@ -128,6 +128,9 @@ class VideoDiffusionLoss(StandardDiffusionLoss):
             aug_input = input.clone()
             if self.apply_cond_aug:
                 # * Apply augmentation on conditioning frames.
+
+                # TODO: Noiser distribution with Chunk indicator? e.g., 0-100: 0, 100-200: 100, 200-300: 200
+                # TODO: Use forward diffusion process on conditioning frames, instead of simple addition.
                 log_cond_aug_dist = torch.distributions.Normal(-3.0, 0.5)  # * Following SVD
                 log_cond_aug = log_cond_aug_dist.sample()
                 cond_aug = torch.exp(log_cond_aug)
