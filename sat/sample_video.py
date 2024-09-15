@@ -191,7 +191,14 @@ def sampling_main(args, model_cls):
     force_uc_zero_embeddings = ["txt"]
     device = model.device
 
-    os.makedirs(args.output_dir, exist_ok=True)
+    out_root = "/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/outputs"
+    if isinstance(args.base, list):
+        cfg_path = args.base[0]
+    else:
+        cfg_path = args.base
+    cfg_name = os.path.basename(cfg_path).replace(".yaml", "")
+    out_dir = os.path.join(out_root, cfg_name)
+    os.makedirs(out_dir, exist_ok=True)
 
     with torch.no_grad():
         for ind_batch, batch in enumerate(tqdm(data_iter)):
@@ -310,7 +317,7 @@ def sampling_main(args, model_cls):
 
                     samples_tot.append(samples)
                     save_path = os.path.join(
-                        args.output_dir, str(ind_batch)
+                        out_dir, str(ind_batch)
                     )
 
                     z = samples_z.permute(0, 2, 1, 3, 4).contiguous()
