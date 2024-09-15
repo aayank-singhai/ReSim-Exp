@@ -4,8 +4,9 @@ args:
   experiment_name: nus
   mode: finetune
   # load: "/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/ckpts/CogVideoX-2b-sat/transformer"
-  # load: "/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/sat/ckpts/youtube_bs2_512x896_cond3_full_lr-5e-5_trunc-infer-8_32gpus-08-30-06-07"
-  load: "/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/sat/ckpts/youtube_bs2_512x896_cond3_full_lr-5e-5_trunc-infer-8_32gpus_resume-09-05-03-45"  # * Resume, round2
+  # load: "/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/sat/ckpts/youtube_bs2_512x896_cond3_full_lr-5e-5_trunc-infer-8_32gpus-08-30-06-07"  # * Resume, round1, seed 17
+  # load: "/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/sat/ckpts/youtube_bs2_512x896_cond3_full_lr-5e-5_trunc-infer-8_32gpus_resume-09-05-03-45"  # * Resume, round2, seed 3407
+  load: "/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/sat/ckpts/youtube_bs2_512x896_cond3_full_lr-5e-5_trunc-infer-8_32gpus_resume2_cond-aug-09-09-17-20"  # * Abl, round3, seed 11
   
   no_load_rng: True
   # train_iters: 10000
@@ -21,8 +22,6 @@ args:
   # TODO: Merge "Static" to "Forward"
   train_data: ["/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/custom_data/youtube_json/YouTube_svd_clip-len-49_interval-10_5M_flow_round2.json"]
   valid_data: ["/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/custom_data/youtube_json/YouTube_svd_val_clip-len-49_interval-10_78k_flow.json"]
-  # TODO: Switch to new valid data
-
   split: 1,0,0
   # num_workers: 0  # !!! DEBUG
   num_workers: 8
@@ -40,6 +39,12 @@ data:
       max_num_frames: 49
       skip_frms_num: 3.
       prefix_prompt: "This video depicts a realistic view from the driver's perspective of a car driving on the road."
+      n_repeat_of_actions:
+        Static: 1
+        Moving_Forward: 1
+        Turning_Left: 5
+        Turning_Right: 5
+        Highly_Static: 1
 
 deepspeed:
   # train_micro_batch_size_per_gpu: 1
@@ -68,7 +73,7 @@ deepspeed:
   optimizer:
     type: sat.ops.FusedEmaAdam
     params:
-      lr: 0.00005   # TODO: Lower the learning rate.
+      lr: 0.00005
       betas: [0.9, 0.95]
       eps: 1e-8
       weight_decay: 1e-4

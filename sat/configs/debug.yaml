@@ -39,6 +39,12 @@ data:
       max_num_frames: 49
       skip_frms_num: 3.
       prefix_prompt: "This video depicts a realistic view from the driver's perspective of a car driving on the road."
+      n_repeat_of_actions:
+        Static: 1
+        Moving_Forward: 1
+        Turning_Left: 5
+        Turning_Right: 5
+        Highly_Static: 1
 
 deepspeed:
   train_micro_batch_size_per_gpu: 1
@@ -232,7 +238,8 @@ model:
       sigma_sampler_config:
         target: sgm.modules.diffusionmodules.sigma_sampling.DiscreteSampling
         params:
-          uniform_sampling: True
+          uniform_sampling: false
+          custom_sampling: true
           num_idx: 1000
           discretization_config:
             target: sgm.modules.diffusionmodules.discretizer.ZeroSNRDDPMDiscretization

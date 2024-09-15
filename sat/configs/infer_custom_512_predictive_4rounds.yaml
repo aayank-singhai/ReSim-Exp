@@ -1,81 +1,48 @@
 args:
-  checkpoint_activations: True ## using gradient checkpointing
-  model_parallel_size: 1
-  experiment_name: nus
-  mode: finetune
+  latent_channels: 16
+  mode: inference
+  # load: "CogVideoX-2b-sat/transformer"
   # load: "/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/ckpts/CogVideoX-2b-sat/transformer"
-  # load: "/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/sat/ckpts/youtube_bs2_512x896_cond3_full_lr-5e-5_trunc-infer-8_32gpus-08-30-06-07"
-  load: "/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/sat/ckpts/youtube_bs2_512x896_cond3_full_lr-5e-5_trunc-infer-8_32gpus_resume-09-05-03-45"  # * Resume, round2
-  
-  no_load_rng: True
-  # train_iters: 10000
-  train_iters: 20000
-  eval_iters: 1
-  eval_interval: 250  # * Log video every 100 iterations
-  eval_batch_size: 1
-  save: ckpts
-  save_interval: 1000  # * Save checkpoints
-  log_interval: 20   # * Log info
+  # load: "/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/sat/ckpts/cogvideox_2b_sft_nus_new-dataset_bs1_prefix_720x1280_slice_video_lr-2e-5-08-19-08-46"
+  load: "/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/sat/ckpts/youtube_bs2_512x896_cond3_full_lr-5e-5_trunc-infer-8_32gpus_resume-09-05-03-45"
 
-  # TODO: Data Balacing
-  # TODO: Merge "Static" to "Forward"
-  train_data: ["/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/custom_data/youtube_json/YouTube_svd_clip-len-49_interval-10_5M_flow_round2.json"]
-  valid_data: ["/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/custom_data/youtube_json/YouTube_svd_val_clip-len-49_interval-10_78k_flow.json"]
-  # TODO: Switch to new valid data
+  batch_size: 1
+  # input_type: txt
+  input_type: dataset
 
-  split: 1,0,0
-  # num_workers: 0  # !!! DEBUG
-  num_workers: 8
-  force_train: True
-  # only_log_video_latents: True
-  only_log_video_latents: False
+  # input_file: test.txt
+  # input_file: "/cpfs01/userazhi/workspace/DVGen/CogVideo/sat/configs/test.txt"
+  # input_file: /cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/sat/ckpts/cogvideox_2b_sft_nus_new-dataset_bs1_prefix_720x1280_slice_video_lr-2e-5-08-19-08-46/video/latents
+  # input_file: /cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/sat/ckpts/youtube_bs1_720x1280_cond3_full_lr-5e-5_trunc-infer-8_16gpus_finetune-09-02-17-11/video/latents
+
+  # * Num of Latent frames
+  sampling_num_frames: 13  # Must be 13, 11 or 9
+
+  # sampling_fps: 8  # * Original
+  # sampling_fps: 12  # * For nus
+  sampling_fps: &fps 10  # * For youtube
+
+  fp16: True
+  force_inference: True
+
+  epochs: 1
+
+  # valid_data: ["/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/custom_data/youtube_json/YouTube_svd_val_clip-len-49_interval-10_78k_flow.json"]
+  valid_data: ["/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/custom_data/youtube_json/YouTube_svd_val_1080p_clip-len-49_interval-10_77k_flow.json"]
+
+  sampling_video_size: [512, 896]
+  n_prediction_round: 4
 
 data:
     target: data_video_custom.SFTDataset
     params:
       # video_size: [480, 720]
-
       video_size: [512, 896]
-      fps: 10
+
+      fps: *fps  # TODO: Change to 10
       max_num_frames: 49
       skip_frms_num: 3.
       prefix_prompt: "This video depicts a realistic view from the driver's perspective of a car driving on the road."
-
-deepspeed:
-  # train_micro_batch_size_per_gpu: 1
-  train_micro_batch_size_per_gpu: 2
-  gradient_accumulation_steps: 1
-  steps_per_print: 50
-  gradient_clipping: 0.1
-  zero_optimization:
-    stage: 2
-    cpu_offload: false
-    contiguous_gradients: false
-    overlap_comm: true
-    reduce_scatter: true
-    reduce_bucket_size: 1000000000
-    allgather_bucket_size: 1000000000
-    load_from_fp32_weights: false
-  zero_allow_untested_optimizer: true
-  bf16:
-    enabled: False
-  fp16:
-    enabled: True
-    loss_scale: 0
-    loss_scale_window: 400
-    hysteresis: 2
-    min_loss_scale: 1
-  optimizer:
-    type: sat.ops.FusedEmaAdam
-    params:
-      lr: 0.00005   # TODO: Lower the learning rate.
-      betas: [0.9, 0.95]
-      eps: 1e-8
-      weight_decay: 1e-4
-  activation_checkpointing:
-    partition_activations: false
-    contiguous_memory_optimization: false
-  wall_clock_breakdown: false
 
 
 model:
@@ -86,12 +53,9 @@ model:
     - txt
 
   en_and_decode_n_samples_a_time: 1  # * split samples
-  en_and_decode_n_frames_a_time: 17  # * split frames
-  truncate_n_frames_decode: 8
-
-  # TODO: cond_inds [], [0], [0, 1], [0, 1, 2]
+  # en_and_decode_n_frames_a_time: 17  # * split frames
+  # truncate_n_frames_decode: 8
   cond_inds: &cond_inds [0, 1, 2]
-  
   denoiser_config:
     target: sgm.modules.diffusionmodules.denoiser.DiscreteDenoiser
     params:
@@ -113,12 +77,17 @@ model:
       time_embed_dim: &t_emb_dim 512
       elementwise_affine: True
       num_frames: 49
+
+      # num_frames: 65  # * weights not aligned
+
       time_compressed_rate: 4
       
       # * For (480, 720), originally supported
       # latent_width: 90
       # latent_height: 60
 
+
+      # * Modify here according to the config
       # !!! DEBUG: For (512, 896)
       latent_width: 112
       latent_height: 64
@@ -132,7 +101,6 @@ model:
       num_attention_heads: 30
 
       transformer_args:
-        checkpoint_activations: True ## using gradient checkpointing
         vocab_size: 1
         max_sequence_length: 64
         layernorm_order: pre
@@ -227,11 +195,10 @@ model:
           gather_norm: false
 
   loss_fn_config:
-    target: sgm.modules.diffusionmodules.loss.VideoDiffusionLoss  # TODO: Dynamics Enhancement Loss + Per-sample Dynamics Weight (According to flow value?)
+    target: sgm.modules.diffusionmodules.loss.VideoDiffusionLoss
     params:
       offset_noise_level: 0
       cond_inds: *cond_inds
-      apply_cond_aug: True
       sigma_sampler_config:
         target: sgm.modules.diffusionmodules.sigma_sampling.DiscreteSampling
         params:
@@ -245,7 +212,7 @@ model:
   sampler_config:
     target: sgm.modules.diffusionmodules.sampling.VPSDEDPMPP2MSampler
     params:
-      num_steps: 50  # TODO: Can we use less steps to speed up?? (GameNGen only uses 4)
+      num_steps: 50
       verbose: True
       fixed_frames: 3  # [0, 1, 2]
       cond_inds: *cond_inds
