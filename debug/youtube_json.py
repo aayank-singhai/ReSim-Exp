@@ -109,32 +109,61 @@ def process_clips(start_ind, clip_length, format_length, ext_str, DATA_ROOT, fol
 
     return successful_clip
 
+def init_raw_youtube_json(img_folder, save_json_folder):
+    DATA_ROOT = '/cpfs01/shared/opendrivelab/GenAD_Datasets/YouTube/'
+    infos = []
 
-def create_youtube_json(clip_length=49):
-    DEBUG = False  # * DEBUG This Script
-    TRAIN = False   # * Train or val
+    # img_folder: /cpfs01/shared/opendrivelab/GenAD_Datasets/YouTube/V1/1080p_val_images
+    for author in tqdm(os.listdir(img_folder)):
+        # ['KenoVelicanstveni', 'Pete_Drives_USA', 'Driving_Experience']
+        author_folder = os.path.join(img_folder, author)
+        for video in os.listdir(author_folder):
+            video_folder = os.path.join(author_folder, video)
+
+            images = os.listdir(video_folder)
+            images = sorted(images, key=lambda x: int(x.split('.')[0]))
+            
+            for image_path in images:
+                sample = {
+                    'folder_name': video_folder.replace(DATA_ROOT, ''),
+                    'first_frame': image_path
+                }
+
+                infos.append(sample)
+
+    dump_json(infos, os.path.join(save_json_folder, 'YouTube_val_raw.json'))
+
+# init_raw_youtube_json(img_folder='/cpfs01/shared/opendrivelab/GenAD_Datasets/YouTube/V1/1080p_val_images/', 
+#                       save_json_folder='/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/custom_data/youtube_json')
+
+# print("Successful!")
+# import pdb; pdb.set_trace()
+
+def create_youtube_json(clip_length=49, is_train=True, is_debug=False, interval=10):
+    # interval = 10  # * 1s
+    # new_val: use 1080p val set (newly downloaded)
 
     DATA_ROOT = '/cpfs01/shared/opendrivelab/GenAD_Datasets/YouTube/'
 
-    if TRAIN:
+    if is_train:
         json_path = '/cpfs01/shared/opendrivelab/opendrivelab_hdd/gaoshenyuan/YouTube_svd.json'  # * Train
     else:
-        json_path = '/cpfs01/shared/opendrivelab/opendrivelab_hdd/gaoshenyuan/YouTube_svd_val.json'  # * Val
+        # json_path = '/cpfs01/shared/opendrivelab/opendrivelab_hdd/gaoshenyuan/YouTube_svd_val.json'  # * Val
+        json_path = '/cpfs01/shared/opendrivelab/opendrivelab_hdd/yangjiazhi/DVGen/data_json/YouTube_svd_val_1080p.json'  # * New Val 1080p
     infos = load_json(json_path)
 
-    if DEBUG:
+    if is_debug:
         infos = infos[:1000]
 
     out_path = '/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/custom_data/youtube_json'
-    if DEBUG:
+    
+    if is_debug:
         out_path = os.path.join(out_path, 'debug.json')
     else:
         out_path = os.path.join(out_path, os.path.basename(json_path))
+        # if new_val:
+        #     out_path = out_path.replace("val.json", "val_1080p.json")
     
-    # clip_length = 49  # 4.9s
-    # clip_length = 101  #  10s
-    interval = 10  # * 1s
-
     clip_infos = dict()
     clip_infos['meta'] = {
         'data_root': DATA_ROOT,
@@ -147,6 +176,9 @@ def create_youtube_json(clip_length=49):
 
     for frame_ind, frame in tqdm(enumerate(infos[::interval])):
         folder_name = frame['folder_name']
+        # if new_val:
+        #     folder_name = folder_name.replace("val_images", "1080p_val_images")
+
         frame_name = frame['first_frame']
         start_str, ext_str = frame_name.split('.')
         format_length = len(start_str)
@@ -163,6 +195,9 @@ def create_youtube_json(clip_length=49):
         else:
             end_frame = infos[end_frame_ind]
             end_folder_name = end_frame['folder_name']
+            # if new_val:
+                # end_folder_name = end_folder_name.replace("val_images", "1080p_val_images")
+
             end_frame_name = end_frame['first_frame']
             end_str = end_frame_name.split('.')[0]
             end_ind = int(end_str)
@@ -187,9 +222,9 @@ def create_youtube_json(clip_length=49):
     dump_json(clip_infos, out_path)
 
 
-
 # clip_length: 49 or 101
-create_youtube_json(clip_length=101)
+# create_youtube_json(clip_length=101)
+create_youtube_json(clip_length=49, is_train=False, is_debug=False, interval=10, new_val=True)
 print("successful!")
 import pdb; pdb.set_trace()
 
@@ -373,7 +408,7 @@ def round2_rectify_direction(json_path, n_split=None, split_ind=None):
 if __name__ == '__main__':
     # youtube_json = '/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/custom_data/youtube_json/YouTube_svd_clip-len-49_interval-10_5M_flow.json'
 
-    youtube_json_prefix = '/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/custom_data/youtube_json/splits/YouTube_svd_clip-len-49_interval-10_5M_flow_split_'
+    # youtube_json_prefix = '/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/custom_data/youtube_json/splits/YouTube_svd_clip-len-49_interval-10_5M_flow_split_'
 
     # !!! DEBUG
     youtube_json = '/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/custom_data/youtube_json/YouTube_svd_clip-len-49_interval-10_5M_flow_round2.json'
