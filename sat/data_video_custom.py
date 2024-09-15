@@ -393,16 +393,19 @@ class VideoDataset(MetaDistributedWebDataset):
         return cls(path, **kwargs)
 
 
+# TODO: Sample weights according to action
+# TODO: Merge "Static" and "Highly Static" to "Forward".
+# TODO: Exclude "Highly Static" ?
 class SFTDataset(Dataset):
 
     # !!! TODO: Loading to slow.
-    def __init__(self, data_dir, video_size, fps, max_num_frames, skip_frms_num=3, prefix_prompt=""):
+    def __init__(self, data_dir, video_size, fps, max_num_frames, skip_frms_num=3, prefix_prompt="", n_repeat_of_actions=None):
         """
         skip_frms_num: ignore the first and the last xx frames, avoiding transitions.
         """
         super(SFTDataset, self).__init__()
 
-        self.videos_list = []
+        self.video_list = []
         self.captions_list = []
         self.num_frames_list = []
         self.fps_list = []
@@ -411,38 +414,50 @@ class SFTDataset(Dataset):
         self.fps = fps
         self.max_num_frames = max_num_frames
         self.skip_frms_num = skip_frms_num
-        # self.data_dir = data_dir
         self.prefix_prompt = prefix_prompt
+
+        self.n_repeat_of_actions = n_repeat_of_actions
+
         if data_dir.endswith(".json"):
             self.load_data_json(data_dir)
         else:
             self.load_data_dir(data_dir)
-        
+
+    # * Repeat data here
     def load_data_json(self, data_json):
         infos = load_json(data_json)
         data_root = infos['meta']['data_root']
         clip_infos = infos['clips']
 
         for clip in tqdm(clip_infos):
-            # folder_name, first_frame, end_frame = clip['folder_name'], clip['first_frame'], clip['end_frame']
-            # img_list = get_frame_list(first_frame, end_frame)
-            # img_list = [
-            #     os.path.join(data_root, folder_name, n) for n in img_list
-            # ]
-            self.videos_list.append((data_root, clip['folder_name'], clip['first_frame'], clip['end_frame']))
-            caption = clip.get("flow_direction", "")
-            caption = caption.replace("_", " ")
-            caption = caption[0].upper() + caption[1:]
-            if not caption.endswith("."):
-                caption += "."
-            # if prefix_prompt != "":
-            #     prefix_prompt = prefix_prompt.strip()
-            #     prefix_prompt = prefix_prompt[0].upper() + prefix_prompt[1:]
-            #     if not prefix_prompt.endswith("."):
-            #         prefix_prompt += "."
-            #     caption = prefix_prompt + " " + caption
-            self.captions_list.append(caption)
-            self.fps_list.append(self.fps)
+            
+            sample_path_tuple = (data_root, clip['folder_name'], clip['first_frame'], clip['end_frame'])
+            raw_caption = clip.get("flow_direction", "")
+            sample_caption = raw_caption.replace("_", " ")
+            sample_caption = sample_caption[0].upper() + sample_caption[1:]
+            if not sample_caption.endswith("."):
+                sample_caption += "."
+
+            if self.n_repeat_of_actions is not None:
+                n_repeat = self.n_repeat_of_actions[raw_caption]
+            else:
+                n_repeat = 1
+
+            # * Repeat to achieve data weighting
+            sample_path_tuple = [sample_path_tuple] * n_repeat
+            sample_caption = [sample_caption] * n_repeat
+
+            # self.video_list.append((data_root, clip['folder_name'], clip['first_frame'], clip['end_frame']))
+            # caption = clip.get("flow_direction", "")
+            # caption = caption.replace("_", " ")
+            # caption = caption[0].upper() + caption[1:]
+            # if not caption.endswith("."):
+            #     caption += "."
+
+            # self.captions_list.append(caption)
+            # self.fps_list.append(self.fps)
+            self.video_list.extend(sample_path_tuple)
+            self.captions_list.extend(sample_caption)
 
     def load_data_dir(self, data_dir):
         decord.bridge.set_bridge("torch")
@@ -451,7 +466,7 @@ class SFTDataset(Dataset):
                 if not filename.endswith(".mp4"):
                     continue
                 video_path = os.path.join(root, filename)
-                self.videos_list.append(video_path)
+                self.video_list.append(video_path)
                 
                 # caption
                 caption_path = os.path.join(root, filename.replace(".mp4", ".txt")).replace("videos", "labels")
@@ -560,7 +575,7 @@ class SFTDataset(Dataset):
 
     def __getitem__(self, index):
         while True:
-            video_path = self.videos_list[index]
+            video_path = self.video_list[index]
             if isinstance(video_path, tuple):
                 data_root, folder_name, first_frame, end_frame = video_path
                 img_list = get_frame_list(first_frame, end_frame)
@@ -591,12 +606,13 @@ class SFTDataset(Dataset):
             "mp4": video_clip,
             "txt": caption,
             "num_frames": num_frames,
-            "fps": self.fps_list[index],
+            "fps": self.fps  # ? What's the use of fps?
         }
         return item
 
     def __len__(self):
-        return len(self.fps_list)
+        # return len(self.fps_list)
+        return len(self.captions_list)
 
     @classmethod
     def create_dataset_function(cls, path, args, **kwargs):
