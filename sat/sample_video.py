@@ -84,6 +84,10 @@ def save_video_as_grid_and_mp4(video_batch: torch.Tensor, save_path: str, fps: i
             for frame in gif_frames:
                 writer.append_data(frame)
 
+def save_text(text: str, save_path: str):
+    txt_save_path = os.path.join(save_path, "text.txt")
+    with open(txt_save_path, "w") as fout:
+        fout.write(text)
 
 def resize_for_rectangle_crop(arr, image_size, reshape_mode="random"):
     if arr.shape[3] / arr.shape[2] > image_size[1] / image_size[0]:
@@ -226,7 +230,7 @@ def sampling_main(args, model_cls):
             value_dict = {
                 "prompt": text,
                 "negative_prompt": "",
-                "num_frames": torch.tensor(T).unsqueeze(0),
+                "num_frames": torch.tensor(T).unsqueeze(0),  # TODO: Check what's the use of num_frames
             }
 
             batch, batch_uc = get_batch(
@@ -312,6 +316,7 @@ def sampling_main(args, model_cls):
                     samples = torch.clamp((samples_x + 1.0) / 2.0, min=0.0, max=1.0).cpu() # !!! Check shape
                     # samples: torch.Size([1, 49, 3, 512, 896])
 
+                    # * Autoregressive rollout
                     if ind_round != 0:
                         samples = samples[:, 4 * (len(cond_inds) - 1) + 1 :]
 
@@ -325,6 +330,7 @@ def sampling_main(args, model_cls):
                     if is_end and mpu.get_model_parallel_rank() == 0:
                         samples_tot = torch.cat(samples_tot, dim=1)
                         save_video_as_grid_and_mp4(samples_tot, save_path, fps=args.sampling_fps)
+                        save_text(text, save_path)
 
 
 if __name__ == "__main__":
