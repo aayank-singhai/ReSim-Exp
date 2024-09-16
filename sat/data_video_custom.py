@@ -396,10 +396,14 @@ class VideoDataset(MetaDistributedWebDataset):
 # TODO: Sample weights according to action
 # TODO: Merge "Static" and "Highly Static" to "Forward".
 # TODO: Exclude "Highly Static" ?
+# TODO: Drop out action indicators in the caption at p?
 class SFTDataset(Dataset):
 
-    # !!! TODO: Loading to slow.
-    def __init__(self, data_dir, video_size, fps, max_num_frames, skip_frms_num=3, prefix_prompt="", n_repeat_of_actions=None):
+    def __init__(self, data_dir, video_size, fps, max_num_frames, skip_frms_num=3, 
+                prefix_prompt="", 
+                n_repeat_of_actions=None, 
+                merge_static=False,
+                exclude_highly_static=False):
         """
         skip_frms_num: ignore the first and the last xx frames, avoiding transitions.
         """
@@ -417,6 +421,8 @@ class SFTDataset(Dataset):
         self.prefix_prompt = prefix_prompt
 
         self.n_repeat_of_actions = n_repeat_of_actions
+        self.merge_static = merge_static
+        self.exclude_highly_static = exclude_highly_static
 
         if data_dir.endswith(".json"):
             self.load_data_json(data_dir)
@@ -432,8 +438,16 @@ class SFTDataset(Dataset):
         for clip in tqdm(clip_infos):
             
             sample_path_tuple = (data_root, clip['folder_name'], clip['first_frame'], clip['end_frame'])
-            raw_caption = clip.get("flow_direction", "")
-            sample_caption = raw_caption.replace("_", " ")
+            raw_caption = clip.get("flow_direction", "")  # include static and highly static
+            
+            if self.exclude_highly_static and "Highly_Static" in raw_caption:
+                continue
+
+            sample_caption = raw_caption
+            if self.merge_static and "Static" in sample_caption:
+                sample_caption = "Moving_Forward"  # merging static and highly static to forward
+
+            sample_caption = sample_caption.replace("_", " ").lower()  # * MINOR FIX: Converting action to lowercase
             sample_caption = sample_caption[0].upper() + sample_caption[1:]
             if not sample_caption.endswith("."):
                 sample_caption += "."
@@ -447,15 +461,6 @@ class SFTDataset(Dataset):
             sample_path_tuple = [sample_path_tuple] * n_repeat
             sample_caption = [sample_caption] * n_repeat
 
-            # self.video_list.append((data_root, clip['folder_name'], clip['first_frame'], clip['end_frame']))
-            # caption = clip.get("flow_direction", "")
-            # caption = caption.replace("_", " ")
-            # caption = caption[0].upper() + caption[1:]
-            # if not caption.endswith("."):
-            #     caption += "."
-
-            # self.captions_list.append(caption)
-            # self.fps_list.append(self.fps)
             self.video_list.extend(sample_path_tuple)
             self.captions_list.extend(sample_caption)
 
@@ -475,12 +480,6 @@ class SFTDataset(Dataset):
                 else:
                     caption = ""
 
-                # if prefix_prompt != "":
-                #     prefix_prompt = prefix_prompt.strip()
-                #     prefix_prompt = prefix_prompt[0].upper() + prefix_prompt[1:]
-                #     if not prefix_prompt.endswith("."):
-                #         prefix_prompt += "."
-                #     caption = prefix_prompt + " " + caption
                 self.captions_list.append(caption)
                 self.fps_list.append(self.fps)
 
@@ -611,7 +610,6 @@ class SFTDataset(Dataset):
         return item
 
     def __len__(self):
-        # return len(self.fps_list)
         return len(self.captions_list)
 
     @classmethod
