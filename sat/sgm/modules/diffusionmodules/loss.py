@@ -71,7 +71,9 @@ class StandardDiffusionLoss(nn.Module):
 
 
 class VideoDiffusionLoss(StandardDiffusionLoss):
-    def __init__(self, block_scale=None, block_size=None, min_snr_value=None, fixed_frames=0, cond_inds=None, apply_cond_aug=False,
+    def __init__(self, block_scale=None, block_size=None, min_snr_value=None, fixed_frames=0, cond_inds=None, 
+                 apply_cond_aug=None,
+                 max_aug_t=700,  # * For V2
                 **kwargs):
         self.fixed_frames = fixed_frames  # TODO: Remove this?
         self.block_scale = block_scale
@@ -80,6 +82,7 @@ class VideoDiffusionLoss(StandardDiffusionLoss):
         super().__init__(**kwargs)
         self.cond_inds = cond_inds  # [0, 1, 2] video latents <--> corresponding [0, 8] (n=9) video frames
         self.apply_cond_aug = apply_cond_aug  # apply aug on conditioning frames
+        self.max_aug_t = max_aug_t  # * For V2
 
     def __call__(self, network, denoiser, conditioner, input, batch):
         cond = conditioner(batch)
@@ -87,7 +90,7 @@ class VideoDiffusionLoss(StandardDiffusionLoss):
 
         alphas_cumprod_sqrt, idx = self.sigma_sampler(input.shape[0], return_idx=True)
         alphas_cumprod_sqrt = alphas_cumprod_sqrt.to(input.device)  # a float
-        idx = idx.to(input.device)  # t
+        idx = idx.to(input.device)  # indicating t. shape: [bs]. eg: [845, 10]
 
         # print(f"idx:{idx}, alpha_t:{alphas_cumprod_sqrt}")
         # idx:tensor([26], device='cuda:0'), alpha_t:tensor([0.9631], device='cuda:0')
@@ -122,19 +125,36 @@ class VideoDiffusionLoss(StandardDiffusionLoss):
             (1 - alphas_cumprod_sqrt**2) ** 0.5, input.ndim
         )
         # noised_input: torch.Size([1, 13, 16, 64, 112])
+        
         if cond_inds is not None:
             additional_model_inputs['cond_inds'] = cond_inds
 
             aug_input = input.clone()
-            if self.apply_cond_aug:
+            if self.apply_cond_aug == 'V1':
                 # * Apply augmentation on conditioning frames.
-
                 # TODO: Noiser distribution with Chunk indicator? e.g., 0-100: 0, 100-200: 100, 200-300: 200
                 # TODO: Use forward diffusion process on conditioning frames, instead of simple addition.
                 log_cond_aug_dist = torch.distributions.Normal(-3.0, 0.5)  # * Following SVD
                 log_cond_aug = log_cond_aug_dist.sample()
                 cond_aug = torch.exp(log_cond_aug)
                 aug_input = aug_input + cond_aug * torch.randn_like(aug_input)
+            
+            elif self.apply_cond_aug == 'V2':
+                aug_t = torch.randint(0, self.max_aug_t, (input.shape[0],))
+                aug_t_chunk = aug_t // 100 * 100  # 0-100: 0, 100-200: 100, 200-300: 200
+                additional_model_inputs['aug_t_chunk'] = aug_t_chunk.to(input.device)
+                
+                aug_alphas_cumprod_sqrt = self.sigma_sampler.sigmas[aug_t]
+                aug_alphas_cumprod_sqrt = aug_alphas_cumprod_sqrt.to(input.device)
+                aug_noise = torch.randn_like(input)
+
+                # aug_x for conditioning frames
+                aug_input = input.float() * append_dims(aug_alphas_cumprod_sqrt, input.ndim) + aug_noise * append_dims(
+                    (1 - aug_alphas_cumprod_sqrt**2) ** 0.5, input.ndim
+                )
+                # * Improved, noiser aug, diffusion forward process on conditioning frames.
+            else:
+                raise NotImplementedError
 
             # * Replace noised latents with conditioning ones.
             noised_input = aug_input.float() * cond_mask + \
