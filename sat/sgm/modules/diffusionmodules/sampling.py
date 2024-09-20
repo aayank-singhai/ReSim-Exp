@@ -477,11 +477,12 @@ class SdeditEDMSampler(EulerEDMSampler):
 
 
 class VideoDDIMSampler(BaseDiffusionSampler):
-    def __init__(self, fixed_frames=None, sdedit=False, cond_inds=None, **kwargs):
+    def __init__(self, fixed_frames=None, sdedit=False, cond_inds=None, apply_cond_aug=None, **kwargs):
         super().__init__(**kwargs)
         self.fixed_frames = fixed_frames
         self.sdedit = sdedit
         self.cond_inds = cond_inds
+        self.apply_cond_aug = apply_cond_aug
 
     def prepare_sampling_loop(self, x, cond, uc=None, num_steps=None):
         alpha_cumprod_sqrt, timesteps = self.discretization(
@@ -504,16 +505,22 @@ class VideoDDIMSampler(BaseDiffusionSampler):
     def denoise(self, x, denoiser, alpha_cumprod_sqrt, cond, uc, timestep=None, idx=None, scale=None, scale_emb=None):
         additional_model_inputs = {}
 
+        additional_model_inputs["is_sampling"] = True  # * Used to indicate sampling
+
         if self.cond_inds is not None:
             additional_model_inputs['cond_inds'] = self.cond_inds
 
-        if isinstance(scale, torch.Tensor) == False and scale == 1:
+        if not isinstance(scale, torch.Tensor) and scale == 1:
             additional_model_inputs["idx"] = x.new_ones([x.shape[0]]) * timestep
+            if self.apply_cond_aug == 'V2':
+                additional_model_inputs["aug_t_chunk"] = x.new_zeros([x.shape[0]])
             if scale_emb is not None:
                 additional_model_inputs["scale_emb"] = scale_emb
             denoised = denoiser(x, alpha_cumprod_sqrt, cond, **additional_model_inputs).to(torch.float32)
         else:
             additional_model_inputs["idx"] = torch.cat([x.new_ones([x.shape[0]]) * timestep] * 2)
+            if self.apply_cond_aug == 'V2':
+                additional_model_inputs["aug_t_chunk"] = torch.cat([x.new_zeros([x.shape[0]])] * 2)
             denoised = denoiser(
                 *self.guider.prepare_inputs(x, alpha_cumprod_sqrt, cond, uc), **additional_model_inputs
             ).to(torch.float32)

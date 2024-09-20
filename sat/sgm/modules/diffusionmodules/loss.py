@@ -82,6 +82,8 @@ class VideoDiffusionLoss(StandardDiffusionLoss):
         super().__init__(**kwargs)
         self.cond_inds = cond_inds  # [0, 1, 2] video latents <--> corresponding [0, 8] (n=9) video frames
         self.apply_cond_aug = apply_cond_aug  # apply aug on conditioning frames
+        assert self.apply_cond_aug in [None, 'V1', 'V2'], f"Invalid apply_cond_aug: {self.apply_cond_aug}"
+
         self.max_aug_t = max_aug_t  # * For V2
 
     def __call__(self, network, denoiser, conditioner, input, batch):
@@ -132,17 +134,18 @@ class VideoDiffusionLoss(StandardDiffusionLoss):
             aug_input = input.clone()
             if self.apply_cond_aug == 'V1':
                 # * Apply augmentation on conditioning frames.
-                # TODO: Noiser distribution with Chunk indicator? e.g., 0-100: 0, 100-200: 100, 200-300: 200
-                # TODO: Use forward diffusion process on conditioning frames, instead of simple addition.
+                # * Weakness: mild augmentation, condition frames are not noisy enough.
                 log_cond_aug_dist = torch.distributions.Normal(-3.0, 0.5)  # * Following SVD
                 log_cond_aug = log_cond_aug_dist.sample()
                 cond_aug = torch.exp(log_cond_aug)
                 aug_input = aug_input + cond_aug * torch.randn_like(aug_input)
             
             elif self.apply_cond_aug == 'V2':
+                # * Improved, noiser aug, diffusion forward process on conditioning frames.
                 aug_t = torch.randint(0, self.max_aug_t, (input.shape[0],))
                 aug_t_chunk = aug_t // 100 * 100  # 0-100: 0, 100-200: 100, 200-300: 200
                 additional_model_inputs['aug_t_chunk'] = aug_t_chunk.to(input.device)
+                # * Inference: set 0
                 
                 aug_alphas_cumprod_sqrt = self.sigma_sampler.sigmas[aug_t]
                 aug_alphas_cumprod_sqrt = aug_alphas_cumprod_sqrt.to(input.device)
@@ -152,15 +155,12 @@ class VideoDiffusionLoss(StandardDiffusionLoss):
                 aug_input = input.float() * append_dims(aug_alphas_cumprod_sqrt, input.ndim) + aug_noise * append_dims(
                     (1 - aug_alphas_cumprod_sqrt**2) ** 0.5, input.ndim
                 )
-                # * Improved, noiser aug, diffusion forward process on conditioning frames.
-            else:
-                raise NotImplementedError
 
             # * Replace noised latents with conditioning ones.
             noised_input = aug_input.float() * cond_mask + \
                            noised_input * (1 - cond_mask)
 
-        model_output = denoiser(network, noised_input, alphas_cumprod_sqrt, cond, **additional_model_inputs)
+        model_output = denoiser(network, noised_input, alphas_cumprod_sqrt, cond, **additional_model_inputs)  # go to DiscreteDenoiser
         # model_output: torch.Size([1, 13, 16, 64, 112]), b t c h w
         w = append_dims(1 / (1 - alphas_cumprod_sqrt**2), input.ndim)  # v-pred  torch.Size([1, 1, 1, 1, 1])
         b, t = model_output.shape[:2]
@@ -169,7 +169,7 @@ class VideoDiffusionLoss(StandardDiffusionLoss):
             model_output = model_output[~cond_mask.bool()].reshape(b, -1, *model_output.shape[2:])
             input = input[~cond_mask.bool()].reshape(b, -1, *input.shape[2:])
 
-        # TODO: Try this, min_snr
+        # Tried, not working: min_snr
         if self.min_snr_value is not None:
             # w = min(w, self.min_snr_value)  # Minor issue here: w might not be a tensor
             w = torch.where(w > self.min_snr_value, self.min_snr_value, w)

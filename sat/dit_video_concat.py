@@ -68,8 +68,8 @@ class ImagePatchEmbeddingMixin(BaseMixin):
             emb = emb + cond_mask * append_dims(cond_emb, cond_mask.ndim)
             emb = rearrange(emb, 'b t ... -> (b t) ...')
 
-        emb = emb.view(B, T, *emb.shape[1:])
-        emb = emb.flatten(3).transpose(2, 3)  # (b,t,n,d)
+        emb = emb.view(B, T, *emb.shape[1:])  # (b, t, d, h/2, w/2)
+        emb = emb.flatten(3).transpose(2, 3)  # (b,t,n,d),  n = h/2 * w/2
         emb = rearrange(emb, "b t n d -> b (t n) d")
 
         if self.text_proj is not None:
@@ -459,6 +459,7 @@ class FinalLayerMixin(BaseMixin):
         latent_width,
         latent_height,
         elementwise_affine,
+        compressed_num_frames,
     ):
         super().__init__()
         self.hidden_size = hidden_size
@@ -471,12 +472,51 @@ class FinalLayerMixin(BaseMixin):
         self.spatial_length = latent_width * latent_height // patch_size**2
         self.latent_width = latent_width
         self.latent_height = latent_height
+        self.compressed_num_frames = compressed_num_frames
+
+    def separate_modulate(
+        self,
+        video_latent, 
+        shift, 
+        scale, 
+        aug_shift, 
+        aug_scale, 
+        cond_inds, 
+        pred_inds
+    ):
+        video_latent = rearrange(video_latent, 'b (t n) d -> b t n d', t=self.compressed_num_frames)
+        cond_input, pred_input = video_latent[:, cond_inds], video_latent[:, pred_inds]
+        cond_input, pred_input = map(
+            lambda x: rearrange(x, 'b t n d -> b (t n) d'),
+            (cond_input, pred_input)
+        )
+        cond_input = modulate(cond_input, aug_shift, aug_scale)
+        pred_input = modulate(pred_input, shift, scale)
+
+        cond_input = rearrange(cond_input, 'b (t n) d -> b t n d', t=len(cond_inds))
+        pred_input = rearrange(pred_input, 'b (t n) d -> b t n d', t=len(pred_inds))
+
+        video_latent = torch.cat([cond_input, pred_input], dim=1)  # (b, t, n, d)
+        video_latent = rearrange(video_latent, 'b t n d -> b (t n) d')
+        return video_latent
 
     def final_forward(self, logits, **kwargs):
         x, emb = logits[:, kwargs["text_length"] :, :], kwargs["emb"]  # x:(b,(t n),d)
 
+        split_cond_flag = kwargs['split_cond_flag']
         shift, scale = self.adaLN_modulation(emb).chunk(2, dim=1)
-        x = modulate(self.norm_final(x), shift, scale)
+
+        if split_cond_flag:
+            cond_inds = kwargs["cond_inds"]
+            pred_inds = [i for i in range(self.compressed_num_frames) if i not in cond_inds]
+            assert cond_inds[-1] < pred_inds[0], f"cond frames must be ahead of pred frames, {cond_inds}, {pred_inds}"
+            aug_emb = kwargs["aug_emb"]
+            aug_shift, aug_scale = self.adaLN_modulation(aug_emb).chunk(2, dim=1)
+
+        if split_cond_flag:
+            x = self.separate_modulate(self.norm_final(x), shift, scale, aug_shift, aug_scale, cond_inds, pred_inds)
+        else:
+            x = modulate(self.norm_final(x), shift, scale)
         x = self.linear(x)
 
         return unpatchify(
@@ -560,6 +600,68 @@ class AdaLNMixin(BaseMixin):
                 ]
             )
 
+    def separate_modulate(
+        self,
+        video_latent, 
+        shift, 
+        scale, 
+        aug_shift, 
+        aug_scale, 
+        cond_inds, 
+        pred_inds
+    ):
+        video_latent = rearrange(video_latent, 'b (t n) d -> b t n d', t=self.compressed_num_frames)
+        cond_input, pred_input = video_latent[:, cond_inds], video_latent[:, pred_inds]
+        cond_input, pred_input = map(
+            lambda x: rearrange(x, 'b t n d -> b (t n) d'),
+            (cond_input, pred_input)
+        )
+        cond_input = modulate(cond_input, aug_shift, aug_scale)
+        pred_input = modulate(pred_input, shift, scale)
+
+        cond_input = rearrange(cond_input, 'b (t n) d -> b t n d', t=len(cond_inds))
+        pred_input = rearrange(pred_input, 'b (t n) d -> b t n d', t=len(pred_inds))
+
+        video_latent = torch.cat([cond_input, pred_input], dim=1)  # (b, t, n, d)
+        video_latent = rearrange(video_latent, 'b t n d -> b (t n) d')
+        return video_latent
+
+    def separate_gating(
+        self,
+        hidden_states,
+        outputs,
+        gate, 
+        aug_gate,
+        cond_inds, 
+        pred_inds
+    ):
+        hidden_states, outputs = map(
+            lambda x: rearrange(x, 'b (t n) d -> b t n d', t=self.compressed_num_frames),
+            (hidden_states, outputs)
+        )
+        cond_hidden_states, pred_hidden_states = hidden_states[:, cond_inds], hidden_states[:, pred_inds]
+        cond_outputs, pred_outputs = outputs[:, cond_inds], outputs[:, pred_inds]
+
+        cond_hidden_states, pred_hidden_states, cond_outputs, pred_outputs = map(
+            lambda x: rearrange(x, 'b t n d -> b (t n) d'),
+            (cond_hidden_states, pred_hidden_states, cond_outputs, pred_outputs)
+        )
+        
+        cond_hidden_states = cond_hidden_states + aug_gate * cond_outputs
+        pred_hidden_states = pred_hidden_states + gate * pred_outputs
+
+        # cond_hidden_states, pred_hidden_states = map(
+        #     lambda x: rearrange(x, 'b (t n) d -> b t n d', t=self.compressed_num_frames),
+        #     (cond_hidden_states, pred_hidden_states)
+        # )
+        cond_hidden_states = rearrange(cond_hidden_states, 'b (t n) d -> b t n d', t=len(cond_inds))
+        pred_hidden_states = rearrange(pred_hidden_states, 'b (t n) d -> b t n d', t=len(pred_inds))
+
+        hidden_states = torch.cat([cond_hidden_states, pred_hidden_states], dim=1)
+        hidden_states = rearrange(hidden_states, 'b t n d -> b (t n) d')
+        
+        return hidden_states
+
     def layer_forward(
         self,
         hidden_states,
@@ -571,6 +673,8 @@ class AdaLNMixin(BaseMixin):
         # hidden_states (b,(n_t+t*n_i),d)
         text_hidden_states = hidden_states[:, :text_length]  # (b,n,d)
         img_hidden_states = hidden_states[:, text_length:]  # (b,(t n),d)
+        
+        split_cond_flag = kwargs['split_cond_flag']
         layer = self.transformer.layers[kwargs["layer_id"]]
         adaLN_modulation = self.adaLN_modulations[kwargs["layer_id"]]
 
@@ -588,6 +692,7 @@ class AdaLNMixin(BaseMixin):
             text_scale_mlp,
             text_gate_mlp,
         ) = adaLN_modulation(kwargs["emb"]).chunk(12, dim=1)  # * modulations for img and text
+
         gate_msa, gate_mlp, text_gate_msa, text_gate_mlp = (
             gate_msa.unsqueeze(1),
             gate_mlp.unsqueeze(1),
@@ -595,10 +700,33 @@ class AdaLNMixin(BaseMixin):
             text_gate_mlp.unsqueeze(1),
         )
 
+        # * prepare modulation for aug frames
+        if split_cond_flag:
+            cond_inds = kwargs["cond_inds"]
+            pred_inds = [i for i in range(self.compressed_num_frames) if i not in cond_inds]
+            assert cond_inds[-1] < pred_inds[0], f"cond frames must be ahead of pred frames, {cond_inds}, {pred_inds}"
+
+            (
+                aug_shift_msa,
+                aug_scale_msa,
+                aug_gate_msa,
+                aug_shift_mlp,
+                aug_scale_mlp,
+                aug_gate_mlp,
+            ) = adaLN_modulation(kwargs["aug_emb"]).chunk(12, dim=1)[: 6]  # * modulations for aug
+            aug_gate_msa, aug_gate_mlp = aug_gate_msa.unsqueeze(1), aug_gate_mlp.unsqueeze(1)
+
         # self full attention (b,(t n),d)
         img_attention_input = layer.input_layernorm(img_hidden_states)
         text_attention_input = layer.input_layernorm(text_hidden_states)
-        img_attention_input = modulate(img_attention_input, shift_msa, scale_msa)
+        
+        if split_cond_flag:
+            img_attention_input = self.separate_modulate(img_attention_input, 
+                                                        shift_msa, scale_msa, 
+                                                        aug_shift_msa, aug_scale_msa, 
+                                                        cond_inds, pred_inds)
+        else:
+            img_attention_input = modulate(img_attention_input, shift_msa, scale_msa)
         text_attention_input = modulate(text_attention_input, text_shift_msa, text_scale_msa)
 
         attention_input = torch.cat((text_attention_input, img_attention_input), dim=1)  # (b,n_t+t*n_i,d)
@@ -609,13 +737,25 @@ class AdaLNMixin(BaseMixin):
         if self.transformer.layernorm_order == "sandwich":
             text_attention_output = layer.third_layernorm(text_attention_output)
             img_attention_output = layer.third_layernorm(img_attention_output)
-        img_hidden_states = img_hidden_states + gate_msa * img_attention_output  # (b,(t n),d)
+
+        if split_cond_flag:
+            img_hidden_states = self.separate_gating(img_hidden_states, img_attention_output, 
+                                                    gate_msa, aug_gate_msa, 
+                                                    cond_inds, pred_inds)
+        else:
+            img_hidden_states = img_hidden_states + gate_msa * img_attention_output  # (b,(t n),d)   # TODO: Split gating
         text_hidden_states = text_hidden_states + text_gate_msa * text_attention_output  # (b,n,d)
 
         # mlp (b,(t n),d)
         img_mlp_input = layer.post_attention_layernorm(img_hidden_states)  # vision (b,(t n),d)
         text_mlp_input = layer.post_attention_layernorm(text_hidden_states)  # language (b,n,d)
-        img_mlp_input = modulate(img_mlp_input, shift_mlp, scale_mlp)
+        if split_cond_flag:
+            img_mlp_input = self.separate_modulate(img_mlp_input, 
+                                                   shift_mlp, scale_mlp,
+                                                   aug_shift_mlp, aug_scale_mlp,
+                                                   cond_inds, pred_inds)
+        else:
+            img_mlp_input = modulate(img_mlp_input, shift_mlp, scale_mlp)
         text_mlp_input = modulate(text_mlp_input, text_shift_mlp, text_scale_mlp)
         mlp_input = torch.cat((text_mlp_input, img_mlp_input), dim=1)  # (b,(n_t+t*n_i),d
         mlp_output = layer.mlp(mlp_input, **kwargs)
@@ -625,7 +765,12 @@ class AdaLNMixin(BaseMixin):
             text_mlp_output = layer.fourth_layernorm(text_mlp_output)
             img_mlp_output = layer.fourth_layernorm(img_mlp_output)
 
-        img_hidden_states = img_hidden_states + gate_mlp * img_mlp_output  # vision (b,(t n),d)
+        if split_cond_flag:
+            img_hidden_states = self.separate_gating(img_hidden_states, img_mlp_output, 
+                                                    gate_mlp, aug_gate_mlp,
+                                                    cond_inds, pred_inds)
+        else:
+            img_hidden_states = img_hidden_states + gate_mlp * img_mlp_output  # vision (b,(t n),d)
         text_hidden_states = text_hidden_states + text_gate_mlp * text_mlp_output  # language (b,n,d)
 
         hidden_states = torch.cat((text_hidden_states, img_hidden_states), dim=1)  # (b,(n_t+t*n_i),d)
@@ -847,6 +992,7 @@ class DiffusionTransformer(BaseModel):
                 latent_width=self.latent_width,
                 latent_height=self.latent_height,
                 elementwise_affine=self.elementwise_affine,
+                compressed_num_frames=(self.num_frames - 1) // self.time_compressed_rate + 1,
             ),
             reinit=True,
         )
@@ -865,11 +1011,14 @@ class DiffusionTransformer(BaseModel):
             self.num_classes is not None
         ), "must specify y if and only if the model is class-conditional"
         t_emb = timestep_embedding(timesteps, self.model_channels, repeat_only=False, dtype=self.dtype)  # * [1, 1920]
-        
+
+        aug_timesteps = kwargs.get("aug_t_chunk", None)
+        if aug_timesteps is not None:
+            aug_t_emb = timestep_embedding(aug_timesteps, self.model_channels, repeat_only=False, dtype=self.dtype)
+            aug_emb = self.time_embed(aug_t_emb)
+
         # TODO: Why compress t_emb here??? 1920 -> 512, why not directly map it to 512
         emb = self.time_embed(t_emb)  # * [1, 512]
-
-        # import pdb; pdb.set_trace()
 
         if self.num_classes is not None:
             # assert y.shape[0] == x.shape[0]
@@ -880,6 +1029,13 @@ class DiffusionTransformer(BaseModel):
         kwargs["seq_length"] = t * h * w // (self.patch_size**2)
         kwargs["images"] = x
         kwargs["emb"] = emb  # * Used in AdaLNMixin and FinalLayerMixin  [1, 512]
+        if aug_timesteps is not None:
+            kwargs["aug_emb"] = aug_emb
+
+        kwargs["split_cond_flag"] = 'cond_inds' in kwargs.keys() and \
+                                    'cond_inds' != [] and \
+                                     aug_timesteps is not None
+
         kwargs["encoder_outputs"] = context
         kwargs["text_length"] = context.shape[1]
 

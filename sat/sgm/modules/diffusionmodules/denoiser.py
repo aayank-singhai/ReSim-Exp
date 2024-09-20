@@ -38,7 +38,7 @@ class Denoiser(nn.Module):
         # c_out = -((1 - alphas_cumprod_sqrt**2) ** 0.5)
         # c_in = torch.ones_like(alphas_cumprod_sqrt, device=alphas_cumprod_sqrt.device)  # 1
         # c_noise = additional_model_inputs["idx"].clone()  # ->* timestep
-        c_skip, c_out, c_in, c_noise = self.scaling(sigma, **additional_model_inputs)
+        c_skip, c_out, c_in, c_noise = self.scaling(sigma, **additional_model_inputs)  # go to VideoScaling
         c_noise = self.possibly_quantize_c_noise(c_noise.reshape(sigma_shape))
         return network(input * c_in, c_noise, cond, **additional_model_inputs) * c_out + input * c_skip  # go to DiffusionTransformer
 
