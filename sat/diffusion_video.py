@@ -260,7 +260,6 @@ class SATVideoDiffusionEngine(nn.Module):
         if prefix is not None:
             randn = torch.cat([prefix, randn[:, prefix.shape[1] :]], dim=1)
 
-        # import pdb; pdb.set_trace()
         # broadcast noise
         mp_size = mpu.get_model_parallel_world_size()
         if mp_size > 1:
@@ -281,7 +280,7 @@ class SATVideoDiffusionEngine(nn.Module):
             fixed_frames = None
 
         samples = self.sampler(denoiser, randn, cond, uc=uc, scale=scale, scale_emb=scale_emb,
-                                fixed_frames=fixed_frames)
+                                fixed_frames=fixed_frames)  # go to VPSDEDPMPP2MSampler
         samples = samples.to(self.dtype)
         return samples
 

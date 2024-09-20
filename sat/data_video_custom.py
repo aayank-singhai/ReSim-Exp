@@ -599,6 +599,8 @@ class SFTDataset(Dataset):
             prefix_prompt = prefix_prompt[0].upper() + prefix_prompt[1:]
             if not prefix_prompt.endswith("."):
                 prefix_prompt += "."
+
+            # TODO: Drop action caption at p = 0.1? --> Undirected driving.
             caption = prefix_prompt + " " + caption
 
         item = {
