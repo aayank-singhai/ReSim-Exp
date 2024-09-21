@@ -477,11 +477,11 @@ class SdeditEDMSampler(EulerEDMSampler):
 
 
 class VideoDDIMSampler(BaseDiffusionSampler):
-    def __init__(self, fixed_frames=None, sdedit=False, cond_inds=None, apply_cond_aug=None, **kwargs):
+    def __init__(self, fixed_frames=None, sdedit=False, cond_inds_sampling=None, apply_cond_aug=None, **kwargs):
         super().__init__(**kwargs)
         self.fixed_frames = fixed_frames
         self.sdedit = sdedit
-        self.cond_inds = cond_inds
+        self.cond_inds = cond_inds_sampling
         self.apply_cond_aug = apply_cond_aug
 
     def prepare_sampling_loop(self, x, cond, uc=None, num_steps=None):

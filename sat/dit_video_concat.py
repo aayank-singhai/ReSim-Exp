@@ -1033,7 +1033,8 @@ class DiffusionTransformer(BaseModel):
             kwargs["aug_emb"] = aug_emb
 
         kwargs["split_cond_flag"] = 'cond_inds' in kwargs.keys() and \
-                                    'cond_inds' != [] and \
+                                     kwargs['cond_inds'] != [] and \
+                                     len(kwargs['cond_inds']) > 0 and \
                                      aug_timesteps is not None
 
         kwargs["encoder_outputs"] = context

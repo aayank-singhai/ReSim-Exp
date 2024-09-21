@@ -71,7 +71,9 @@ class StandardDiffusionLoss(nn.Module):
 
 
 class VideoDiffusionLoss(StandardDiffusionLoss):
-    def __init__(self, block_scale=None, block_size=None, min_snr_value=None, fixed_frames=0, cond_inds=None, 
+    def __init__(self, block_scale=None, block_size=None, min_snr_value=None, fixed_frames=0, 
+                 cond_inds=None,
+                 cond_inds_prob=None,
                  apply_cond_aug=None,
                  max_aug_t=700,  # * For V2
                 **kwargs):
@@ -80,7 +82,12 @@ class VideoDiffusionLoss(StandardDiffusionLoss):
         self.block_size = block_size
         self.min_snr_value = min_snr_value
         super().__init__(**kwargs)
-        self.cond_inds = cond_inds  # [0, 1, 2] video latents <--> corresponding [0, 8] (n=9) video frames
+        
+        self.cond_inds = cond_inds # Nested list. e.g.,  [0, 1, 2] should be [ [0, 1, 2] ]
+
+        self.cond_inds_prob = cond_inds_prob  # probability of different conditioning schemes, None for uniform distribution
+        assert cond_inds_prob is None or len(cond_inds_prob) == len(cond_inds), f"Invalid cond_inds_prob: {cond_inds_prob}"
+
         self.apply_cond_aug = apply_cond_aug  # apply aug on conditioning frames
         assert self.apply_cond_aug in [None, 'V1', 'V2'], f"Invalid apply_cond_aug: {self.apply_cond_aug}"
 
@@ -100,8 +107,9 @@ class VideoDiffusionLoss(StandardDiffusionLoss):
         # idx:tensor([510], device='cuda:1'), alpha_t:tensor([0.2985], device='cuda:1')
 
         cond_inds = self.cond_inds
-        
         if cond_inds is not None:
+            cond_inds = random.choices(cond_inds, weights=self.cond_inds_prob, k=1)[0]  # randomly choose a conditioning scheme
+            cond_inds = list(cond_inds)  # convert from omegaconf to normal list
             cond_mask = torch.zeros(input.shape).to(input.device) # [1, 13, 16, 64, 112]
             cond_mask[:, cond_inds] = 1
 

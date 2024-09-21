@@ -53,7 +53,7 @@ class SATVideoDiffusionEngine(nn.Module):
         lora_train = model_config.get("lora_train", False)
         self.use_pd = model_config.get("use_pd", False)  # progressive distillation
 
-        self.cond_inds = model_config.get("cond_inds", None)
+        self.cond_inds = model_config.get("cond_inds_sampling", None)
 
         self.log_keys = log_keys
         self.input_key = input_key
