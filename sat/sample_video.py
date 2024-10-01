@@ -23,6 +23,7 @@ from diffusion_video import SATVideoDiffusionEngine
 from arguments import get_args
 from torchvision.transforms.functional import center_crop, resize
 from torchvision.transforms import InterpolationMode
+from datetime import datetime
 
 
 def read_from_cli():
@@ -189,7 +190,6 @@ def sampling_main(args, model_cls):
     image_size = args.sampling_video_size  # * Remember set image size in your config
     n_prediction_round = args.n_prediction_round
 
-    sample_func = model.sample
     T, H, W, C, F = args.sampling_num_frames, image_size[0], image_size[1], args.latent_channels, 8
     num_samples = [1]
     force_uc_zero_embeddings = ["txt"]
@@ -202,6 +202,7 @@ def sampling_main(args, model_cls):
         cfg_path = args.base
     cfg_name = os.path.basename(cfg_path).replace(".yaml", "")
     out_dir = os.path.join(out_root, cfg_name)
+    out_dir = out_dir + '-' +datetime.now().strftime("%m-%d-%H-%M")
     os.makedirs(out_dir, exist_ok=True)
 
     with torch.no_grad():
@@ -261,6 +262,7 @@ def sampling_main(args, model_cls):
                     is_end = (ind_round == n_prediction_round - 1)
 
                     sampling_kwargs = dict()
+                    sampling_kwargs['round_progress'] = ind_round / n_prediction_round
 
                     if args.input_type == "dataset":
                         if ind_round == 0:
@@ -273,14 +275,14 @@ def sampling_main(args, model_cls):
                     # reload model on GPUp
                     model.to(device)
 
-                    samples_z = sample_func(
+                    samples_z = model.sample(
                         c,
                         uc=uc,
                         batch_size=1,
                         shape=(T, C, H // F, W // F),
                         **sampling_kwargs,
                     )
-                    samples_z = samples_z.permute(0, 2, 1, 3, 4).contiguous()  # !!! Check shape
+                    samples_z = samples_z.permute(0, 2, 1, 3, 4).contiguous()
                     # samples_z: torch.Size([1, 16, 13, 64, 112])
 
                     # Unload the model from GPU to save GPU memory
@@ -292,7 +294,8 @@ def sampling_main(args, model_cls):
                     latent = 1.0 / model.scale_factor * samples_z
 
                     # Decode latent serial to save GPU memory
-                    # TODO: Check here.
+                    # Proved: Do we need this?? If so, can we apply this in training to reduce memory?
+                    # Replacing the slided decoding to full decoding is not that helpful.
                     recons = []
                     loop_num = (T - 1) // 2
                     for i in range(loop_num):
@@ -310,6 +313,9 @@ def sampling_main(args, model_cls):
                             )
 
                         recons.append(recon)
+                    # with torch.no_grad():
+                    #     recon = first_stage_model.decode(latent).to(torch.float32)
+                    # recons.append(recon)
 
                     recon = torch.cat(recons, dim=2).to(torch.float32)
                     samples_x = recon.permute(0, 2, 1, 3, 4).contiguous()
@@ -347,6 +353,6 @@ if __name__ == "__main__":
     args.model_config.first_stage_config.params.cp_size = 1
     args.model_config.network_config.params.transformer_args.model_parallel_size = 1
     args.model_config.network_config.params.transformer_args.checkpoint_activations = False
-    args.model_config.loss_fn_config.params.sigma_sampler_config.params.uniform_sampling = False
+    args.model_config.loss_fn_config.params.sigma_sampler_config.params.uniform_sampling = False  # TODO: Check why set this?
 
     sampling_main(args, model_cls=SATVideoDiffusionEngine)

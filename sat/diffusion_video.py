@@ -280,7 +280,8 @@ class SATVideoDiffusionEngine(nn.Module):
             fixed_frames = None
 
         samples = self.sampler(denoiser, randn, cond, uc=uc, scale=scale, scale_emb=scale_emb,
-                                fixed_frames=fixed_frames)  # go to VPSDEDPMPP2MSampler
+                                fixed_frames=fixed_frames,
+                                **kwargs)  # go to VPSDEDPMPP2MSampler
         samples = samples.to(self.dtype)
         return samples
 
@@ -351,7 +352,6 @@ class SATVideoDiffusionEngine(nn.Module):
             log["inputs"] = x.to(torch.float32)
         x = x.permute(0, 2, 1, 3, 4).contiguous()
 
-        # !! DEBUG, remove
         # print("x.shape", x.shape)  # [1, 3, 49, 480, 720], T=49
 
         z = self.encode_first_stage(x, batch)

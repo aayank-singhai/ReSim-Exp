@@ -76,6 +76,7 @@ class VideoDiffusionLoss(StandardDiffusionLoss):
                  cond_inds_prob=None,
                  apply_cond_aug=None,
                  max_aug_t=700,  # * For V2
+                 contained_aug_t=False,
                 **kwargs):
         self.fixed_frames = fixed_frames  # TODO: Remove this?
         self.block_scale = block_scale
@@ -92,6 +93,7 @@ class VideoDiffusionLoss(StandardDiffusionLoss):
         assert self.apply_cond_aug in [None, 'V1', 'V2'], f"Invalid apply_cond_aug: {self.apply_cond_aug}"
 
         self.max_aug_t = max_aug_t  # * For V2
+        self.contained_aug_t = contained_aug_t  # contain the aug_t to be no greater than t (on prediction frames)
 
     def __call__(self, network, denoiser, conditioner, input, batch):
         cond = conditioner(batch)
@@ -150,12 +152,18 @@ class VideoDiffusionLoss(StandardDiffusionLoss):
             
             elif self.apply_cond_aug == 'V2':
                 # * Improved, noiser aug, diffusion forward process on conditioning frames.
-                aug_t = torch.randint(0, self.max_aug_t, (input.shape[0],))
+                if self.contained_aug_t:
+                    lb = idx.new_zeros(idx.shape)
+                    ub = torch.where(idx > self.max_aug_t, self.max_aug_t, idx)
+                    aug_t = torch.tensor([torch.randint(l, h+1, (1,)).item() for l, h in zip(lb, ub)])
+                else:
+                    aug_t = torch.randint(0, self.max_aug_t, (input.shape[0],))  # [0, max_aug_t(excluded )
+
                 aug_t_chunk = aug_t // 100 * 100  # 0-100: 0, 100-200: 100, 200-300: 200
                 additional_model_inputs['aug_t_chunk'] = aug_t_chunk.to(input.device)
                 # * Inference: set 0
                 
-                aug_alphas_cumprod_sqrt = self.sigma_sampler.sigmas[aug_t]
+                aug_alphas_cumprod_sqrt = self.sigma_sampler.sigmas[aug_t]  # Checked, correct order self.sigma_sampler.sigmas[10]: tensor(0.9853)
                 aug_alphas_cumprod_sqrt = aug_alphas_cumprod_sqrt.to(input.device)
                 aug_noise = torch.randn_like(input)
 

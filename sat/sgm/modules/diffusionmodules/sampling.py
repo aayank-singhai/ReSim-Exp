@@ -477,12 +477,32 @@ class SdeditEDMSampler(EulerEDMSampler):
 
 
 class VideoDDIMSampler(BaseDiffusionSampler):
-    def __init__(self, fixed_frames=None, sdedit=False, cond_inds_sampling=None, apply_cond_aug=None, **kwargs):
+    def __init__(self, fixed_frames=None, sdedit=False, cond_inds_sampling=None, apply_cond_aug=None, 
+                 apply_cond_aug_chunk_inference = 'zero',
+                 **kwargs):
         super().__init__(**kwargs)
         self.fixed_frames = fixed_frames
         self.sdedit = sdedit
         self.cond_inds = cond_inds_sampling
         self.apply_cond_aug = apply_cond_aug
+        assert self.apply_cond_aug in [None, 'V1', 'V2'], f"Invalid apply_cond_aug: {self.apply_cond_aug}"
+
+        self.apply_cond_aug_chunk_inference = apply_cond_aug_chunk_inference
+        assert isinstance(self.apply_cond_aug_chunk_inference, int) or \
+                self.apply_cond_aug_chunk_inference in ['v1', 'zero', 'min', 'dynamic']
+        # * v1 for randomly sampled gaussian noise
+
+        # * Fixed value
+        # * - chunk 0 --> timestep: 50
+        # * - chunk 1 --> timestep: 150
+        # * - chunk x --> timestep: x * 100 + 50
+        # * Zero
+        # * - no effect
+        # * Min
+        # * - chunk 0 --> timestep: 0
+        # * Dynamic
+        # * - gradually increase the timestep chunk from 0 -> 7
+        # * - then chunk x --> timestep: x * 100 + 50
 
     def prepare_sampling_loop(self, x, cond, uc=None, num_steps=None):
         alpha_cumprod_sqrt, timesteps = self.discretization(
@@ -502,25 +522,27 @@ class VideoDDIMSampler(BaseDiffusionSampler):
 
         return x, s_in, alpha_cumprod_sqrt, num_sigmas, cond, uc, timesteps
 
-    def denoise(self, x, denoiser, alpha_cumprod_sqrt, cond, uc, timestep=None, idx=None, scale=None, scale_emb=None):
-        additional_model_inputs = {}
+    def denoise(self, x, denoiser, alpha_cumprod_sqrt, cond, uc, timestep=None, idx=None, scale=None, scale_emb=None, **additional_model_inputs):
 
         additional_model_inputs["is_sampling"] = True  # * Used to indicate sampling
 
         if self.cond_inds is not None:
             additional_model_inputs['cond_inds'] = self.cond_inds
+        
+        aug_t_chunk_sampling = additional_model_inputs.get('aug_t_chunk', 0)
+        # import pdb; pdb.set_trace()
 
         if not isinstance(scale, torch.Tensor) and scale == 1:
             additional_model_inputs["idx"] = x.new_ones([x.shape[0]]) * timestep
             if self.apply_cond_aug == 'V2':
-                additional_model_inputs["aug_t_chunk"] = x.new_zeros([x.shape[0]])
+                additional_model_inputs["aug_t_chunk"] = x.new_ones([x.shape[0]]) * aug_t_chunk_sampling
             if scale_emb is not None:
                 additional_model_inputs["scale_emb"] = scale_emb
             denoised = denoiser(x, alpha_cumprod_sqrt, cond, **additional_model_inputs).to(torch.float32)
         else:
             additional_model_inputs["idx"] = torch.cat([x.new_ones([x.shape[0]]) * timestep] * 2)
             if self.apply_cond_aug == 'V2':
-                additional_model_inputs["aug_t_chunk"] = torch.cat([x.new_zeros([x.shape[0]])] * 2)
+                additional_model_inputs["aug_t_chunk"] = torch.cat([x.new_ones([x.shape[0]])] * 2) * aug_t_chunk_sampling
             denoised = denoiser(
                 *self.guider.prepare_inputs(x, alpha_cumprod_sqrt, cond, uc), **additional_model_inputs
             ).to(torch.float32)
@@ -619,9 +641,11 @@ class VPSDEDPMPP2MSampler(VideoDDIMSampler):
         timestep=None,
         scale=None,
         scale_emb=None,
+        **additional_model_inputs
     ):
         denoised = self.denoise(
-            x, denoiser, alpha_cumprod_sqrt, cond, uc, timestep, idx, scale=scale, scale_emb=scale_emb
+            x, denoiser, alpha_cumprod_sqrt, cond, uc, timestep, idx, scale=scale, scale_emb=scale_emb,
+            **additional_model_inputs
         ).to(torch.float32)
         if idx == 1:
             return denoised, denoised
@@ -647,7 +671,61 @@ class VPSDEDPMPP2MSampler(VideoDDIMSampler):
 
         return x, denoised
 
-    def __call__(self, denoiser, x, cond, uc=None, num_steps=None, scale=None, scale_emb=None, fixed_frames=None):
+    def cond_aug_chunk_inference(self, x, prefix_frames, s_in, alpha_cumprod_sqrt, round_progress):
+
+        # TODO: Wrong order.
+        # alpha_cumprod_sqrt
+        # tensor([0.0000, 0.0052, 0.0109, 0.0171, 0.0239, 0.0312, 0.0390, 0.0474, 0.0565,
+        #        0.0661, 0.0764, 0.0873, 0.0988, 0.1110, 0.1239, 0.1374, 0.1516, 0.1664,
+        #        0.1819, 0.1982, 0.2151, 0.2327, 0.2510, 0.2700, 0.2897, 0.3101, 0.3313,
+        #        0.3531, 0.3757, 0.3990, 0.4231, 0.4478, 0.4733, 0.4996, 0.5265, 0.5541,
+        #        0.5823, 0.6112, 0.6407, 0.6706, 0.7010, 0.7317, 0.7627, 0.7938, 0.8249,
+        #        0.8558, 0.8864, 0.9164, 0.9456, 0.9739, 1.0000], device='cuda:0')
+
+        if alpha_cumprod_sqrt[-1] > alpha_cumprod_sqrt[0]:
+            # wrong order, fix it
+            alpha_cumprod_sqrt = alpha_cumprod_sqrt.flip(0)
+        
+        if alpha_cumprod_sqrt[0] == 1.:
+            alpha_cumprod_sqrt = alpha_cumprod_sqrt[1:]   # * Remove the first element - no corruption
+        
+        assert alpha_cumprod_sqrt[-1] < alpha_cumprod_sqrt[0]  
+        # * Fixed value
+        if isinstance(self.apply_cond_aug_chunk_inference, int):
+            aug_t_chunk = self.apply_cond_aug_chunk_inference
+            aug_t = aug_t_chunk + 50
+            aug_t = int(aug_t / 1000 * len(alpha_cumprod_sqrt)) # scale to inference schedule
+
+        elif self.apply_cond_aug_chunk_inference == 'min':
+            aug_t_chunk, aug_t = 0, 0
+
+        elif self.apply_cond_aug_chunk_inference == 'dynamic':
+            aug_t_chunk = int(round_progress * 6) * 100
+            aug_t = aug_t_chunk + 50  # * maximum 650
+            aug_t = int(aug_t / 1000 * len(alpha_cumprod_sqrt)) # scale to inference schedule
+        
+        # else:
+        #     raise NotImplementedError
+
+        rd = torch.randn_like(prefix_frames)
+        if self.apply_cond_aug_chunk_inference == 'v1':
+            log_cond_aug_dist = torch.distributions.Normal(-3.0, 0.5)  # * Following SVD
+            log_cond_aug = log_cond_aug_dist.sample()
+            cond_aug = torch.exp(log_cond_aug)
+            # aug_input = aug_input + cond_aug * torch.randn_like(aug_input)
+            noised_prefix_frames = prefix_frames + cond_aug * rd
+            aug_t_chunk = 0 # just as a placeholder
+        else:
+            i = aug_t
+            noised_prefix_frames = alpha_cumprod_sqrt[i] * prefix_frames + rd * append_dims(
+                s_in * (1 - alpha_cumprod_sqrt[i] ** 2) ** 0.5, len(prefix_frames.shape)
+            )
+
+        x = torch.cat([noised_prefix_frames, x[:, self.fixed_frames :]], dim=1)
+        return x, int(aug_t_chunk)
+
+    def __call__(self, denoiser, x, cond, uc=None, num_steps=None, scale=None, scale_emb=None, fixed_frames=None,
+                 **additional_model_inputs):
 
         fixed_frames = fixed_frames or self.fixed_frames
 
@@ -656,8 +734,10 @@ class VPSDEDPMPP2MSampler(VideoDDIMSampler):
         )
 
         if fixed_frames is not None:
-            prefix_frames = x[:, :self.fixed_frames]  # ! Dimension index not right?
+            prefix_frames = x[:, :fixed_frames]  # ! Dimension index not right?
         old_denoised = None
+
+        # TODO: Check here!
         for i in self.get_sigma_gen(num_sigmas):
             if fixed_frames is not None:
                 if self.sdedit:
@@ -665,9 +745,14 @@ class VPSDEDPMPP2MSampler(VideoDDIMSampler):
                     noised_prefix_frames = alpha_cumprod_sqrt[i] * prefix_frames + rd * append_dims(
                         s_in * (1 - alpha_cumprod_sqrt[i] ** 2) ** 0.5, len(prefix_frames.shape)
                     )
-                    x = torch.cat([noised_prefix_frames, x[:, self.fixed_frames :]], dim=1)
+                    x = torch.cat([noised_prefix_frames, x[:, fixed_frames :]], dim=1)
+                elif self.apply_cond_aug_chunk_inference == 'v1':
+                    x, aug_t_chunk = self.cond_aug_chunk_inference(x, prefix_frames, s_in, alpha_cumprod_sqrt, additional_model_inputs['round_progress'])
+                elif self.apply_cond_aug_chunk_inference != 'zero':  # * For str, should use !=, not 'is not'
+                    x, aug_t_chunk = self.cond_aug_chunk_inference(x, prefix_frames, s_in, alpha_cumprod_sqrt, additional_model_inputs['round_progress'])
+                    additional_model_inputs['aug_t_chunk'] = aug_t_chunk
                 else:
-                    x = torch.cat([prefix_frames, x[:, self.fixed_frames :]], dim=1)
+                    x = torch.cat([prefix_frames, x[:, fixed_frames :]], dim=1)
             x, old_denoised = self.sampler_step(
                 old_denoised,
                 None if i == 0 else s_in * alpha_cumprod_sqrt[i - 1],
@@ -681,10 +766,11 @@ class VPSDEDPMPP2MSampler(VideoDDIMSampler):
                 timestep=timesteps[-(i + 1)],
                 scale=scale,
                 scale_emb=scale_emb,
+                **additional_model_inputs
             )
 
         if fixed_frames is not None:
-            x = torch.cat([prefix_frames, x[:, self.fixed_frames :]], dim=1)
+            x = torch.cat([prefix_frames, x[:, fixed_frames :]], dim=1)
 
         return x
 

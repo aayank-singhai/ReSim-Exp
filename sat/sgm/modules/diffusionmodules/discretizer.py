@@ -148,4 +148,4 @@ class ZeroSNRDDPMDiscretization(Discretization):
         else:
             return torch.flip(alphas_cumprod_sqrt, (0,))
             # after flipping: sqrt(alpha_t): 0 -> 0.998 (not 1 in the end.)
-            # ??? Why reverse this???? -- Answer: Flipped in DiscreteSampling
+            # ??? Why reverse this???? -- Answer: Flipped in DiscreteSampling --> Discretization
