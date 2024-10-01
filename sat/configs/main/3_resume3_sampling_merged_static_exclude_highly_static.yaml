@@ -1,3 +1,9 @@
+# * Features:
+# * Apply cond aug (V1)
+# * Adjusted Timestep Sampling in training
+# * Merge static to forward
+# * Exclude highly static frames
+
 args:
   checkpoint_activations: True ## using gradient checkpointing
   model_parallel_size: 1
@@ -10,7 +16,7 @@ args:
   
   no_load_rng: True
   # train_iters: 10000
-  train_iters: 20000
+  train_iters: 20000   # TODO: Set to 200000
   eval_iters: 1
   eval_interval: 500  # * Log video every 100 iterations
   eval_batch_size: 1
