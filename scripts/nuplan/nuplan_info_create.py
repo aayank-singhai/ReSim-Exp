@@ -40,7 +40,6 @@ from nuplan.planning.scenario_builder.nuplan_db.nuplan_scenario_utils import (
 )
 
 from tutorials.utils.tutorial_utils import get_scenario_type_token_map, get_default_scenario_from_token
-import mmcv
 import argparse
 import json
 
@@ -135,8 +134,8 @@ def split_list_to_k_folds(input_list, k):
 
 
 def create_nuplan_info(nuplandb_wrapper, out_dir='./', split=None, n_folds=10, train_val_split='train'):
-    train_logs = load_json('/cpfs01/user/yangjiazhi/workspace/DiffuSim/nuplan_outputs/train_logs.json')
-    val_logs = load_json('/cpfs01/user/yangjiazhi/workspace/DiffuSim/nuplan_outputs/val_logs.json')
+    train_logs = load_json('/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/scripts/nuplan/nuplan_logs/nuplan_train_sensor_logs.json')
+    val_logs = load_json('/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/scripts/nuplan/nuplan_logs/nuplan_val_sensor_logs.json')
 
     if train_val_split == 'train':
         nuplan_logs = train_logs
@@ -153,7 +152,6 @@ def create_nuplan_info(nuplandb_wrapper, out_dir='./', split=None, n_folds=10, t
         all_log_dbs = split_list_to_k_folds(all_log_dbs, n_folds)[split]
     
     print(f"Processing split {split} of {n_folds} folds.")
-
     for log in tqdm.tqdm(all_log_dbs):
         log_token2pcs[log.log.token] = []
         log_token2log_db[log.log.token] = log.log
@@ -292,6 +290,8 @@ def create_nuplan_info(nuplandb_wrapper, out_dir='./', split=None, n_folds=10, t
                     retrieved_images = get_images_from_lidar_tokens(
                         log_file, [cur_lidarpc.token], [str(channel.value) for channel in CameraChannel]
                     )
+                    # import pdb; pdb.set_trace()
+
                     cams = {}
                     
                     for img in retrieved_images:
@@ -331,17 +331,21 @@ if __name__ == '__main__':
     args = parser.parse_args()
     deal_split = args.split
 
-    out_dir = '/cpfs01/user/yangjiazhi/workspace/DiffuSim/nuplan_outputs/FULL_OUTPUT_2'
+    # out_dir = '/cpfs01/user/yangjiazhi/workspace/DiffuSim/nuplan_outputs/FULL_OUTPUT_2'
+    out_dir = '/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/custom_data/nuplan'
     os.makedirs(out_dir, exist_ok=True)
 
+    print("Initializing!!!!!")
     nuplandb_wrapper = NuPlanDBWrapper(
         data_root=NUPLAN_DATA_ROOT,
         map_root=NUPLAN_MAPS_ROOT,
         db_files=NUPLAN_DB_FILES,
         map_version=NUPLAN_MAP_VERSION,
     )
+    print("Initialized nuplandb_wrapper")
 
     # DEBUG = True
 
     N_FOLDS = 20
+    # * split: [0, N_FOLDS-1]
     create_nuplan_info(nuplandb_wrapper, out_dir=out_dir, split=deal_split, n_folds=N_FOLDS, train_val_split='train')

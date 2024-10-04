@@ -71,6 +71,7 @@ def add_evaluation_args(parser):
     
     group.add_argument('--sampling_video_size', type=list, default=[480, 720])
     group.add_argument('--n_prediction_round', type=int, default=1)
+    group.add_argument('--use_ema', type=bool, default=False)
 
     return parser
 

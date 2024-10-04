@@ -1,24 +1,20 @@
-# * Features:
-# * Apply cond aug (V1)
-# * Adjusted Timestep Sampling in training
-# * Merge static to forward
-# * Exclude highly static frames
-
 args:
   checkpoint_activations: True ## using gradient checkpointing
   model_parallel_size: 1
   experiment_name: nus
   mode: finetune
   # load: "/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/ckpts/CogVideoX-2b-sat/transformer"
-  # load: "/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/sat/ckpts/youtube_bs2_512x896_cond3_full_lr-5e-5_trunc-infer-8_32gpus-08-30-06-07"
-  # load: "/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/sat/ckpts/youtube_bs2_512x896_cond3_full_lr-5e-5_trunc-infer-8_32gpus_resume-09-05-03-45"  # * Resume, round2
-  load: "/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/sat/ckpts/youtube_bs2_512x896_cond3_full_lr-5e-5_trunc-infer-8_32gpus_resume2_cond-aug-09-09-17-20"
+  # load: "/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/sat/ckpts/youtube_bs2_512x896_cond3_full_lr-5e-5_trunc-infer-8_32gpus-08-30-06-07"  # * Resume, round1, seed 17
+  # load: "/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/sat/ckpts/youtube_bs2_512x896_cond3_full_lr-5e-5_trunc-infer-8_32gpus_resume-09-05-03-45"  # * Resume, round2, seed 3407
+  # load: "/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/sat/ckpts/youtube_bs2_512x896_cond3_full_lr-5e-5_trunc-infer-8_32gpus_resume2_cond-aug-09-09-17-20"  # * Abl, round3, seed 11
+  # load: "/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/sat/ckpts/resume3_cond_aug_v2_fixed_cond_inds-09-20-19-41"
+  load: "/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/sat/ckpts/resume4_cond_aug_v2_fixed_cond_inds-09-24-18-55"
   
   no_load_rng: True
   # train_iters: 10000
-  train_iters: 20000   # TODO: Set to 200000
+  train_iters: 20000
   eval_iters: 1
-  eval_interval: 500  # * Log video every 100 iterations
+  eval_interval: 250  # * Log video every 100 iterations
   eval_batch_size: 1
   save: ckpts
   save_interval: 2000  # * Save checkpoints
@@ -34,7 +30,6 @@ args:
   force_train: True
   # only_log_video_latents: True
   only_log_video_latents: False
-  # resume_dataloader: True  # !! Resume training
 
 data:
     target: data_video_custom.SFTDataset
@@ -77,7 +72,7 @@ deepspeed:
   optimizer:
     type: sat.ops.FusedEmaAdam
     params:
-      lr: 0.00005   # TODO: Lower the learning rate.
+      lr: 0.00005
       betas: [0.9, 0.95]
       eps: 1e-8
       weight_decay: 1e-4
@@ -98,8 +93,7 @@ model:
   en_and_decode_n_frames_a_time: 17  # * split frames
   truncate_n_frames_decode: 8
 
-  # TODO: cond_inds [], [0], [0, 1], [0, 1, 2]
-  cond_inds: &cond_inds [0, 1, 2]
+  cond_inds_sampling: &cond_inds_sampling [0, 1, 2]  # * For log videos
   
   denoiser_config:
     target: sgm.modules.diffusionmodules.denoiser.DiscreteDenoiser
@@ -140,6 +134,8 @@ model:
       adm_in_channels: 256
       num_attention_heads: 30
 
+      allow_split_cond: false
+
       transformer_args:
         checkpoint_activations: True ## using gradient checkpointing
         vocab_size: 1
@@ -171,6 +167,7 @@ model:
           params:
             text_hidden_size: 4096
             cond_emb_in_dim: *t_emb_dim
+            use_aug_cond_emb: true
 
         adaln_layer_config:
           target: dit_video_concat.AdaLNMixin
@@ -239,8 +236,19 @@ model:
     target: sgm.modules.diffusionmodules.loss.VideoDiffusionLoss  # TODO: Dynamics Enhancement Loss + Per-sample Dynamics Weight (According to flow value?)
     params:
       offset_noise_level: 0
-      cond_inds: *cond_inds
-      apply_cond_aug: True   # TODO --> "V1"
+
+      cond_inds: 
+        - []
+        - [0]
+        - [0, 1]
+        - [0, 1, 2]
+      cond_inds_prob:
+        - 0.1
+        - 0.15
+        - 0.15
+        - 0.6  # * For [0, 1, 2]
+
+      apply_cond_aug: &cond_aug V2
       sigma_sampler_config:
         target: sgm.modules.diffusionmodules.sigma_sampling.DiscreteSampling
         params:
@@ -258,7 +266,8 @@ model:
       num_steps: 50  # TODO: Can we use less steps to speed up?? (GameNGen only uses 4)
       verbose: True
       fixed_frames: 3  # [0, 1, 2]
-      cond_inds: *cond_inds
+      cond_inds_sampling: *cond_inds_sampling  # [0, 1, 2]
+      apply_cond_aug: *cond_aug # * sample aug_t in sampling, all 0
 
       discretization_config:
         target: sgm.modules.diffusionmodules.discretizer.ZeroSNRDDPMDiscretization
