@@ -77,6 +77,7 @@ class VideoDiffusionLoss(StandardDiffusionLoss):
                  apply_cond_aug=None,
                  max_aug_t=700,  # * For V2
                  contained_aug_t=False,
+                 exclude_cond_from_loss=True,
                 **kwargs):
         self.fixed_frames = fixed_frames  # TODO: Remove this?
         self.block_scale = block_scale
@@ -94,6 +95,7 @@ class VideoDiffusionLoss(StandardDiffusionLoss):
 
         self.max_aug_t = max_aug_t  # * For V2
         self.contained_aug_t = contained_aug_t  # contain the aug_t to be no greater than t (on prediction frames)
+        self.exclude_cond_from_loss = exclude_cond_from_loss
 
     def __call__(self, network, denoiser, conditioner, input, batch):
         cond = conditioner(batch)
@@ -181,7 +183,8 @@ class VideoDiffusionLoss(StandardDiffusionLoss):
         w = append_dims(1 / (1 - alphas_cumprod_sqrt**2), input.ndim)  # v-pred  torch.Size([1, 1, 1, 1, 1])
         b, t = model_output.shape[:2]
 
-        if cond_inds is not None:
+        # * Exclude the condition frames from loss
+        if cond_inds is not None and self.exclude_cond_from_loss:
             model_output = model_output[~cond_mask.bool()].reshape(b, -1, *model_output.shape[2:])
             input = input[~cond_mask.bool()].reshape(b, -1, *input.shape[2:])
 

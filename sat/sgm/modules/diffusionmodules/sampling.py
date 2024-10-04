@@ -534,6 +534,8 @@ class VideoDDIMSampler(BaseDiffusionSampler):
 
         if not isinstance(scale, torch.Tensor) and scale == 1:
             additional_model_inputs["idx"] = x.new_ones([x.shape[0]]) * timestep
+
+            # TODO: Check this?? A bug??? the conflict between apply_cond_aug and apply_cond_aug_chunk_inference
             if self.apply_cond_aug == 'V2':
                 additional_model_inputs["aug_t_chunk"] = x.new_ones([x.shape[0]]) * aug_t_chunk_sampling
             if scale_emb is not None:
@@ -671,6 +673,7 @@ class VPSDEDPMPP2MSampler(VideoDDIMSampler):
 
         return x, denoised
 
+    # TODO: Decreasing t_aug.
     def cond_aug_chunk_inference(self, x, prefix_frames, s_in, alpha_cumprod_sqrt, round_progress):
 
         # TODO: Wrong order.
