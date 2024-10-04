@@ -30,7 +30,8 @@ class ImagePatchEmbeddingMixin(BaseMixin):
         bias=True,
         text_hidden_size=None,
         # use_cond_emb=False,
-        cond_emb_in_dim=None,
+        cond_emb_in_dim=None,   # * Indicating conditional frames, related to t
+        use_aug_cond_emb=False, # * Indicating the scale of noise for conditioning augmentation, related to t_aug
     ):
         super().__init__()
         self.proj = nn.Conv2d(in_channels, hidden_size, kernel_size=patch_size, stride=patch_size, bias=bias)
@@ -46,8 +47,15 @@ class ImagePatchEmbeddingMixin(BaseMixin):
             nn.init.constant_(self.cond_emb_proj.bias, 0)
         else:
             self.cond_emb_proj = None
+
+        if use_aug_cond_emb:
+            self.aug_cond_emb_proj = nn.Linear(cond_emb_in_dim, hidden_size)  # aug_cond_emb is of the same shape with cond_emb
+            # * zero_init
+            nn.init.constant_(self.aug_cond_emb_proj.weight, 0)
+            nn.init.constant_(self.aug_cond_emb_proj.bias, 0)
+        else:
+            self.aug_cond_emb_proj = None
         
-    # TODO: add cond_emb here.
     def word_embedding_forward(self, input_ids, **kwargs):
         # now is 3d patch
         images = kwargs["images"]  # (b,t,c,h,w)  [1, 13, 16, 64, 112]
@@ -56,7 +64,7 @@ class ImagePatchEmbeddingMixin(BaseMixin):
         emb = self.proj(emb)  # ((b t),d,h/2,w/2) # * Conv2d(16, 1920, kernel_size=(2, 2), stride=(2, 2)), downsampling
 
         # NOTE: Currently directly added on images, inoptimal.
-        # TODO: Add cond_emb on intermediate embeddings, not on input images.
+        # TODO: Add cond_emb on intermediate embeddings, not on input images. (4 Oct: Not needed indeed.)
         if self.cond_emb_proj is not None:
             emb = rearrange(emb, '(b t) ... -> b t ...', b=B, t=T)  # [1, 13, 1920, 64, 112]
             cond_inds = kwargs["cond_inds"]
@@ -66,6 +74,11 @@ class ImagePatchEmbeddingMixin(BaseMixin):
             cond_mask[:, cond_inds] = 1
 
             emb = emb + cond_mask * append_dims(cond_emb, cond_mask.ndim)
+
+            if self.aug_cond_emb_proj is not None:
+                aug_cond_emb = self.aug_cond_emb_proj(kwargs["aug_emb"]).unsqueeze(1)
+                emb = emb + cond_mask * append_dims(aug_cond_emb, cond_mask.ndim)
+
             emb = rearrange(emb, 'b t ... -> (b t) ...')
 
         emb = emb.view(B, T, *emb.shape[1:])  # (b, t, d, h/2, w/2)
@@ -842,6 +855,9 @@ class DiffusionTransformer(BaseModel):
         use_SwiGLU=False,
         use_RMSNorm=False,
         zero_init_y_embed=False,
+
+        allow_split_cond=True,
+
         **kwargs,
     ):
         self.latent_width = latent_width
@@ -867,6 +883,10 @@ class DiffusionTransformer(BaseModel):
         self.time_interpolation = time_interpolation
         self.inner_hidden_size = hidden_size * 4
         self.zero_init_y_embed = zero_init_y_embed
+
+        # * Custom
+        self.allow_split_cond = allow_split_cond
+
         try:
             self.dtype = str_to_dtype[kwargs.pop("dtype")]
         except:
@@ -1032,7 +1052,10 @@ class DiffusionTransformer(BaseModel):
         if aug_timesteps is not None:
             kwargs["aug_emb"] = aug_emb
 
-        kwargs["split_cond_flag"] = 'cond_inds' in kwargs.keys() and \
+        # Checked: Is it the reason for longer main3 not working? 
+        # Verified, No. For main3, split_cond_flag is False
+        kwargs["split_cond_flag"] = self.allow_split_cond and \
+                                    'cond_inds' in kwargs.keys() and \
                                      kwargs['cond_inds'] != [] and \
                                      len(kwargs['cond_inds']) > 0 and \
                                      aug_timesteps is not None
