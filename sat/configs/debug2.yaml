@@ -4,24 +4,31 @@ args:
   experiment_name: nus
   mode: finetune
   # load: "/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/ckpts/CogVideoX-2b-sat/transformer"
-  # load: "/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/sat/ckpts/youtube_bs2_512x896_cond3_full_lr-5e-5_trunc-infer-8_32gpus-08-30-06-07"
-  # load: "/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/sat/ckpts/youtube_bs2_512x896_cond3_full_lr-5e-5_trunc-infer-8_32gpus_resume-09-05-03-45"  # * Resume, round2
-  load: "/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/sat/ckpts/youtube_bs2_512x896_cond3_full_lr-5e-5_trunc-infer-8_32gpus_resume2_cond-aug-09-09-17-20"
+  # load: "/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/sat/ckpts/youtube_bs2_512x896_cond3_full_lr-5e-5_trunc-infer-8_32gpus-08-30-06-07"  # * Resume, round1, seed 17
+  # load: "/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/sat/ckpts/youtube_bs2_512x896_cond3_full_lr-5e-5_trunc-infer-8_32gpus_resume-09-05-03-45"  # * Resume, round2, seed 3407
+  # load: "/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/sat/ckpts/youtube_bs2_512x896_cond3_full_lr-5e-5_trunc-infer-8_32gpus_resume2_cond-aug-09-09-17-20"  # * Abl, round3, seed 11
+  load: "/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/sat/ckpts/resume3_cond_aug_v2_fixed_cond_inds-09-20-19-41"
   
   no_load_rng: True
   # train_iters: 10000
   train_iters: 20000
   eval_iters: 1
-  eval_interval: 50  # * Log video every 100 iterations
-
+  eval_interval: 10  # * Log video every 100 iterations
   eval_batch_size: 1
   save: ckpts
   save_interval: 2000  # * Save checkpoints
   log_interval: 20   # * Log info
 
-  train_data: ["/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/custom_data/youtube_json/YouTube_svd_clip-len-49_interval-10_5M_flow_round2.json"]
+  train_data: [
+    # "/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/custom_data/youtube_json/YouTube_svd_clip-len-49_interval-10_5M_flow_round2.json",
+    "/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/custom_data/nuplan/token2info_all_list.json" # * nuplan json path
+  ]
   # valid_data: ["/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/custom_data/youtube_json/YouTube_svd_val_clip-len-49_interval-10_78k_flow.json"]
-  valid_data: ["/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/custom_data/youtube_json/YouTube_svd_val_1080p_clip-len-49_interval-10_77k_flow.json"]   # * New val, 1080p
+  # valid_data: ["/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/custom_data/youtube_json/YouTube_svd_val_1080p_clip-len-49_interval-10_77k_flow.json"]   # * New val, 1080p
+  valid_data: [
+    # "/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/custom_data/youtube_json/YouTube_svd_clip-len-49_interval-10_5M_flow_round2.json",
+    "/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/custom_data/nuplan/token2info_all_list.json" # * nuplan json path
+  ]
 
   split: 1,0,0
   # num_workers: 0  # !!! DEBUG
@@ -29,10 +36,10 @@ args:
   force_train: True
   # only_log_video_latents: True
   only_log_video_latents: False
-  resume_dataloader: True  # !! Resume training
 
 data:
-    target: data_video_custom.SFTDataset
+    # target: data_video_custom.SFTDataset
+    target: data_nuplan.nuPlanDataset
     params:
       # video_size: [480, 720]
 
@@ -42,8 +49,6 @@ data:
       skip_frms_num: 3.
       prefix_prompt: "This video depicts a realistic view from the driver's perspective of a car driving on the road."
       
-      merge_static: True           # merging static to forward
-      exclude_highly_static: True  # exclude highly static
 
 deepspeed:
   # train_micro_batch_size_per_gpu: 1
@@ -72,7 +77,7 @@ deepspeed:
   optimizer:
     type: sat.ops.FusedEmaAdam
     params:
-      lr: 0.00005   # TODO: Lower the learning rate.
+      lr: 0.00001  # TODO: Smaller for nuPlan finetune, 1e-5
       betas: [0.9, 0.95]
       eps: 1e-8
       weight_decay: 1e-4
@@ -81,7 +86,6 @@ deepspeed:
     contiguous_memory_optimization: false
   wall_clock_breakdown: false
 
-  
 
 model:
   scale_factor: 1.15258426
@@ -148,7 +152,7 @@ model:
         pos_embed_config:
           target: dit_video_concat.Basic3DPositionEmbeddingMixin
           params:
-            text_length: 226
+            text_length: 227  # TODO: Need to be adjusted with traj feature length
             # height_interpolation: 1.875  # * cur_height // 256
             # width_interpolation: 1.875   # * cur_width  // 384
 
@@ -179,6 +183,7 @@ model:
     target: sgm.modules.GeneralConditioner
     params:
       emb_models:
+        # * text enc
         - is_trainable: false
           input_key: txt
           ucg_rate: 0.1
@@ -186,6 +191,19 @@ model:
           params:
             model_dir: "/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/ckpts/CogVideoX-2b-sat/t5-v1_1-xxl"
             max_length: 226
+
+        # * traj enc
+        - is_trainable: false
+          input_key: fut_traj
+          ucg_rate: 0.5    # * action (world model) and no-action (planning model)
+          target: sgm.modules.encoders.traj_encoder.TrajEncoder
+          params:
+            # TODO: setup here
+            seq_len: 8
+            dim: 2048
+            out_dim: 4096
+            depth: 3
+            mlp_dim: 2048
 
   first_stage_config:
     target: vae_modules.autoencoder.VideoAutoencoderInferenceWrapper
@@ -247,8 +265,6 @@ model:
         - 0.6  # * For [0, 1, 2]
 
       apply_cond_aug: &cond_aug V2
-      contained_aug_t: true
-      
       sigma_sampler_config:
         target: sgm.modules.diffusionmodules.sigma_sampling.DiscreteSampling
         params:
@@ -268,6 +284,7 @@ model:
       fixed_frames: 3  # [0, 1, 2]
       cond_inds_sampling: *cond_inds_sampling  # [0, 1, 2]
       apply_cond_aug: *cond_aug # * sample aug_t in sampling, all 0
+      # apply_cond_aug_chunk_inference: 'min'
 
       discretization_config:
         target: sgm.modules.diffusionmodules.discretizer.ZeroSNRDDPMDiscretization
