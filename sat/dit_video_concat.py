@@ -215,7 +215,7 @@ class Basic3DPositionEmbeddingMixin(BaseMixin):
         self.num_patches = height * width * compressed_num_frames
         self.pos_embedding = nn.Parameter(
             torch.zeros(1, int(text_length + self.num_patches), int(hidden_size)), requires_grad=False
-        )
+        )    # * requires_grad=False, won't be updated.
         self.height_interpolation = height_interpolation
         self.width_interpolation = width_interpolation
         self.time_interpolation = time_interpolation
@@ -857,6 +857,7 @@ class DiffusionTransformer(BaseModel):
         zero_init_y_embed=False,
 
         allow_split_cond=True,
+        # with_cond_traj=False,
 
         **kwargs,
     ):
@@ -886,6 +887,7 @@ class DiffusionTransformer(BaseModel):
 
         # * Custom
         self.allow_split_cond = allow_split_cond
+        # self.with_cond_traj = with_cond_traj
 
         try:
             self.dtype = str_to_dtype[kwargs.pop("dtype")]
@@ -1021,12 +1023,15 @@ class DiffusionTransformer(BaseModel):
             lora_config = module_configs["lora_config"]
             self.add_mixin("lora", instantiate_from_config(lora_config, layer_num=self.num_layers), reinit=True)
 
+        # TODO: Add traj encoder
+        
         return
 
     def forward(self, x, timesteps=None, context=None, y=None, **kwargs):
         b, t, d, h, w = x.shape  # * [1, 13, 16, 64, 112]
         if x.dtype != self.dtype:
             x = x.to(self.dtype)
+        # import pdb; pdb.set_trace()
         assert (y is not None) == (
             self.num_classes is not None
         ), "must specify y if and only if the model is class-conditional"
@@ -1060,8 +1065,12 @@ class DiffusionTransformer(BaseModel):
                                      len(kwargs['cond_inds']) > 0 and \
                                      aug_timesteps is not None
 
-        kwargs["encoder_outputs"] = context
-        kwargs["text_length"] = context.shape[1]
+        # TODO: append traj feature to the context
+        # kwargs['fut_traj'].shape            torch.Size([2, 8, 3])
+
+        kwargs["encoder_outputs"] = context  # torch.Size([2, 226, 4096])
+        kwargs["encoder_outputs"] = context  # torch.Size([2, 226, 4096])
+        kwargs["text_length"] = context.shape[1]  # 226
 
         kwargs["input_ids"] = kwargs["position_ids"] = kwargs["attention_mask"] = torch.ones((1, 1)).to(x.dtype)
         output = super().forward(**kwargs)[0]

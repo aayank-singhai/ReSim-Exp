@@ -36,6 +36,7 @@ class OpenAIWrapper(IdentityWrapper):
             x,
             timesteps=t,
             context=c.get("crossattn", None),
+            # context=c["sequence"],   # * [2, 227, 4096]
             y=c.get("vector", None),
             **kwargs,
         )

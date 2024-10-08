@@ -120,33 +120,46 @@ def log_video(batch, model, args, only_log_video_latents=False):
                     os.makedirs(os.path.split(path)[0], exist_ok=True)
                     save_video_as_grid_and_mp4(samples, path, num_frames // fps, fps, args, k)
 
-
 def broad_cast_batch(batch):
     mp_size = mpu.get_model_parallel_world_size()
     global_rank = torch.distributed.get_rank() // mp_size
     src = global_rank * mp_size
 
     if batch["mp4"] is not None:
-        broadcast_shape = [batch["mp4"].shape, batch["fps"].shape, batch["num_frames"].shape]
+        shape_keys = ['mp4', 'fps', 'num_frames', 'fut_traj']
+        broadcast_shape = {
+            key: batch[key].shape for key in shape_keys
+        }
     else:
         broadcast_shape = None
 
-    txt = [batch["txt"], broadcast_shape]
-    torch.distributed.broadcast_object_list(txt, src=src, group=mpu.get_model_parallel_group())
-    batch["txt"] = txt[0]
+    obj_keys = ['txt', 'with_traj']
+    broadcast_obj = [{key: batch[key] for key in obj_keys}]
+    broadcast_obj.append(broadcast_shape)
 
-    mp4_shape = txt[1][0]
-    fps_shape = txt[1][1]
-    num_frames_shape = txt[1][2]
+    torch.distributed.broadcast_object_list(broadcast_obj, src=src, group=mpu.get_model_parallel_group())
+    objs = broadcast_obj[0]
+    for key, value in objs.items():
+        batch[key] = value
+    
+    shapes = broadcast_obj[1]
+
+    mp4_shape = shapes['mp4']
+    fps_shape = shapes['fps']
+    num_frames_shape = shapes['num_frames']
+    fut_traj_shape = shapes['fut_traj']
 
     if mpu.get_model_parallel_rank() != 0:
         batch["mp4"] = torch.zeros(mp4_shape, device="cuda")
         batch["fps"] = torch.zeros(fps_shape, device="cuda", dtype=torch.long)
         batch["num_frames"] = torch.zeros(num_frames_shape, device="cuda", dtype=torch.long)
 
+        batch["fut_traj"] = torch.zeros(fut_traj_shape, device="cuda")
+
     torch.distributed.broadcast(batch["mp4"], src=src, group=mpu.get_model_parallel_group())
     torch.distributed.broadcast(batch["fps"], src=src, group=mpu.get_model_parallel_group())
     torch.distributed.broadcast(batch["num_frames"], src=src, group=mpu.get_model_parallel_group())
+    torch.distributed.broadcast(batch["fut_traj"], src=src, group=mpu.get_model_parallel_group())
     return batch
 
 

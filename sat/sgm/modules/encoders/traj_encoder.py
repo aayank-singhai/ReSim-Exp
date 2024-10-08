@@ -5,6 +5,7 @@ from torch import nn
 
 from einops import rearrange, repeat, pack, unpack
 from einops.layers.torch import Rearrange
+from sgm.modules.encoders.modules import AbstractEmbModel
 
 # classes
 
@@ -114,19 +115,81 @@ class ViT(nn.Module):
 
         return self.mlp_head(cls_tokens)
 
+class TrajEncoder(AbstractEmbModel):
+    def __init__(self, *, seq_len, dim, out_dim, depth, mlp_dim, heads=8, channels = 3, dim_head = 64, dropout = 0., emb_dropout = 0.):
+        super().__init__()
+        # assert (seq_len % patch_size) == 0
+
+        # num_patches = seq_len // patch_size
+        # patch_dim = channels * patch_size
+
+        self.to_patch_embedding = nn.Sequential(
+            # Rearrange('b c (n p) -> b n (p c)', p = patch_size),
+            nn.LayerNorm(channels),
+            nn.Linear(channels, dim),
+            nn.LayerNorm(dim),
+        )
+
+        self.pos_embedding = nn.Parameter(torch.randn(1, seq_len + 1, dim))
+        self.cls_token = nn.Parameter(torch.randn(dim))
+        self.dropout = nn.Dropout(emb_dropout)
+
+        self.transformer = Transformer(dim, depth, heads, dim_head, mlp_dim, dropout)
+
+        self.mlp_head = nn.Sequential(
+            nn.LayerNorm(dim),
+            nn.Linear(dim, out_dim)
+        )
+
+    def forward(self, series):
+        series = series.to(torch.float16)
+        x = self.to_patch_embedding(series)  # [2, 8, 3]  b, t, c
+        b, n, _ = x.shape
+
+        cls_tokens = repeat(self.cls_token, 'd -> b d', b = b)
+
+        x, ps = pack([cls_tokens, x], 'b * d')
+
+        x += self.pos_embedding[:, :(n + 1)]
+        x = self.dropout(x)
+
+        x = self.transformer(x)
+
+        cls_tokens, _ = unpack(x, ps, 'b * d')
+
+        out = self.mlp_head(cls_tokens)
+        
+        out = out.unsqueeze(1)  # [2, 1, 1024]
+
+        return out
+
+
 if __name__ == '__main__':
 
-    v = ViT(
-        seq_len = 256,
-        patch_size = 16,
-        num_classes = 1000,
+    # v = ViT(
+    #     seq_len = 256,
+    #     patch_size = 16,
+    #     num_classes = 1000,
+    #     dim = 1024,
+    #     depth = 6,
+    #     heads = 8,
+    #     mlp_dim = 2048,
+    #     dropout = 0.1,
+    #     emb_dropout = 0.1
+    # )
+    
+    v = TrajEncoder(
+        seq_len = 8,
         dim = 1024,
-        depth = 6,
+        out_dim = 1024,
+        depth = 3,
         heads = 8,
         mlp_dim = 2048,
         dropout = 0.1,
-        emb_dropout = 0.1
+        emb_dropout = 0.1,
+        channels=3,
     )
 
-    time_series = torch.randn(4, 3, 256)
-    logits = v(time_series) # (4, 1000)
+    time_series = torch.randn(4, 8, 3)
+    logits = v(time_series) # (4, 1024)
+    # import pdb; pdb.set_trace()

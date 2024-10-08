@@ -313,6 +313,7 @@ def sampling_main(args, model_cls):
                             )
 
                         recons.append(recon)
+                    
                     # with torch.no_grad():
                     #     recon = first_stage_model.decode(latent).to(torch.float32)
                     # recons.append(recon)

@@ -85,6 +85,8 @@ class SATVideoDiffusionEngine(nn.Module):
 
         network_config["params"]["dtype"] = dtype_str
         model = instantiate_from_config(network_config)
+
+        # * NOTE: Conditions are passed to the network_wrapper, go to OpenAIWrapper
         self.model = get_obj_from_str(default(network_wrapper, OPENAIUNETWRAPPER))(
             model, compile_model=compile_model, dtype=dtype
         )
@@ -161,7 +163,6 @@ class SATVideoDiffusionEngine(nn.Module):
         x = self.encode_first_stage(x, batch)
         x = x.permute(0, 2, 1, 3, 4).contiguous()
 
-        # TODO: Check here?
         gc.collect()
         torch.cuda.empty_cache()
 

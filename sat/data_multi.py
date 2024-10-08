@@ -22,7 +22,8 @@ from tqdm import tqdm
 import imageio
 import json
 from PIL import Image
-
+from data_video_custom import SFTDataset
+from data_nuplan import nuPlanDataset
 
 def load_json(json_path):
     print("Loading json: {}".format(json_path))
@@ -352,50 +353,7 @@ def process_fn_video(src, image_size, fps, num_frames, skip_frms_num=0.0, txt_ke
 
         yield item
 
-
-class VideoDataset(MetaDistributedWebDataset):
-    def __init__(
-        self,
-        path,
-        image_size,
-        num_frames,
-        fps,
-        skip_frms_num=0.0,
-        nshards=sys.maxsize,
-        seed=1,
-        meta_names=None,
-        shuffle_buffer=1000,
-        include_dirs=None,
-        txt_key="caption",
-        **kwargs,
-    ):
-        if seed == -1:
-            seed = random.randint(0, 1000000)
-        if meta_names is None:
-            meta_names = []
-
-        if path.startswith(";"):
-            path, include_dirs = path.split(";", 1)
-        super().__init__(
-            path,
-            partial(
-                process_fn_video, num_frames=num_frames, image_size=image_size, fps=fps, skip_frms_num=skip_frms_num
-            ),
-            seed,
-            meta_names=meta_names,
-            shuffle_buffer=shuffle_buffer,
-            nshards=nshards,
-            include_dirs=include_dirs,
-        )
-
-    @classmethod
-    def create_dataset_function(cls, path, args, **kwargs):
-        return cls(path, **kwargs)
-
-
-# TODO: Drop out action indicators in the caption at p?
-class SFTDataset(Dataset):
-
+class MultiSourceSamplerDataset:
     def __init__(self, 
                 data_dir,
                 video_size, 
@@ -406,220 +364,31 @@ class SFTDataset(Dataset):
                 n_repeat_of_actions=None, 
                 merge_static=False,
                 exclude_highly_static=False):
-        """
-        skip_frms_num: ignore the first and the last xx frames, avoiding transitions.
-        """
-        super(SFTDataset, self).__init__()
-
-        self.video_list = []
-        self.captions_list = []
-        self.num_frames_list = []
-        self.fps_list = []
         
-        self.video_size = video_size
-        self.fps = fps
-        self.max_num_frames = max_num_frames
-        self.skip_frms_num = skip_frms_num
-        self.prefix_prompt = prefix_prompt
-
-        self.n_repeat_of_actions = n_repeat_of_actions
-        self.merge_static = merge_static
-        self.exclude_highly_static = exclude_highly_static
-
-        self.length = len(self.captions_list)
-
-        if data_dir.endswith(".json"):
-            self.load_data_json(data_dir)
-        else:
-            self.load_data_dir(data_dir)
-
-    # * Repeat data here
-    def load_data_json(self, data_json):
-        infos = load_json(data_json)
-        data_root = infos['meta']['data_root']
-        clip_infos = infos['clips']
-
-        for clip in tqdm(clip_infos):
-            
-            sample_path_tuple = (data_root, clip['folder_name'], clip['first_frame'], clip['end_frame'])
-            raw_caption = clip.get("flow_direction", "")  # include static and highly static
-            
-            if self.exclude_highly_static and "Highly_Static" in raw_caption:
-                continue
-
-            sample_caption = raw_caption
-            if self.merge_static and "Static" in sample_caption:
-                sample_caption = "Moving_Forward"  # merging static and highly static to forward
-
-            sample_caption = sample_caption.replace("_", " ").lower()  # * MINOR FIX: Converting action to lowercase
-            sample_caption = sample_caption[0].upper() + sample_caption[1:]
-            if not sample_caption.endswith("."):
-                sample_caption += "."
-
-            if self.n_repeat_of_actions is not None:
-                n_repeat = self.n_repeat_of_actions[raw_caption]
-            else:
-                n_repeat = 1
-
-            # * Repeat to achieve data weighting
-            sample_path_tuple = [sample_path_tuple] * n_repeat
-            sample_caption = [sample_caption] * n_repeat
-
-            self.video_list.extend(sample_path_tuple)
-            self.captions_list.extend(sample_caption)
-
-    def load_data_dir(self, data_dir):
-        decord.bridge.set_bridge("torch")
-        for root, dirnames, filenames in os.walk(data_dir):
-            for filename in filenames:
-                if not filename.endswith(".mp4"):
-                    continue
-                video_path = os.path.join(root, filename)
-                self.video_list.append(video_path)
-                
-                # caption
-                caption_path = os.path.join(root, filename.replace(".mp4", ".txt")).replace("videos", "labels")
-                if os.path.exists(caption_path):
-                    caption = open(caption_path, "r").read().splitlines()[0]
-                else:
-                    caption = ""
-
-                self.captions_list.append(caption)
-                self.fps_list.append(self.fps)
-
-    # TODO: random sample instead of deterministic sampling
-    # TODO: support image list
-    def read_video_clip(self, video_path):
-        vr = VideoReader(uri=video_path, height=-1, width=-1)
-        actual_fps = vr.get_avg_fps()
-        ori_vlen = len(vr)
-
-        video_size, fps, max_num_frames, skip_frms_num = \
-            self.video_size, self.fps, self.max_num_frames, self.skip_frms_num
-
-        if ori_vlen / actual_fps * fps > max_num_frames:
-            num_frames = max_num_frames
-            start = int(skip_frms_num)
-            end = int(start + num_frames / fps * actual_fps)
-            indices = np.arange(start, end, (end - start) / num_frames).astype(int)
-            temp_frms = vr.get_batch(np.arange(start, end))
-            assert temp_frms is not None
-            tensor_frms = torch.from_numpy(temp_frms) if type(temp_frms) is not torch.Tensor else temp_frms
-            tensor_frms = tensor_frms[torch.tensor((indices - start).tolist())]
-        else:
-            if ori_vlen > max_num_frames:
-                num_frames = max_num_frames
-                start = int(skip_frms_num)
-                end = int(ori_vlen - skip_frms_num)
-                indices = np.arange(start, end, (end - start) / num_frames).astype(int)
-                temp_frms = vr.get_batch(np.arange(start, end))
-                assert temp_frms is not None
-                tensor_frms = (
-                    torch.from_numpy(temp_frms) if type(temp_frms) is not torch.Tensor else temp_frms
-                )
-                tensor_frms = tensor_frms[torch.tensor((indices - start).tolist())]
-            else:
-
-                def nearest_smaller_4k_plus_1(n):
-                    remainder = n % 4
-                    if remainder == 0:
-                        return n - 3
-                    else:
-                        return n - remainder + 1
-
-                start = int(skip_frms_num)
-                end = int(ori_vlen - skip_frms_num)
-                num_frames = nearest_smaller_4k_plus_1(
-                    end - start
-                )  # 3D VAE requires the number of frames to be 4k+1
-                end = int(start + num_frames)
-                temp_frms = vr.get_batch(np.arange(start, end))
-                assert temp_frms is not None
-                tensor_frms = (
-                    torch.from_numpy(temp_frms) if type(temp_frms) is not torch.Tensor else temp_frms
-                )
-
-        # * Padding
-        tensor_frms = pad_last_frame(
-            tensor_frms, num_frames
-        )  # the len of indices may be less than num_frames, due to round error\
-
-        # * Transforms
-        tensor_frms = tensor_frms.permute(0, 3, 1, 2)  # [T, H, W, C] -> [T, C, H, W]
-        tensor_frms = resize_for_rectangle_crop(tensor_frms, video_size, reshape_mode="center")
-        tensor_frms = (tensor_frms - 127.5) / 127.5
-        return num_frames, tensor_frms
-
-    def read_img_list(self, img_path_list):
-        video_size, fps, max_num_frames, skip_frms_num = \
-            self.video_size, self.fps, self.max_num_frames, self.skip_frms_num
-
-        tensor_frms = []
-        for img_path in img_path_list:
-            if not os.path.exists(img_path):
-                print("Image not found: {}".format(img_path))
-                # raise FileNotFoundError, "Image not found: {}".format(img_path)
-            image = Image.open(img_path)
-            if not image.mode == "RGB":
-                image = image.convert("RGB")
-            image = np.array(image)  # H, W, C
-            image = torch.from_numpy(image)
-            tensor_frms.append(image)
-            # image = torch.from_numpy(image).permute(2, 0, 1) # [C, H, W]
-        tensor_frms = torch.stack(tensor_frms, dim=0)  # T, H, W, C
+        if "youtube" in data_dir:
+            self.create_dataset = SFTDataset(
+                data_dir=data_dir, 
+                video_size=video_size, 
+                fps=fps, 
+                max_num_frames=max_num_frames, 
+                skip_frms_num=skip_frms_num, 
+                prefix_prompt=prefix_prompt, 
+                n_repeat_of_actions=n_repeat_of_actions, 
+                merge_static=merge_static, 
+                exclude_highly_static=exclude_highly_static
+            )
         
-        tensor_frms = pad_last_frame(
-            tensor_frms, max_num_frames
-        )  # the len of indices may be less than num_frames, due to round error\
-        tensor_frms = tensor_frms.permute(0, 3, 1, 2)  # [T, H, W, C] -> [T, C, H, W]
-        tensor_frms = resize_for_rectangle_crop(tensor_frms, video_size, reshape_mode="center")
-        tensor_frms = (tensor_frms - 127.5) / 127.5
-        return max_num_frames, tensor_frms
-
-    def __getitem__(self, index):
-        while True:
-            video_path = self.video_list[index]
-            if isinstance(video_path, tuple):
-                data_root, folder_name, first_frame, end_frame = video_path
-                img_list = get_frame_list(first_frame, end_frame)
-                img_list = [
-                    os.path.join(data_root, folder_name, n) for n in img_list
-                ]
-                try:
-                    num_frames, video_clip = self.read_img_list(img_list)
-                    break
-                except Exception as e:
-                    print("Broken data, skipping: {}".format(video_path))
-                    index = random.randint(0, self.length - 1)
-                    continue
-            else:
-                num_frames, video_clip = self.read_video_clip(video_path)
-
-        # Add prefix
-        caption = self.captions_list[index]
-        prefix_prompt = self.prefix_prompt
-        if prefix_prompt != "":
-            prefix_prompt = prefix_prompt.strip()
-            prefix_prompt = prefix_prompt[0].upper() + prefix_prompt[1:]
-            if not prefix_prompt.endswith("."):
-                prefix_prompt += "."
-
-            # TODO: Drop action caption at p = 0.1? --> Undirected driving.
-            caption = prefix_prompt + " " + caption
-
-        item = {
-            "with_traj": False,
-            "mp4": video_clip,
-            "txt": caption,
-            "num_frames": num_frames,
-            "fps": self.fps,  # ? What's the use of fps?
-            "fut_traj": torch.zeros((8, 3))  # * Placeholder, not used, no traj actually
-        }
-        return item
-
-    def __len__(self):
-        return len(self.captions_list)
-
+        elif "nuplan" in data_dir:
+            self.create_dataset = nuPlanDataset(
+                data_dir=data_dir, 
+                video_size=video_size,
+                fps=fps, 
+                max_num_frames=max_num_frames, 
+                skip_frms_num=skip_frms_num, 
+                prefix_prompt=prefix_prompt, 
+                n_repeat_of_actions=n_repeat_of_actions, 
+            )
+    
     @classmethod
     def create_dataset_function(cls, path, args, **kwargs):
         return cls(data_dir=path, **kwargs)

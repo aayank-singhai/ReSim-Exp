@@ -129,6 +129,12 @@ class VideoDiffusionLoss(StandardDiffusionLoss):
 
         additional_model_inputs["idx"] = idx  # TODO: Check idx
 
+        # Add traj here.
+        additional_model_inputs["with_traj"] = batch["with_traj"]
+        additional_model_inputs["fut_traj"] = batch["fut_traj"]
+
+        # TODO: Use transformer to encode the traj.
+
         if self.offset_noise_level > 0.0:
             noise = (
                 noise + append_dims(torch.randn(input.shape[0]).to(input.device), input.ndim) * self.offset_noise_level

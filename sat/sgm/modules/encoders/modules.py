@@ -72,7 +72,13 @@ class AbstractEmbModel(nn.Module):
 
 class GeneralConditioner(nn.Module):
     OUTPUT_DIM2KEYS = {2: "vector", 3: "crossattn", 4: "concat", 5: "concat"}
-    KEY2CATDIM = {"vector": 1, "crossattn": 2, "concat": 1}
+    # KEY2CATDIM = {"vector": 1, "crossattn": 2, "concat": 1}
+    KEY2CATDIM = {"vector": 1, "crossattn": 1, "concat": 1}  # cat text and traj on dim 1
+
+
+    # * Custom
+    # OUTPUT_DIM2KEYS = {2: "vector", 3: "sequence", 4: "concat", 5: "concat"}
+    # KEY2CATDIM = {"vector": 1, "sequence": 1, "concat": 1}
 
     def __init__(self, emb_models: Union[List, ListConfig], cor_embs=[], cor_p=[]):
         super().__init__()
