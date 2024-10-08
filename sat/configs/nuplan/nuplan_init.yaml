@@ -16,7 +16,7 @@ args:
   eval_interval: 250  # * Log video every 100 iterations
   eval_batch_size: 1
   save: ckpts
-  save_interval: 2000  # * Save checkpoints
+  save_interval: 1000  # * Save checkpoints
   log_interval: 20   # * Log info
 
   train_data: [
@@ -27,7 +27,8 @@ args:
   # valid_data: ["/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/custom_data/youtube_json/YouTube_svd_val_1080p_clip-len-49_interval-10_77k_flow.json"]   # * New val, 1080p
   valid_data: [
     # "/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/custom_data/youtube_json/YouTube_svd_clip-len-49_interval-10_5M_flow_round2.json",
-    "/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/custom_data/nuplan/token2info_all_list.json" # * nuplan json path
+    # "/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/custom_data/nuplan/token2info_all_list.json" # * nuplan json path
+   "/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/custom_data/nuplan/token2info_test_all_list.json" 
   ]
 
   split: 1,0,0
@@ -193,7 +194,7 @@ model:
             max_length: 226
 
         # * traj enc
-        - is_trainable: false
+        - is_trainable: true
           input_key: fut_traj
           ucg_rate: 0.5    # * action (world model) and no-action (planning model)
           target: sgm.modules.encoders.traj_encoder.TrajEncoder
