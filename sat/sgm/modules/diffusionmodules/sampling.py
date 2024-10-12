@@ -674,7 +674,7 @@ class VPSDEDPMPP2MSampler(VideoDDIMSampler):
         return x, denoised
 
     # TODO: Decreasing t_aug.
-    def cond_aug_chunk_inference(self, x, prefix_frames, s_in, alpha_cumprod_sqrt, round_progress):
+    def cond_aug_chunk_inference(self, x, prefix_frames, s_in, alpha_cumprod_sqrt, round_progress=None):
 
         # TODO: Wrong order.
         # alpha_cumprod_sqrt
@@ -702,10 +702,10 @@ class VPSDEDPMPP2MSampler(VideoDDIMSampler):
         elif self.apply_cond_aug_chunk_inference == 'min':
             aug_t_chunk, aug_t = 0, 0
 
-        elif self.apply_cond_aug_chunk_inference == 'dynamic':
-            aug_t_chunk = int(round_progress * 6) * 100
-            aug_t = aug_t_chunk + 50  # * maximum 650
-            aug_t = int(aug_t / 1000 * len(alpha_cumprod_sqrt)) # scale to inference schedule
+        # elif self.apply_cond_aug_chunk_inference == 'dynamic':
+        #     aug_t_chunk = int(round_progress * 6) * 100
+        #     aug_t = aug_t_chunk + 50  # * maximum 650
+        #     aug_t = int(aug_t / 1000 * len(alpha_cumprod_sqrt)) # scale to inference schedule
         
         # else:
         #     raise NotImplementedError
@@ -750,9 +750,9 @@ class VPSDEDPMPP2MSampler(VideoDDIMSampler):
                     )
                     x = torch.cat([noised_prefix_frames, x[:, fixed_frames :]], dim=1)
                 elif self.apply_cond_aug_chunk_inference == 'v1':
-                    x, aug_t_chunk = self.cond_aug_chunk_inference(x, prefix_frames, s_in, alpha_cumprod_sqrt, additional_model_inputs['round_progress'])
+                    x, aug_t_chunk = self.cond_aug_chunk_inference(x, prefix_frames, s_in, alpha_cumprod_sqrt)
                 elif self.apply_cond_aug_chunk_inference != 'zero':  # * For str, should use !=, not 'is not'
-                    x, aug_t_chunk = self.cond_aug_chunk_inference(x, prefix_frames, s_in, alpha_cumprod_sqrt, additional_model_inputs['round_progress'])
+                    x, aug_t_chunk = self.cond_aug_chunk_inference(x, prefix_frames, s_in, alpha_cumprod_sqrt)
                     additional_model_inputs['aug_t_chunk'] = aug_t_chunk
                 else:
                     x = torch.cat([prefix_frames, x[:, fixed_frames :]], dim=1)

@@ -24,7 +24,7 @@ from arguments import get_args
 from torchvision.transforms.functional import center_crop, resize
 from torchvision.transforms import InterpolationMode
 from datetime import datetime
-
+import shutil
 
 def read_from_cli():
     cnt = 0
@@ -80,7 +80,11 @@ def save_video_as_grid_and_mp4(video_batch: torch.Tensor, save_path: str, fps: i
             frame = rearrange(frame, "c h w -> h w c")
             frame = (255.0 * frame).cpu().numpy().astype(np.uint8)
             gif_frames.append(frame)
-        now_save_path = os.path.join(save_path, f"{i:06d}.mp4")
+        if key is not None:
+            file_name = f"{key}_{i:06d}.mp4"
+        else:
+            file_name = f"{i:06d}.mp4"
+        now_save_path = os.path.join(save_path, file_name)
         with imageio.get_writer(now_save_path, fps=fps) as writer:
             for frame in gif_frames:
                 writer.append_data(frame)
@@ -161,7 +165,7 @@ def sampling_main(args, model_cls):
     else:
         model = model_cls
 
-    load_checkpoint(model, args)
+    iteration = load_checkpoint(model, args)  # 20000
     model.eval()
 
     predictive_mode = False
@@ -205,6 +209,12 @@ def sampling_main(args, model_cls):
     out_dir = out_dir + '-' +datetime.now().strftime("%m-%d-%H-%M")
     os.makedirs(out_dir, exist_ok=True)
 
+    # write iteration to file
+    with open(os.path.join(out_dir, "iteration.txt"), "w") as fout:
+        fout.write(str(iteration))
+
+    shutil.copyfile(cfg_path, os.path.join(out_dir, os.path.basename(cfg_path)))
+
     with torch.no_grad():
         for ind_batch, batch in enumerate(tqdm(data_iter)):
             if args.input_type != "dataset":
@@ -216,10 +226,13 @@ def sampling_main(args, model_cls):
                 x = batch["mp4"].to(device).to(model.dtype)
                 x = x.permute(0, 2, 1, 3, 4).contiguous()
                 z = model.encode_first_stage(x, batch)
+                z_origin = z.clone()  # * For logging
+
                 z = z.permute(0, 2, 1, 3, 4).contiguous()
                 # torch.Size([1, 13, 16, 64, 112])
             else:
                 z = None
+                z_origin = None
 
             # reload model on GPU
             model.to(device)
@@ -335,8 +348,16 @@ def sampling_main(args, model_cls):
                     z = samples_z.permute(0, 2, 1, 3, 4).contiguous()
 
                     if is_end and mpu.get_model_parallel_rank() == 0:
+                        # Gt_rec
+                        gt_rec = model.decode_first_stage(z_origin).to(torch.float32)
+                        gt_rec = torch.clamp((gt_rec + 1.0) / 2.0, min=0.0, max=1.0).cpu()
+                        gt_rec = gt_rec.permute(0, 2, 1, 3, 4).contiguous()
+                        save_video_as_grid_and_mp4(gt_rec, save_path, fps=args.sampling_fps, key="Rec")
+
+
+                        # Sample
                         samples_tot = torch.cat(samples_tot, dim=1)
-                        save_video_as_grid_and_mp4(samples_tot, save_path, fps=args.sampling_fps)
+                        save_video_as_grid_and_mp4(samples_tot, save_path, fps=args.sampling_fps, key="Sample")
                         save_text(text, save_path)
 
 
