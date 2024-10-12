@@ -284,7 +284,7 @@ model:
       fixed_frames: 3  # [0, 1, 2]
       cond_inds_sampling: *cond_inds_sampling  # [0, 1, 2]
       apply_cond_aug: *cond_aug # * sample aug_t in sampling, all 0
-      # apply_cond_aug_chunk_inference: 'min'
+      apply_cond_aug_chunk_inference: 'min'
 
       discretization_config:
         target: sgm.modules.diffusionmodules.discretizer.ZeroSNRDDPMDiscretization

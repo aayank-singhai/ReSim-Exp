@@ -7,16 +7,16 @@ args:
   # load: "/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/sat/ckpts/youtube_bs2_512x896_cond3_full_lr-5e-5_trunc-infer-8_32gpus-08-30-06-07"  # * Resume, round1, seed 17
   # load: "/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/sat/ckpts/youtube_bs2_512x896_cond3_full_lr-5e-5_trunc-infer-8_32gpus_resume-09-05-03-45"  # * Resume, round2, seed 3407
   # load: "/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/sat/ckpts/youtube_bs2_512x896_cond3_full_lr-5e-5_trunc-infer-8_32gpus_resume2_cond-aug-09-09-17-20"  # * Abl, round3, seed 11
-  load: "/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/sat/ckpts/resume3_cond_aug_v2_fixed_cond_inds-09-20-19-41"
+  load: "/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/sat/ckpts/main4_resume4_cond_aug_v2_fixed_cond_inds-10-05-03-31"
   
   no_load_rng: True
   # train_iters: 10000
-  train_iters: 20000    # TODO: Change to 100000
+  train_iters: 20000
   eval_iters: 1
   eval_interval: 250  # * Log video every 100 iterations
   eval_batch_size: 1
   save: ckpts
-  save_interval: 2000  # * Save checkpoints
+  save_interval: 1000  # * Save checkpoints, when abl, change to 1000
   log_interval: 20   # * Log info
 
   train_data: ["/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/custom_data/youtube_json/YouTube_svd_clip-len-49_interval-10_5M_flow_round2.json"]
@@ -73,7 +73,7 @@ deepspeed:
   optimizer:
     type: sat.ops.FusedEmaAdam
     params:
-      lr: 0.00005           # TODO: Constant LR like Vista? Fix the warmup issue [constant]? should be reduced to 1e-5
+      lr: 0.00005
       betas: [0.9, 0.95]
       eps: 1e-8
       weight_decay: 1e-4
@@ -237,16 +237,18 @@ model:
 
       cond_inds: 
         - []
-        - [0]
-        - [0, 1]
+        # - [0]
+        # - [0, 1]
         - [0, 1, 2]
       cond_inds_prob:
         - 0.1
-        - 0.15
-        - 0.15
-        - 0.6  # * For [0, 1, 2]
+        # - 0.15
+        # - 0.15
+        - 0.9  # * For [0, 1, 2]
 
       apply_cond_aug: &cond_aug V2
+      contained_aug_t: true
+      
       sigma_sampler_config:
         target: sgm.modules.diffusionmodules.sigma_sampling.DiscreteSampling
         params:
@@ -266,8 +268,7 @@ model:
       fixed_frames: 3  # [0, 1, 2]
       cond_inds_sampling: *cond_inds_sampling  # [0, 1, 2]
       apply_cond_aug: *cond_aug # * sample aug_t in sampling, all 0
-      # apply_cond_aug_chunk_inference: 'min'
-      # TODO: Fix sampling bug in logging videos
+      apply_cond_aug_chunk_inference: 'min'
 
       discretization_config:
         target: sgm.modules.diffusionmodules.discretizer.ZeroSNRDDPMDiscretization
