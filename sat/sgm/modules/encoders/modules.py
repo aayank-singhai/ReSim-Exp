@@ -211,10 +211,10 @@ class GeneralConditioner(nn.Module):
                 continue
             output = self.get_single_embedding(
                 embedder, batch, output=output, force_zero_embeddings=force_zero_embeddings
-            )
+            )  # * Check this. Log video and sampling are different?
         return output
 
-    def get_unconditional_conditioning(self, batch_c, batch_uc=None, force_uc_zero_embeddings=None):
+    def get_unconditional_conditioning(self, batch_c, batch_uc=None, force_uc_zero_embeddings=None, force_c_zero_embeddings=None):
         if force_uc_zero_embeddings is None:
             force_uc_zero_embeddings = []
         ucg_rates = list()
@@ -226,7 +226,7 @@ class GeneralConditioner(nn.Module):
         self.cor_embs = []
         self.cor_p = []
 
-        c = self(batch_c)
+        c = self(batch_c, force_zero_embeddings=force_c_zero_embeddings)
         uc = self(batch_c if batch_uc is None else batch_uc, force_uc_zero_embeddings)
 
         for embedder, rate in zip(self.embedders, ucg_rates):

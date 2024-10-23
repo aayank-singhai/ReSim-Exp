@@ -531,6 +531,8 @@ class VideoDDIMSampler(BaseDiffusionSampler):
         
         aug_t_chunk_sampling = additional_model_inputs.get('aug_t_chunk', 0)
         # import pdb; pdb.set_trace()
+        # * scale: None
+        # * We don't need to pass the scale as it will be initialized in the guider
 
         if not isinstance(scale, torch.Tensor) and scale == 1:
             additional_model_inputs["idx"] = x.new_ones([x.shape[0]]) * timestep

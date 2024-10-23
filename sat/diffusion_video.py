@@ -109,6 +109,14 @@ class SATVideoDiffusionEngine(nn.Module):
 
     def disable_untrainable_params(self):
         total_trainable = 0
+
+        # params = [
+        #     n
+        #     for n, p in self.named_parameters()
+        #     if p.requires_grad == True
+        # ]
+        # [model.diffusion_model.xxx]
+        # [conditioner.xxx]
         for n, p in self.named_parameters():
             if p.requires_grad == False:
                 continue
@@ -268,6 +276,8 @@ class SATVideoDiffusionEngine(nn.Module):
             src = global_rank * mp_size
             torch.distributed.broadcast(randn, src=src, group=mpu.get_model_parallel_group())
 
+        # * Why is scale None?
+        # * scale will be determined within the guider
         scale = None
         scale_emb = None
 
@@ -340,6 +350,7 @@ class SATVideoDiffusionEngine(nn.Module):
 
         x = self.get_input(batch)
 
+        # ucg_keys: ['txt', 'fut_traj']
         c, uc = self.conditioner.get_unconditional_conditioning(
             batch,
             force_uc_zero_embeddings=ucg_keys if len(self.conditioner.embedders) > 0 else [],

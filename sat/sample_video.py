@@ -26,6 +26,7 @@ from torchvision.transforms import InterpolationMode
 from datetime import datetime
 import shutil
 
+# TODO: Sampling code on nuPlan
 def read_from_cli():
     cnt = 0
     try:
@@ -71,7 +72,7 @@ def get_batch(keys, value_dict, N: Union[List, ListConfig], T=None, device="cuda
     return batch, batch_uc
 
 
-def save_video_as_grid_and_mp4(video_batch: torch.Tensor, save_path: str, fps: int = 5, args=None, key=None):
+def save_video_as_grid_and_mp4(video_batch: torch.Tensor, save_path: str, fps: int = 5, args=None, key=None, ind=None):
     os.makedirs(save_path, exist_ok=True)
 
     for i, vid in enumerate(video_batch):
@@ -80,10 +81,17 @@ def save_video_as_grid_and_mp4(video_batch: torch.Tensor, save_path: str, fps: i
             frame = rearrange(frame, "c h w -> h w c")
             frame = (255.0 * frame).cpu().numpy().astype(np.uint8)
             gif_frames.append(frame)
+        
+        file_name = f"{i:06d}"
+
+        if ind is not None:
+            file_name = f"{ind}_{file_name}"
+        
         if key is not None:
-            file_name = f"{key}_{i:06d}.mp4"
-        else:
-            file_name = f"{i:06d}.mp4"
+            file_name  = f"{key}_{file_name}"
+
+        file_name = file_name + ".mp4"
+
         now_save_path = os.path.join(save_path, file_name)
         with imageio.get_writer(now_save_path, fps=fps) as writer:
             for frame in gif_frames:
@@ -196,7 +204,9 @@ def sampling_main(args, model_cls):
 
     T, H, W, C, F = args.sampling_num_frames, image_size[0], image_size[1], args.latent_channels, 8
     num_samples = [1]
-    force_uc_zero_embeddings = ["txt"]
+    force_uc_zero_embeddings = ["txt", "fut_traj"]
+    # force_uc_zero_embeddings = ["txt"]  # * Unable to roll out (diverge at the second round)
+
     device = model.device
 
     out_root = "/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/outputs"
@@ -247,6 +257,9 @@ def sampling_main(args, model_cls):
                 "num_frames": torch.tensor(T).unsqueeze(0),  # TODO: Check what's the use of num_frames
             }
 
+            if "fut_traj" in batch:
+                value_dict["fut_traj"] = batch["fut_traj"].to(device)
+            
             batch, batch_uc = get_batch(
                 get_unique_embedder_keys_from_conditioner(model.conditioner), value_dict, num_samples
             )
@@ -262,6 +275,7 @@ def sampling_main(args, model_cls):
             c, uc = model.conditioner.get_unconditional_conditioning(
                 batch,
                 batch_uc=batch_uc,
+                # force_c_zero_embeddings=["fut_traj"],   # !!!!! Mask out fut traj as condition
                 force_uc_zero_embeddings=force_uc_zero_embeddings,
             )
 
@@ -349,15 +363,16 @@ def sampling_main(args, model_cls):
 
                     if is_end and mpu.get_model_parallel_rank() == 0:
                         # Gt_rec
-                        gt_rec = model.decode_first_stage(z_origin).to(torch.float32)
+                        gt_rec = model.decode_first_stage(z_origin).to(torch.float32)  # * TODO: Memory efficient mode
                         gt_rec = torch.clamp((gt_rec + 1.0) / 2.0, min=0.0, max=1.0).cpu()
                         gt_rec = gt_rec.permute(0, 2, 1, 3, 4).contiguous()
-                        save_video_as_grid_and_mp4(gt_rec, save_path, fps=args.sampling_fps, key="Rec")
+                        save_video_as_grid_and_mp4(gt_rec, save_path, fps=args.sampling_fps, key="Rec", ind=str(ind_batch))
+                        del gt_rec
 
 
                         # Sample
                         samples_tot = torch.cat(samples_tot, dim=1)
-                        save_video_as_grid_and_mp4(samples_tot, save_path, fps=args.sampling_fps, key="Sample")
+                        save_video_as_grid_and_mp4(samples_tot, save_path, fps=args.sampling_fps, key="Sample", ind=str(ind_batch))
                         save_text(text, save_path)
 
 

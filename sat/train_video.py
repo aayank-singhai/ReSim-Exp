@@ -1,11 +1,5 @@
 
 import torch
-# !!! Try this !!!
-# the first flag below was False when we tested this script but True makes A100 training a lot faster:
-# * Not working?
-# TODO: Remove this?
-# torch.backends.cuda.matmul.allow_tf32 = True
-# torch.backends.cudnn.allow_tf32 = True
 import torch.distributed
 import torchvision
 
@@ -121,6 +115,8 @@ def log_video(batch, model, args, only_log_video_latents=False):
                     os.makedirs(os.path.split(path)[0], exist_ok=True)
                     save_video_as_grid_and_mp4(samples, path, num_frames // fps, fps, args, k)
 
+
+# TODO: Check this
 def broad_cast_batch(batch):
     mp_size = mpu.get_model_parallel_world_size()
     global_rank = torch.distributed.get_rank() // mp_size
@@ -185,8 +181,10 @@ def forward_step_eval(data_iterator, model, args, timers, only_log_video_latents
     else:
         batch_video = {"mp4": None, "fps": None, "num_frames": None, "txt": None}
     broad_cast_batch(batch_video)
-    if mpu.get_data_parallel_rank() == 0:
-        log_video(batch_video, model, args, only_log_video_latents=only_log_video_latents)
+
+    # TODO: No log_video in training to save memory
+    # if mpu.get_data_parallel_rank() == 0:
+    #     log_video(batch_video, model, args, only_log_video_latents=only_log_video_latents)
 
     batch_video["global_step"] = args.iteration
     loss, loss_dict = model.shared_step(batch_video)

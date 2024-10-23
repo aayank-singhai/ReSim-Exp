@@ -6,8 +6,27 @@ from torch import nn
 from einops import rearrange, repeat, pack, unpack
 from einops.layers.torch import Rearrange
 from sgm.modules.encoders.modules import AbstractEmbModel
+import numpy as np
 
-# classes
+def get_1d_sincos_pos_embed_from_grid(embed_dim, pos):
+    """
+    embed_dim: output dimension for each position
+    pos: a list of positions to be encoded: size (M,)
+    out: (M, D)
+    """
+    assert embed_dim % 2 == 0
+    omega = np.arange(embed_dim // 2, dtype=np.float64)
+    omega /= embed_dim / 2.0
+    omega = 1.0 / 10000**omega  # (D/2,)
+
+    pos = pos.reshape(-1)  # (M,)
+    out = np.einsum("m,d->md", pos, omega)  # (M, D/2), outer product
+
+    emb_sin = np.sin(out)  # (M, D/2)
+    emb_cos = np.cos(out)  # (M, D/2)
+
+    emb = np.concatenate([emb_sin, emb_cos], axis=1)  # (M, D)
+    return emb
 
 class FeedForward(nn.Module):
     def __init__(self, dim, hidden_dim, dropout = 0.):
@@ -116,21 +135,44 @@ class ViT(nn.Module):
         return self.mlp_head(cls_tokens)
 
 class TrajEncoder(AbstractEmbModel):
-    def __init__(self, *, seq_len, dim, out_dim, depth, mlp_dim, heads=8, channels = 3, dim_head = 64, dropout = 0., emb_dropout = 0.):
+    def __init__(self, *, seq_len, dim, out_dim, depth, mlp_dim, heads=8, channels = 3, dim_head = 64, dropout = 0., emb_dropout = 0., 
+                 pos_emb="learnable",
+                 avoid_first_ln=False):
         super().__init__()
         # assert (seq_len % patch_size) == 0
 
         # num_patches = seq_len // patch_size
         # patch_dim = channels * patch_size
 
-        self.to_patch_embedding = nn.Sequential(
-            # Rearrange('b c (n p) -> b n (p c)', p = patch_size),
-            nn.LayerNorm(channels),
-            nn.Linear(channels, dim),
-            nn.LayerNorm(dim),
-        )
+        if avoid_first_ln:
+            self.to_patch_embedding = nn.Sequential(
+                nn.Linear(channels, dim),
+                nn.LayerNorm(dim),
+            )
+        else:
+            self.to_patch_embedding = nn.Sequential(
+                # Rearrange('b c (n p) -> b n (p c)', p = patch_size),
+                nn.LayerNorm(channels),   # * Do we need this?
+                nn.Linear(channels, dim),
+                nn.LayerNorm(dim),
+            )
+        
+        assert pos_emb in ["learnable", "sine"]
 
-        self.pos_embedding = nn.Parameter(torch.randn(1, seq_len + 1, dim))
+        # learn_pos = nn.Parameter(torch.randn(1, seq_len + 1, dim))
+        # grid_t = np.arange(1 + seq_len, dtype=np.float32)  # +1 for cls token
+        # sine_pos = get_1d_sincos_pos_embed_from_grid(dim, grid_t)
+        # sine_pos = torch.tensor(sine_pos).unsqueeze(0)
+        # import pdb; pdb.set_trace()
+
+        if pos_emb == "learnable":
+            self.pos_embedding = nn.Parameter(torch.randn(1, seq_len + 1, dim))
+        else:
+            # TODO: Sine pos emb 1d
+            grid_t = np.arange(1 + seq_len, dtype=np.float32)  # +1 for cls token
+            sine_pos = get_1d_sincos_pos_embed_from_grid(dim, grid_t)
+            self.pos_embedding = torch.tensor(sine_pos).unsqueeze(0)
+
         self.cls_token = nn.Parameter(torch.randn(dim))
         self.dropout = nn.Dropout(emb_dropout)
 
@@ -150,7 +192,9 @@ class TrajEncoder(AbstractEmbModel):
 
         x, ps = pack([cls_tokens, x], 'b * d')
 
-        x += self.pos_embedding[:, :(n + 1)]
+        pos = self.pos_embedding[:, :(n + 1)]
+        pos = pos.to(x)
+        x += pos
         x = self.dropout(x)
 
         x = self.transformer(x)
@@ -182,6 +226,7 @@ if __name__ == '__main__':
         seq_len = 8,
         dim = 1024,
         out_dim = 1024,
+        pos_emb = 'sine',
         depth = 3,
         heads = 8,
         mlp_dim = 2048,

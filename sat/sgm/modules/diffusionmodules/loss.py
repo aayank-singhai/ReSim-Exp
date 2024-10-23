@@ -165,7 +165,7 @@ class VideoDiffusionLoss(StandardDiffusionLoss):
                     ub = torch.where(idx > self.max_aug_t, self.max_aug_t, idx)
                     aug_t = torch.tensor([torch.randint(l, h+1, (1,)).item() for l, h in zip(lb, ub)])
                 else:
-                    aug_t = torch.randint(0, self.max_aug_t, (input.shape[0],))  # [0, max_aug_t(excluded )
+                    aug_t = torch.randint(0, self.max_aug_t, (input.shape[0],))  # [0, max_aug_t(excluded)
 
                 aug_t_chunk = aug_t // 100 * 100  # 0-100: 0, 100-200: 100, 200-300: 200
                 additional_model_inputs['aug_t_chunk'] = aug_t_chunk.to(input.device)
