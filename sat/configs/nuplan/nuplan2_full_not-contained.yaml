@@ -7,11 +7,11 @@ args:
   # load: "/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/sat/ckpts/youtube_bs2_512x896_cond3_full_lr-5e-5_trunc-infer-8_32gpus-08-30-06-07"  # * Resume, round1, seed 17
   # load: "/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/sat/ckpts/youtube_bs2_512x896_cond3_full_lr-5e-5_trunc-infer-8_32gpus_resume-09-05-03-45"  # * Resume, round2, seed 3407
   # load: "/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/sat/ckpts/youtube_bs2_512x896_cond3_full_lr-5e-5_trunc-infer-8_32gpus_resume2_cond-aug-09-09-17-20"  # * Abl, round3, seed 11
-  load: "/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/sat/ckpts/resume3_cond_aug_v2_fixed_cond_inds-09-20-19-41"
+  load: "/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/sat/ckpts/main4_resume4_bs2_improved1_not-contained-10-14-03-52"
   
   no_load_rng: True
   # train_iters: 10000
-  train_iters: 20000
+  train_iters: 100000
   eval_iters: 1
   eval_interval: 250  # * Log video every 100 iterations
   eval_batch_size: 1
@@ -23,7 +23,7 @@ args:
     "/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/custom_data/nuplan/token2info_all_list.json" # * nuplan json path
   ]
   valid_data: [
-   "/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/custom_data/nuplan/token2info_test_all_list.json" 
+   "/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/custom_data/navsim/token2info_test_all_list.json" 
   ]
 
   split: 1,0,0
@@ -32,6 +32,8 @@ args:
   force_train: True
   # only_log_video_latents: True
   only_log_video_latents: False
+
+  lr_decay_style: 'constant'  # !!!!!! Using constant LR
 
 data:
     # target: data_video_custom.SFTDataset
@@ -191,12 +193,12 @@ model:
         # * traj enc
         - is_trainable: true
           input_key: fut_traj
-          ucg_rate: 0.5    # * action (world model) and no-action (planning model)
+          ucg_rate: 0.2    # * action (world model) and no-action (planning model)
           target: sgm.modules.encoders.traj_encoder.TrajEncoder
           params:
             # TODO: setup here
             seq_len: 8
-            dim: 2048
+            dim: 2048  # TODO: change to 1024
             out_dim: 4096
             depth: 3
             mlp_dim: 2048
@@ -251,14 +253,14 @@ model:
 
       cond_inds: 
         - []
-        - [0]
-        - [0, 1]
+        # - [0]
+        # - [0, 1]
         - [0, 1, 2]
       cond_inds_prob:
         - 0.1
-        - 0.15
-        - 0.15
-        - 0.6  # * For [0, 1, 2]
+        # - 0.15
+        # - 0.15
+        - 0.9  # * For [0, 1, 2]
 
       apply_cond_aug: &cond_aug V2
       sigma_sampler_config:
@@ -280,7 +282,7 @@ model:
       fixed_frames: 3  # [0, 1, 2]
       cond_inds_sampling: *cond_inds_sampling  # [0, 1, 2]
       apply_cond_aug: *cond_aug # * sample aug_t in sampling, all 0
-      apply_cond_aug_chunk_inference: 'min'  # TODO: Not applying loss in the clip iteration, as first few frames are ground truth
+      apply_cond_aug_chunk_inference: 'min'
 
       discretization_config:
         target: sgm.modules.diffusionmodules.discretizer.ZeroSNRDDPMDiscretization

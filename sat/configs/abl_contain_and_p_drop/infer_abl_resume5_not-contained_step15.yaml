@@ -8,14 +8,14 @@ args:
   # load: "/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/sat/ckpts/cogvideox_2b_sft_nus_new-dataset_bs1_prefix_720x1280_slice_video_lr-2e-5-08-19-08-46"
   # load: "/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/sat/ckpts/youtube_bs2_512x896_cond3_full_lr-5e-5_trunc-infer-8_32gpus_resume-09-05-03-45"
   # load: "/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/sat/ckpts/youtube_bs2_512x896_cond3_full_lr-5e-5_trunc-infer-8_32gpus_resume2_cond-aug-09-09-17-20"
-  load: "/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/sat/ckpts/abl_resume5_contained-10-09-17-59"
+  load: "/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/sat/ckpts/abl_resume5_not-contained-10-11-18-50"
 
   batch_size: 1
   # input_type: txt
   input_type: dataset
 
   # input_file: test.txt
-  # input_file: "/cpfs01/userazhi/workspace/DVGen/CogVideo/sat/configs/test.txt"
+  # input_file: "/cpfs01/userzazhi/workspace/DVGen/CogVideo/sat/configs/test.txt"
   # input_file: /cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/sat/ckpts/cogvideox_2b_sft_nus_new-dataset_bs1_prefix_720x1280_slice_video_lr-2e-5-08-19-08-46/video/latents
   # input_file: /cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/sat/ckpts/youtube_bs1_720x1280_cond3_full_lr-5e-5_trunc-infer-8_16gpus_finetune-09-02-17-11/video/latents
 
@@ -230,7 +230,7 @@ model:
   sampler_config:
     target: sgm.modules.diffusionmodules.sampling.VPSDEDPMPP2MSampler
     params:
-      num_steps: 50
+      num_steps: &num_steps 15
       verbose: True
       fixed_frames: 3  # [0, 1, 2]
       cond_inds_sampling: *cond_inds_sampling  # [0, 1, 2]
@@ -259,4 +259,4 @@ model:
         params:
           scale: 6
           exp: 5
-          num_steps: 50
+          num_steps: *num_steps

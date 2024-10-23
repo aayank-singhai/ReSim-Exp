@@ -3,19 +3,14 @@
 args:
   latent_channels: 16
   mode: inference
-  # load: "CogVideoX-2b-sat/transformer"
-  # load: "/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/ckpts/CogVideoX-2b-sat/transformer"
-  # load: "/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/sat/ckpts/cogvideox_2b_sft_nus_new-dataset_bs1_prefix_720x1280_slice_video_lr-2e-5-08-19-08-46"
-  # load: "/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/sat/ckpts/youtube_bs2_512x896_cond3_full_lr-5e-5_trunc-infer-8_32gpus_resume-09-05-03-45"
-  # load: "/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/sat/ckpts/youtube_bs2_512x896_cond3_full_lr-5e-5_trunc-infer-8_32gpus_resume2_cond-aug-09-09-17-20"
-  load: "/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/sat/ckpts/abl_resume5_not-contained-10-09-18-02"
+  load: "/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/sat/ckpts/main4_resume4_bs2_improved1_contained-10-14-03-50"
 
   batch_size: 1
   # input_type: txt
   input_type: dataset
 
   # input_file: test.txt
-  # input_file: "/cpfs01/userzazhi/workspace/DVGen/CogVideo/sat/configs/test.txt"
+  # input_file: "/cpfs01/userazhi/workspace/DVGen/CogVideo/sat/configs/test.txt"
   # input_file: /cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/sat/ckpts/cogvideox_2b_sft_nus_new-dataset_bs1_prefix_720x1280_slice_video_lr-2e-5-08-19-08-46/video/latents
   # input_file: /cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/sat/ckpts/youtube_bs1_720x1280_cond3_full_lr-5e-5_trunc-infer-8_16gpus_finetune-09-02-17-11/video/latents
 
