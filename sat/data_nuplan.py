@@ -405,9 +405,11 @@ class nuPlanDataset(Dataset):
                 fps, 
                 max_num_frames, 
                 skip_frms_num=0,   # TODO: Set to 7
-                prefix_prompt="", 
+                prefix_prompt="",
                 n_repeat_of_actions=None,
                 n_fut_traj_points=8,
+                p_mask_out_heading=0,
+                p_drop_action_caption=0,
                 ):
         """
         skip_frms_num: ignore the first and the last xx frames, avoiding transitions.
@@ -430,7 +432,8 @@ class nuPlanDataset(Dataset):
 
         self.n_fut_traj_points = n_fut_traj_points
         self.length = len(self.captions_list)
-        
+        self.p_mask_out_heading = p_mask_out_heading
+        self.p_drop_action_caption = p_drop_action_caption
 
         if data_dir.endswith(".json"):
             self.load_data_json(data_dir)
@@ -613,12 +616,16 @@ class nuPlanDataset(Dataset):
             if not prefix_prompt.endswith("."):
                 prefix_prompt += "."
 
-            # TODO: Drop action caption at p = 0.1? --> Undirected driving.
-            caption = prefix_prompt + " " + caption
+            if self.p_drop_action_caption > 0 and random.random() < self.p_drop_action_caption:
+                caption = prefix_prompt
+            else:
+                caption = prefix_prompt + " " + caption
 
         # Traj
         fut_traj = self.fut_traj_list[index]
-        fut_traj = torch.tensor(fut_traj, dtype=torch.float32)
+        fut_traj = torch.tensor(fut_traj, dtype=torch.float32)  # [8, 3]
+        if self.p_mask_out_heading > 0 and random.random() < self.p_mask_out_heading:
+            fut_traj[:, -1] = 0  # mask out the heading
 
         item = {
             "with_traj": True,

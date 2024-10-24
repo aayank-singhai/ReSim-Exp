@@ -22,6 +22,7 @@ class StandardDiffusionLoss(nn.Module):
         sigma_sampler_config,
         type="l2",
         offset_noise_level=0.0,
+        linear_offset_noise=False,
         batch2model_keys: Optional[Union[str, List[str], ListConfig]] = None,
     ):
         super().__init__()
@@ -32,6 +33,7 @@ class StandardDiffusionLoss(nn.Module):
 
         self.type = type
         self.offset_noise_level = offset_noise_level
+        self.linear_offset_noise = linear_offset_noise
 
         if type == "lpips":
             self.lpips = LPIPS().eval()
@@ -136,9 +138,28 @@ class VideoDiffusionLoss(StandardDiffusionLoss):
         # TODO: Use transformer to encode the traj.
 
         if self.offset_noise_level > 0.0:
-            noise = (
-                noise + append_dims(torch.randn(input.shape[0]).to(input.device), input.ndim) * self.offset_noise_level
-            )
+            # * Original implementation, but is incorrect
+            # noise = (
+            #     noise + append_dims(torch.randn(input.shape[0]).to(input.device), input.ndim) * self.offset_noise_level
+            # )
+            b, c, t, _, _ = input.shape
+            offset_noise_shape = (b, c, t)
+            
+            if not self.linear_offset_noise:
+                # Constant noise level across T
+                noise = (
+                    noise + append_dims(torch.randn(offset_noise_shape).to(input.device), input.ndim) * self.offset_noise_level
+                )
+            else:
+                # linearly increasing noise level across T
+                offset_noise_level = torch.linspace(0.2, 1, t).to(input.device) * self.offset_noise_level
+                offset_noise_level = offset_noise_level.unsqueeze(0).unsqueeze(0)  # [1, 1, T]
+                noise = (
+                    noise + append_dims(torch.randn(offset_noise_shape).to(input.device), input.ndim) * append_dims(offset_noise_level.to(input.device), input.ndim)
+                )
+        
+        # * noise: torch.Size([2, 13, 16, 64, 112])
+        # * input: torch.Size([2, 13, 16, 64, 112])
 
         # x_t
         noised_input = input.float() * append_dims(alphas_cumprod_sqrt, input.ndim) + noise * append_dims(

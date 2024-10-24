@@ -137,7 +137,9 @@ class ViT(nn.Module):
 class TrajEncoder(AbstractEmbModel):
     def __init__(self, *, seq_len, dim, out_dim, depth, mlp_dim, heads=8, channels = 3, dim_head = 64, dropout = 0., emb_dropout = 0., 
                  pos_emb="learnable",
-                 avoid_first_ln=False):
+                 avoid_first_ln=False,
+                 use_all_tokens=False,
+                 zero_init=False):
         super().__init__()
         # assert (seq_len % patch_size) == 0
 
@@ -182,6 +184,10 @@ class TrajEncoder(AbstractEmbModel):
             nn.LayerNorm(dim),
             nn.Linear(dim, out_dim)
         )
+        if zero_init:
+            nn.init.zeros_(self.mlp_head[1].weight)
+            nn.init.zeros_(self.mlp_head[1].bias)
+        self.use_all_tokens = use_all_tokens
 
     def forward(self, series):
         series = series.to(torch.float16)
@@ -197,13 +203,14 @@ class TrajEncoder(AbstractEmbModel):
         x += pos
         x = self.dropout(x)
 
-        x = self.transformer(x)
+        x = self.transformer(x)  # [2, 9, 1024]
 
-        cls_tokens, _ = unpack(x, ps, 'b * d')
-
-        out = self.mlp_head(cls_tokens)
-        
-        out = out.unsqueeze(1)  # [2, 1, 1024]
+        if self.use_all_tokens:
+            out = self.mlp_head(x)
+        else:
+            cls_tokens, _ = unpack(x, ps, 'b * d')
+            out = self.mlp_head(cls_tokens)
+            out = out.unsqueeze(1)  # [2, 1, 1024]
 
         return out
 
