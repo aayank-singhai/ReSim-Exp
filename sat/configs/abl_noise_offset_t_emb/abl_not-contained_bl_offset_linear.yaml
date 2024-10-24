@@ -1,49 +1,96 @@
-# Latest checkpoint with more iterations
+# TODO: 
+# - Larger bs
+# - Grad Norm Clip
+# - Offset Noise
+# - Video Offset Noise
+
 
 args:
-  latent_channels: 16
-  mode: inference
-  load: "/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/sat/ckpts/abl_bs4_contained_t_aug_emb_no-split-cond-10-16-05-35"
+  checkpoint_activations: True ## using gradient checkpointing
+  model_parallel_size: 1
+  experiment_name: nus
+  mode: finetune
+  load: "/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/sat/ckpts/main4_resume4_bs2_improved1_not-contained-10-14-03-52"
+  
+  no_load_rng: True
+  # train_iters: 10000
+  train_iters: 100000
+  eval_iters: 1
+  eval_interval: 250  # * Log video every 100 iterations
+  eval_batch_size: 1
+  save: ckpts
+  save_interval: 1000  # * Save checkpoints
+  log_interval: 20   # * Log info
 
-  batch_size: 1
-  # input_type: txt
-  input_type: dataset
-
-  # input_file: test.txt
-  # input_file: "/cpfs01/userazhi/workspace/DVGen/CogVideo/sat/configs/test.txt"
-  # input_file: /cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/sat/ckpts/cogvideox_2b_sft_nus_new-dataset_bs1_prefix_720x1280_slice_video_lr-2e-5-08-19-08-46/video/latents
-  # input_file: /cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/sat/ckpts/youtube_bs1_720x1280_cond3_full_lr-5e-5_trunc-infer-8_16gpus_finetune-09-02-17-11/video/latents
-
-  # * Num of Latent frames
-  sampling_num_frames: 13  # Must be 13, 11 or 9
-
-  # sampling_fps: 8  # * Original
-  # sampling_fps: 12  # * For nus
-  sampling_fps: &fps 10  # * For youtube
-
-  fp16: True
-  force_inference: True
-
-  epochs: 1
-
+  train_data: ["/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/custom_data/youtube_json/YouTube_svd_clip-len-49_interval-10_5M_flow_round2.json"]
   # valid_data: ["/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/custom_data/youtube_json/YouTube_svd_val_clip-len-49_interval-10_78k_flow.json"]
-  valid_data: ["/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/custom_data/youtube_json/YouTube_svd_val_1080p_clip-len-49_interval-10_77k_flow.json"]
+  valid_data: ["/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/custom_data/youtube_json/YouTube_svd_val_1080p_clip-len-49_interval-10_77k_flow.json"]   # * New val, 1080p
 
-  sampling_video_size: [512, 896]
-  n_prediction_round: 6
+  split: 1,0,0
+  # num_workers: 0  # !!! DEBUG
+  num_workers: 8
+  force_train: True
+  # only_log_video_latents: True
+  only_log_video_latents: False
+
+  lr_decay_style: 'constant'  # !!!!!! Using constant LR
 
 data:
     target: data_video_custom.SFTDataset
     params:
       # video_size: [480, 720]
-      video_size: [512, 896]
 
-      fps: *fps  # TODO: Change to 10
+      video_size: [512, 896]
+      fps: 10
       max_num_frames: 49
       skip_frms_num: 3.
       prefix_prompt: "This video depicts a realistic view from the driver's perspective of a car driving on the road."
+      
       merge_static: True           # merging static to forward
       exclude_highly_static: True  # exclude highly static
+
+      n_repeat_of_actions:
+        Static: 1
+        Moving_Forward: 1
+        Turning_Left: 5
+        Turning_Right: 5
+        Highly_Static: 1
+
+deepspeed:
+  # train_micro_batch_size_per_gpu: 1
+  train_micro_batch_size_per_gpu: 4
+  gradient_accumulation_steps: 1
+  steps_per_print: 50
+  gradient_clipping: 0.1
+  zero_optimization:
+    stage: 2
+    cpu_offload: false
+    contiguous_gradients: false
+    overlap_comm: true
+    reduce_scatter: true
+    reduce_bucket_size: 1000000000
+    allgather_bucket_size: 1000000000
+    load_from_fp32_weights: false
+  zero_allow_untested_optimizer: true
+  bf16:
+    enabled: False
+  fp16:
+    enabled: True
+    loss_scale: 0
+    loss_scale_window: 400
+    hysteresis: 2
+    min_loss_scale: 1
+  optimizer:
+    type: sat.ops.FusedEmaAdam
+    params:
+      lr: 0.00001
+      betas: [0.9, 0.95]
+      eps: 1e-8
+      weight_decay: 1e-4
+  activation_checkpointing:
+    partition_activations: false
+    contiguous_memory_optimization: false
+  wall_clock_breakdown: false
 
 
 model:
@@ -54,8 +101,9 @@ model:
     - txt
 
   en_and_decode_n_samples_a_time: 1  # * split samples
-  # en_and_decode_n_frames_a_time: 17  # * split frames
-  # truncate_n_frames_decode: 8
+  en_and_decode_n_frames_a_time: 17  # * split frames
+  truncate_n_frames_decode: 8
+
   cond_inds_sampling: &cond_inds_sampling [0, 1, 2]  # * For log videos
   
   denoiser_config:
@@ -79,17 +127,12 @@ model:
       time_embed_dim: &t_emb_dim 512
       elementwise_affine: True
       num_frames: 49
-
-      # num_frames: 65  # * weights not aligned
-
       time_compressed_rate: 4
       
       # * For (480, 720), originally supported
       # latent_width: 90
       # latent_height: 60
 
-
-      # * Modify here according to the config
       # !!! DEBUG: For (512, 896)
       latent_width: 112
       latent_height: 64
@@ -102,9 +145,8 @@ model:
       adm_in_channels: 256
       num_attention_heads: 30
 
-      allow_split_cond: false
-
       transformer_args:
+        checkpoint_activations: True ## using gradient checkpointing
         vocab_size: 1
         max_sequence_length: 64
         layernorm_order: pre
@@ -134,7 +176,6 @@ model:
           params:
             text_hidden_size: 4096
             cond_emb_in_dim: *t_emb_dim
-            use_aug_cond_emb: true
 
         adaln_layer_config:
           target: dit_video_concat.AdaLNMixin
@@ -150,7 +191,7 @@ model:
       emb_models:
         - is_trainable: false
           input_key: txt
-          ucg_rate: 0.1
+          ucg_rate: 0.2
           target: sgm.modules.encoders.modules.FrozenT5Embedder
           params:
             model_dir: "/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/ckpts/CogVideoX-2b-sat/t5-v1_1-xxl"
@@ -200,9 +241,10 @@ model:
           gather_norm: false
 
   loss_fn_config:
-    target: sgm.modules.diffusionmodules.loss.VideoDiffusionLoss
+    target: sgm.modules.diffusionmodules.loss.VideoDiffusionLoss  # TODO: Dynamics Enhancement Loss + Per-sample Dynamics Weight (According to flow value?)
     params:
-      offset_noise_level: 0
+      offset_noise_level: 0.1  # * [0.02, 0.1], linear increasing on T
+      linear_offset_noise: true
 
       cond_inds: 
         - []
@@ -230,24 +272,12 @@ model:
   sampler_config:
     target: sgm.modules.diffusionmodules.sampling.VPSDEDPMPP2MSampler
     params:
-      num_steps: 50
+      num_steps: 50  # TODO: Can we use less steps to speed up?? (GameNGen only uses 4)
       verbose: True
       fixed_frames: 3  # [0, 1, 2]
       cond_inds_sampling: *cond_inds_sampling  # [0, 1, 2]
       apply_cond_aug: *cond_aug # * sample aug_t in sampling, all 0
-      apply_cond_aug_chunk_inference: 'min'  # !!! DEBUG
-      
-      
-      # * fixed value | 'dynamic' | 'min' | 'zero', no effect on condition frames)
-      # Default 'zero'
-
-      # * Fixed value
-      # * - chunk 0 --> timestep: 50
-      # * - chunk 100 --> timestep: 150
-      # * Dynamic
-      # * - gradually increase the timestep chunk from 0 -> 7
-      # * Min
-      # * - chunk 0 --> timestep: 0
+      apply_cond_aug_chunk_inference: 'min'
 
       discretization_config:
         target: sgm.modules.diffusionmodules.discretizer.ZeroSNRDDPMDiscretization

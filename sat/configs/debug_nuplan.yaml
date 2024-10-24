@@ -45,13 +45,13 @@ data:
       video_size: [512, 896]
       fps: 10
       max_num_frames: 49
-      skip_frms_num: 3.
+      skip_frms_num: 7.  # ! Bug: Set to 7
       prefix_prompt: "This video depicts a realistic view from the driver's perspective of a car driving on the road."
       
 
 deepspeed:
   # train_micro_batch_size_per_gpu: 1
-  train_micro_batch_size_per_gpu: 4   # * Larger bs
+  train_micro_batch_size_per_gpu: 2   # * Larger bs
   gradient_accumulation_steps: 1
   steps_per_print: 50
   gradient_clipping: 0.1
@@ -76,7 +76,7 @@ deepspeed:
   optimizer:
     type: sat.ops.FusedEmaAdam
     params:
-      lr: 0.00001
+      lr: 0.01  # ! Debug
       betas: [0.9, 0.95]
       eps: 1e-8
       weight_decay: 1e-4
@@ -89,7 +89,10 @@ deepspeed:
 model:
   scale_factor: 1.15258426
   disable_first_stage_autocast: true
-  # not_trainable_prefixes: ['all'] ## Using Lora
+  not_trainable_prefixes: ['model'] ## Using Lora, conditioners are trainable
+  # [model.diffusion_model.xxx]
+  # [conditioner.xxx]
+
   log_keys:
     - txt
 
@@ -98,6 +101,8 @@ model:
   truncate_n_frames_decode: 8
 
   cond_inds_sampling: &cond_inds_sampling [0, 1, 2]  # * For log videos
+
+  # compile_model: true # * Try torch.compile
   
   denoiser_config:
     target: sgm.modules.diffusionmodules.denoiser.DiscreteDenoiser
@@ -159,10 +164,10 @@ model:
             height_interpolation: 2.0   # * cur_height // 256
             width_interpolation:  2.3333   # * cur_width  // 384
 
-        # lora_config: ## Using Lora
-        #   target: sat.model.finetune.lora2.LoraMixin
-        #   params:
-        #     r: 128
+        lora_config: ## Using Lora
+          target: sat.model.finetune.lora2.LoraMixin
+          params:
+            r: 128
 
         patch_embed_config:
           target: dit_video_concat.ImagePatchEmbeddingMixin
@@ -201,13 +206,13 @@ model:
           params:
             # TODO: setup here
             seq_len: 8
-            dim: 1024  # TODO: 1024
+            dim: 1024
             out_dim: 4096
-            # depth: 3
             depth: 2   # * Lower depth, to speed up
             mlp_dim: 2048
             pos_emb: "sine"
             avoid_first_ln: true
+            zero_init: true
 
   first_stage_config:
     target: vae_modules.autoencoder.VideoAutoencoderInferenceWrapper
@@ -255,7 +260,8 @@ model:
   loss_fn_config:
     target: sgm.modules.diffusionmodules.loss.VideoDiffusionLoss  # TODO: Dynamics Enhancement Loss + Per-sample Dynamics Weight (According to flow value?)
     params:
-      offset_noise_level: 0
+      offset_noise_level: 0.02
+      linear_offset_noise: true
 
       cond_inds: 
         - []

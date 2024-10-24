@@ -1,3 +1,10 @@
+# * Larger LR: 1e-5 -> 1e-4
+# * Action zero-init
+# * Action balance
+# * Bugfix: skip 3 -> skip 7
+# * Condition frames: 0, 3 -> 0, 1, 2, 3
+# * Mask out heading: 0.3
+
 args:
   checkpoint_activations: True ## using gradient checkpointing
   model_parallel_size: 1
@@ -7,21 +14,25 @@ args:
   # load: "/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/sat/ckpts/youtube_bs2_512x896_cond3_full_lr-5e-5_trunc-infer-8_32gpus-08-30-06-07"  # * Resume, round1, seed 17
   # load: "/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/sat/ckpts/youtube_bs2_512x896_cond3_full_lr-5e-5_trunc-infer-8_32gpus_resume-09-05-03-45"  # * Resume, round2, seed 3407
   # load: "/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/sat/ckpts/youtube_bs2_512x896_cond3_full_lr-5e-5_trunc-infer-8_32gpus_resume2_cond-aug-09-09-17-20"  # * Abl, round3, seed 11
-  load: "/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/sat/ckpts/resume3_cond_aug_v2_fixed_cond_inds-09-20-19-41"
+  load: "/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/sat/ckpts/main4_resume4_bs2_improved1_not-contained-10-14-03-52"
   
+
   no_load_rng: True
   # train_iters: 10000
-  train_iters: 20000    # TODO: Change to 100000
+  train_iters: 100000
   eval_iters: 1
-  eval_interval: 20  # * Log video every 100 iterations
+  eval_interval: 250  # * Log video every 100 iterations
   eval_batch_size: 1
   save: ckpts
-  save_interval: 2000  # * Save checkpoints
+  save_interval: 1000  # * Save checkpoints
   log_interval: 20   # * Log info
 
-  train_data: ["/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/custom_data/youtube_json/YouTube_svd_clip-len-49_interval-10_5M_flow_round2.json"]
-  # valid_data: ["/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/custom_data/youtube_json/YouTube_svd_val_clip-len-49_interval-10_78k_flow.json"]
-  valid_data: ["/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/custom_data/youtube_json/YouTube_svd_val_1080p_clip-len-49_interval-10_77k_flow.json"]   # * New val, 1080p
+  train_data: [
+    "/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/custom_data/navsim/token2info_train_list.json" # * Previous train-val, now train-only
+  ]
+  valid_data: [
+   "/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/custom_data/navsim/token2info_test_all_list.json" 
+  ]
 
   split: 1,0,0
   # num_workers: 0  # !!! DEBUG
@@ -33,29 +44,29 @@ args:
   lr_decay_style: 'constant'  # !!!!!! Using constant LR
 
 data:
-    target: data_video_custom.SFTDataset
+    # target: data_video_custom.SFTDataset
+    target: data_nuplan.nuPlanDataset
     params:
-      # video_size: [480, 720]
+      video_size: [256, 448]
 
-      video_size: [512, 896]
+      # video_size: [512, 896]
       fps: 10
       max_num_frames: 49
-      skip_frms_num: 3.   # !! Bug: Set to zero
+      skip_frms_num: 7.
       prefix_prompt: "This video depicts a realistic view from the driver's perspective of a car driving on the road."
-      
-      merge_static: True           # merging static to forward
-      exclude_highly_static: True  # exclude highly static
 
+      p_mask_out_heading: 0.3
+      p_drop_action_caption: 0.3
+
+      # # navsim train: {'Moving_Forward': 54414, 'Turning_Right': 9128, 'Turning_Left': 21567}
       n_repeat_of_actions:
-        Static: 1
         Moving_Forward: 1
-        Turning_Left: 5
+        Turning_Left: 2
         Turning_Right: 5
-        Highly_Static: 1
 
 deepspeed:
   # train_micro_batch_size_per_gpu: 1
-  train_micro_batch_size_per_gpu: 4  # ! DEBUG
+  train_micro_batch_size_per_gpu: 2   # * Larger bs
   gradient_accumulation_steps: 1
   steps_per_print: 50
   gradient_clipping: 0.1
@@ -80,7 +91,7 @@ deepspeed:
   optimizer:
     type: sat.ops.FusedEmaAdam
     params:
-      lr: 0.00001           # TODO: Constant LR like Vista? Fix the warmup issue [constant]? should be reduced to 1e-5
+      lr: 0.0001
       betas: [0.9, 0.95]
       eps: 1e-8
       weight_decay: 1e-4
@@ -93,7 +104,10 @@ deepspeed:
 model:
   scale_factor: 1.15258426
   disable_first_stage_autocast: true
-  # not_trainable_prefixes: ['all'] ## Using Lora
+  not_trainable_prefixes: ['model'] ## Using Lora, conditioners are trainable
+  # [model.diffusion_model.xxx]
+  # [conditioner.xxx]
+
   log_keys:
     - txt
 
@@ -125,14 +139,17 @@ model:
       elementwise_affine: True
       num_frames: 49
       time_compressed_rate: 4
-      
       # * For (480, 720), originally supported
       # latent_width: 90
       # latent_height: 60
 
-      # !!! DEBUG: For (512, 896)
-      latent_width: 112
-      latent_height: 64
+      # # !!! DEBUG: For (512, 896)
+      # latent_width: 112
+      # latent_height: 64
+      
+      # * For (256, 448)
+      latent_width: 56
+      latent_height: 32
 
       num_layers: 30
       patch_size: 2
@@ -155,18 +172,21 @@ model:
         pos_embed_config:
           target: dit_video_concat.Basic3DPositionEmbeddingMixin
           params:
-            text_length: 226
+            text_length: 227  # TODO: Need to be adjusted with traj feature length
             # height_interpolation: 1.875  # * cur_height // 256
             # width_interpolation: 1.875   # * cur_width  // 384
 
-            # !!! DEBUG: For (512, 896) 
-            height_interpolation: 2.0   # * cur_height // 256
-            width_interpolation:  2.3333   # * cur_width  // 384
+            # # !!! DEBUG: For (512, 896) 
+            # height_interpolation: 2.0   # * cur_height // 256
+            # width_interpolation:  2.3333   # * cur_width  // 384
 
-        # lora_config: ## Using Lora
-        #   target: sat.model.finetune.lora2.LoraMixin
-        #   params:
-        #     r: 128
+            height_interpolation: 1  # * cur_height // 256
+            width_interpolation: 1.16666   # * cur_width  // 384
+
+        lora_config: ## Using Lora
+          target: sat.model.finetune.lora2.LoraMixin
+          params:
+            r: 128
 
         patch_embed_config:
           target: dit_video_concat.ImagePatchEmbeddingMixin
@@ -186,13 +206,30 @@ model:
     target: sgm.modules.GeneralConditioner
     params:
       emb_models:
+        # * text enc
         - is_trainable: false
           input_key: txt
-          ucg_rate: 0.1
+          ucg_rate: 0.2  # * Higher dropout rate, to encourage learning from fut_traj
           target: sgm.modules.encoders.modules.FrozenT5Embedder
           params:
             model_dir: "/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/ckpts/CogVideoX-2b-sat/t5-v1_1-xxl"
             max_length: 226
+
+        # * traj enc
+        - is_trainable: true
+          input_key: fut_traj
+          ucg_rate: 0.2    # * action (world model) and no-action (planning model)
+          target: sgm.modules.encoders.traj_encoder.TrajEncoder
+          
+          params:
+            seq_len: 8
+            dim: 1024
+            out_dim: 4096
+            depth: 2   # * Lower depth, to speed up
+            mlp_dim: 2048
+            pos_emb: "sine"
+            avoid_first_ln: true
+            zero_init: true
 
   first_stage_config:
     target: vae_modules.autoencoder.VideoAutoencoderInferenceWrapper
@@ -244,18 +281,16 @@ model:
 
       cond_inds: 
         - []
-        # - [0]
-        # - [0, 1]
+        - [0]
+        - [0, 1]
         - [0, 1, 2]
       cond_inds_prob:
         - 0.1
-        # - 0.15
-        # - 0.15
-        - 0.9  # * For [0, 1, 2]
+        - 0.15
+        - 0.15
+        - 0.6  # * For [0, 1, 2]
 
       apply_cond_aug: &cond_aug V2
-      contained_aug_t: true
-      
       sigma_sampler_config:
         target: sgm.modules.diffusionmodules.sigma_sampling.DiscreteSampling
         params:

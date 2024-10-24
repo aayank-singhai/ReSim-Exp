@@ -3,7 +3,8 @@
 args:
   latent_channels: 16
   mode: inference
-  load: "/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/sat/ckpts/nuplan2_lora_not-contained-10-16-13-40/6000/mp_rank_00_model_states.pt"
+  # load: "/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/sat/ckpts/nuplan2_lora_not-contained-10-16-13-40/6000/mp_rank_00_model_states.pt"
+  load: "/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/sat/ckpts/nuplan2_lora_not-contained-10-16-13-40"
 
   batch_size: 1
   input_type: dataset
