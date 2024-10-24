@@ -76,7 +76,7 @@ navsim = load_json("/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/custom_data
 act_dist = count_actions(navsim)
 navsim['meta']['action_distribution'] = act_dist
 dump_json(navsim, "/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/custom_data/navsim/token2info_train_list.json")
-# {'Moving_Forward': 54414, 'Turning_Right': 9128, 'Turning_Left': 21567}
+# navsim train: {'Moving_Forward': 54414, 'Turning_Right': 9128, 'Turning_Left': 21567}
 import pdb; pdb.set_trace()
 
 
