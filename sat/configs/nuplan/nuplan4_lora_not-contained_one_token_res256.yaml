@@ -55,8 +55,8 @@ data:
       skip_frms_num: 7.
       prefix_prompt: "This video depicts a realistic view from the driver's perspective of a car driving on the road."
 
-      p_mask_out_heading: 0.3
-      p_drop_action_caption: 0.3
+      p_mask_out_heading: 0.3     # * Inference: 0.
+      p_drop_action_caption: 0.3  # * Inference: 0.
 
       # # navsim train: {'Moving_Forward': 54414, 'Turning_Right': 9128, 'Turning_Left': 21567}
       n_repeat_of_actions:
