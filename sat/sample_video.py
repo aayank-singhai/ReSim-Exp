@@ -205,6 +205,8 @@ def sampling_main(args, model_cls):
     T, H, W, C, F = args.sampling_num_frames, image_size[0], image_size[1], args.latent_channels, 8
     num_samples = [1]
     force_uc_zero_embeddings = ["txt", "fut_traj"]
+    apply_traj = args.apply_traj  # * Default False
+
     # force_uc_zero_embeddings = ["txt"]  # * Unable to roll out (diverge at the second round)
 
     device = model.device
@@ -275,7 +277,7 @@ def sampling_main(args, model_cls):
             c, uc = model.conditioner.get_unconditional_conditioning(
                 batch,
                 batch_uc=batch_uc,
-                # force_c_zero_embeddings=["fut_traj"],   # !!!!! Mask out fut traj as condition
+                force_c_zero_embeddings=[] if apply_traj else ["fut_traj"],
                 force_uc_zero_embeddings=force_uc_zero_embeddings,
             )
 

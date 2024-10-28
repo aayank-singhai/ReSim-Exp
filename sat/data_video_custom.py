@@ -393,7 +393,6 @@ class VideoDataset(MetaDistributedWebDataset):
         return cls(path, **kwargs)
 
 
-# TODO: Drop out action indicators in the caption at p?
 class SFTDataset(Dataset):
 
     def __init__(self, 
@@ -405,7 +404,8 @@ class SFTDataset(Dataset):
                 prefix_prompt="", 
                 n_repeat_of_actions=None, 
                 merge_static=False,
-                exclude_highly_static=False):
+                exclude_highly_static=False,
+                p_drop_action_caption=0,):
         """
         skip_frms_num: ignore the first and the last xx frames, avoiding transitions.
         """
@@ -427,6 +427,7 @@ class SFTDataset(Dataset):
         self.exclude_highly_static = exclude_highly_static
 
         self.length = len(self.captions_list)
+        self.p_drop_action_caption = p_drop_action_caption
 
         if data_dir.endswith(".json"):
             self.load_data_json(data_dir)
@@ -604,8 +605,11 @@ class SFTDataset(Dataset):
             if not prefix_prompt.endswith("."):
                 prefix_prompt += "."
 
-            # TODO: Drop action caption at p = 0.1? --> Undirected driving.
-            caption = prefix_prompt + " " + caption
+            if self.p_drop_action_caption > 0 and random.random() < self.p_drop_action_caption:
+                caption = prefix_prompt
+            else:
+                caption = prefix_prompt + " " + caption
+
 
         item = {
             "with_traj": False,
