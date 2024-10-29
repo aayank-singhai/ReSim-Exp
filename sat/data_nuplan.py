@@ -397,6 +397,10 @@ class VideoDataset(MetaDistributedWebDataset):
 # TODO: Merge "Static" and "Highly Static" to "Forward".
 # TODO: Exclude "Highly Static" ?
 # TODO: Drop out action indicators in the caption at p?
+
+
+
+# TODO: Improve data loading: load clip as a dict, rather than each attributes separately
 class nuPlanDataset(Dataset):
 
     def __init__(self, 
@@ -421,6 +425,7 @@ class nuPlanDataset(Dataset):
         self.num_frames_list = []
         self.fps_list = []
         self.fut_traj_list = []
+        self.lidar_pc_token_list = []
         
         self.video_size = video_size
         self.fps = fps
@@ -455,6 +460,7 @@ class nuPlanDataset(Dataset):
             sample_seq = clip['img_seq_his'] + clip['img_seq_fut']
             raw_caption = clip.get(caption_key, "")  # include static and highly static
             fut_traj = clip['traj_fut'][:self.n_fut_traj_points]
+            lidar_pc_token = clip['lidar_pc_token']
             
             sample_caption = raw_caption
 
@@ -472,10 +478,12 @@ class nuPlanDataset(Dataset):
             sample_seq = [sample_seq] * n_repeat
             sample_caption = [sample_caption] * n_repeat
             sample_traj = [fut_traj] * n_repeat
+            sample_token = [lidar_pc_token] * n_repeat
 
             self.video_list.extend(sample_seq)
             self.captions_list.extend(sample_caption)
             self.fut_traj_list.extend(sample_traj)
+            self.lidar_pc_token_list.extend(sample_token)
 
     def load_data_dir(self, data_dir):
         decord.bridge.set_bridge("torch")
@@ -627,13 +635,17 @@ class nuPlanDataset(Dataset):
         if self.p_mask_out_heading > 0 and random.random() < self.p_mask_out_heading:
             fut_traj[:, -1] = 0  # mask out the heading
 
+        # Lidar pc token
+        lidar_pc_token = self.lidar_pc_token_list[index]
+
         item = {
             "with_traj": True,
             "mp4": video_clip,
             "txt": caption,
             "num_frames": num_frames,
             "fps": self.fps,  # ? What's the use of fps?
-            "fut_traj": fut_traj
+            "fut_traj": fut_traj,
+            "lidar_pc_token": lidar_pc_token,
         }
         return item
 

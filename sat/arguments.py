@@ -73,6 +73,8 @@ def add_evaluation_args(parser):
     group.add_argument('--n_prediction_round', type=int, default=1)
     group.add_argument('--use_ema', type=bool, default=False)
     group.add_argument('--apply_traj', type=bool, default=False)
+    group.add_argument('--save_recon', type=bool, default=True)
+
 
     return parser
 

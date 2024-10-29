@@ -18,7 +18,7 @@ from ...modules.diffusionmodules.sampling_utils import (
 from ...util import append_dims, default, instantiate_from_config
 from ...util import SeededNoise
 
-from .guiders import DynamicCFG
+from .guiders import DynamicCFG, TriangleCFG
 
 DEFAULT_GUIDER = {"target": "sgm.modules.diffusionmodules.guiders.IdentityGuider"}
 
@@ -479,6 +479,8 @@ class SdeditEDMSampler(EulerEDMSampler):
 class VideoDDIMSampler(BaseDiffusionSampler):
     def __init__(self, fixed_frames=None, sdedit=False, cond_inds_sampling=None, apply_cond_aug=None, 
                  apply_cond_aug_chunk_inference = 'zero',
+                 fix_timestep_bug = False,
+                 directly_use_idx_as_timestep = False, # sampling_timestep for guider wrt. t: [25, 24, ...., 0]
                  **kwargs):
         super().__init__(**kwargs)
         self.fixed_frames = fixed_frames
@@ -486,6 +488,8 @@ class VideoDDIMSampler(BaseDiffusionSampler):
         self.cond_inds = cond_inds_sampling
         self.apply_cond_aug = apply_cond_aug
         assert self.apply_cond_aug in [None, 'V1', 'V2'], f"Invalid apply_cond_aug: {self.apply_cond_aug}"
+        self.fix_timestep_bug = fix_timestep_bug
+        self.directly_use_idx_as_timestep = directly_use_idx_as_timestep
 
         self.apply_cond_aug_chunk_inference = apply_cond_aug_chunk_inference
         assert isinstance(self.apply_cond_aug_chunk_inference, int) or \
@@ -535,11 +539,11 @@ class VideoDDIMSampler(BaseDiffusionSampler):
         # * We don't need to pass the scale as it will be initialized in the guider
 
         if not isinstance(scale, torch.Tensor) and scale == 1:
-            additional_model_inputs["idx"] = x.new_ones([x.shape[0]]) * timestep
+            additional_model_inputs["idx"] = x.new_ones([x.shape[0]]) * timestep  # TODO: Make sure this timestep is right
 
             # TODO: Check this?? A bug??? the conflict between apply_cond_aug and apply_cond_aug_chunk_inference
             if self.apply_cond_aug == 'V2':
-                additional_model_inputs["aug_t_chunk"] = x.new_ones([x.shape[0]]) * aug_t_chunk_sampling
+                additional_model_inputs["aug_t_chunk"] = x.new_ones([x.shape[0]]) * aug_t_chunk_sampling   # TODO: Make sure this aug_t_chunk_sampling is right
             if scale_emb is not None:
                 additional_model_inputs["scale_emb"] = scale_emb
             denoised = denoiser(x, alpha_cumprod_sqrt, cond, **additional_model_inputs).to(torch.float32)
@@ -550,10 +554,30 @@ class VideoDDIMSampler(BaseDiffusionSampler):
             denoised = denoiser(
                 *self.guider.prepare_inputs(x, alpha_cumprod_sqrt, cond, uc), **additional_model_inputs
             ).to(torch.float32)
-            if isinstance(self.guider, DynamicCFG):
+            if isinstance(self.guider, DynamicCFG) or isinstance(self.guider, TriangleCFG):
+
+                # idx: 25, 24, 23, ..., 0
+                if self.directly_use_idx_as_timestep:
+                    sampling_step = idx  
+                    # sampling_step: [25, 24, 23, ...., 0]
+
+                elif self.fix_timestep_bug:
+                    sampling_step = self.num_steps - idx
+                    # sampling_step: [0, 1, 2, ......]
+
+                else:
+                    sampling_step = self.num_steps - timestep
+                    # sampling_step: [-974, -934, -894, ..... ,0]
+                
+                # import pdb; pdb.set_trace()
+                # # TODO: A Bug???
+                # * In the beginning of sampling
+                # timesteps: 999
+                # self.num_steps: 25
                 denoised = self.guider(
-                    denoised, (1 - alpha_cumprod_sqrt**2) ** 0.5, step_index=self.num_steps - timestep, scale=scale
-                )
+                    denoised, (1 - alpha_cumprod_sqrt**2) ** 0.5, step_index=sampling_step, scale=scale
+                )  # TODO: Check the trend of the step_index
+                # step_index: -974, -934, -894
             else:
                 denoised = self.guider(denoised, (1 - alpha_cumprod_sqrt**2) ** 0.5, scale=scale)
         return denoised

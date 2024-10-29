@@ -26,6 +26,10 @@ from torchvision.transforms import InterpolationMode
 from datetime import datetime
 import shutil
 
+# * Tried, not useful
+# torch.backends.cuda.matmul.allow_tf32 = True
+# torch.backends.cudnn.allow_tf32 = True  # * Try this
+
 # TODO: Sampling code on nuPlan
 def read_from_cli():
     cnt = 0
@@ -192,8 +196,10 @@ def sampling_main(args, model_cls):
     elif args.input_type == "dataset":
         data_class = get_obj_from_str(args.data_config["target"])
         create_dataset_function = partial(data_class.create_dataset_function, **args.data_config["params"])
+
+        args.num_workers = 8  # * More workers
         train_data, val_data, test_data = make_loaders(args, create_dataset_function)
-        data_iter = val_data
+        data_iter = val_data  # * Checked, len(val_data) == 12146
         predictive_mode = True
     else:
         raise NotImplementedError
@@ -205,7 +211,8 @@ def sampling_main(args, model_cls):
     T, H, W, C, F = args.sampling_num_frames, image_size[0], image_size[1], args.latent_channels, 8
     num_samples = [1]
     force_uc_zero_embeddings = ["txt", "fut_traj"]
-    apply_traj = args.apply_traj  # * Default False
+    APPLY_TRAJ = args.apply_traj  # * Default False
+    SAVE_RECON = args.save_recon  # * Default True, Turn to false to speed up sampling
 
     # force_uc_zero_embeddings = ["txt"]  # * Unable to roll out (diverge at the second round)
 
@@ -216,6 +223,7 @@ def sampling_main(args, model_cls):
         cfg_path = args.base[0]
     else:
         cfg_path = args.base
+
     cfg_name = os.path.basename(cfg_path).replace(".yaml", "")
     out_dir = os.path.join(out_root, cfg_name)
     out_dir = out_dir + '-' +datetime.now().strftime("%m-%d-%H-%M")
@@ -237,6 +245,8 @@ def sampling_main(args, model_cls):
             if predictive_mode:
                 x = batch["mp4"].to(device).to(model.dtype)
                 x = x.permute(0, 2, 1, 3, 4).contiguous()
+
+                # * Might be slow
                 z = model.encode_first_stage(x, batch)
                 z_origin = z.clone()  # * For logging
 
@@ -261,6 +271,8 @@ def sampling_main(args, model_cls):
 
             if "fut_traj" in batch:
                 value_dict["fut_traj"] = batch["fut_traj"].to(device)
+
+            lidar_pc_tokens = batch["lidar_pc_token"]
             
             batch, batch_uc = get_batch(
                 get_unique_embedder_keys_from_conditioner(model.conditioner), value_dict, num_samples
@@ -277,7 +289,7 @@ def sampling_main(args, model_cls):
             c, uc = model.conditioner.get_unconditional_conditioning(
                 batch,
                 batch_uc=batch_uc,
-                force_c_zero_embeddings=[] if apply_traj else ["fut_traj"],
+                force_c_zero_embeddings=[] if APPLY_TRAJ else ["fut_traj"],
                 force_uc_zero_embeddings=force_uc_zero_embeddings,
             )
 
@@ -286,6 +298,7 @@ def sampling_main(args, model_cls):
                     c[k], uc[k] = map(lambda y: y[k][: math.prod(num_samples)].to("cuda"), (c, uc))
             
             for index in range(args.batch_size):
+                lidar_pc_token = lidar_pc_tokens[index]
                 samples_tot = []
                 for ind_round in range(n_prediction_round):
                     is_end = (ind_round == n_prediction_round - 1)
@@ -363,19 +376,19 @@ def sampling_main(args, model_cls):
 
                     z = samples_z.permute(0, 2, 1, 3, 4).contiguous()
 
-                    if is_end and mpu.get_model_parallel_rank() == 0:
-                        # Gt_rec
+                if mpu.get_model_parallel_rank() == 0:
+                    # Gt_rec: memory consuming
+                    if SAVE_RECON:
                         gt_rec = model.decode_first_stage(z_origin).to(torch.float32)  # * TODO: Memory efficient mode
                         gt_rec = torch.clamp((gt_rec + 1.0) / 2.0, min=0.0, max=1.0).cpu()
                         gt_rec = gt_rec.permute(0, 2, 1, 3, 4).contiguous()
-                        save_video_as_grid_and_mp4(gt_rec, save_path, fps=args.sampling_fps, key="Rec", ind=str(ind_batch))
+                        save_video_as_grid_and_mp4(gt_rec, save_path, fps=args.sampling_fps, key="Rec", ind=lidar_pc_token)
                         del gt_rec
 
-
-                        # Sample
-                        samples_tot = torch.cat(samples_tot, dim=1)
-                        save_video_as_grid_and_mp4(samples_tot, save_path, fps=args.sampling_fps, key="Sample", ind=str(ind_batch))
-                        save_text(text, save_path)
+                    # Sample
+                    samples_tot = torch.cat(samples_tot, dim=1)
+                    save_video_as_grid_and_mp4(samples_tot, save_path, fps=args.sampling_fps, key="Sample", ind=lidar_pc_token)
+                    save_text(text, save_path)
 
 
 if __name__ == "__main__":

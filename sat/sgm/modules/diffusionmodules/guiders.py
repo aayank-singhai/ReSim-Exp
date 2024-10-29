@@ -69,10 +69,70 @@ class DynamicCFG(VanillaCFG):
 
     def __call__(self, x, sigma, step_index, scale=None):
         x_u, x_c = x.chunk(2)
-        scale_value = self.scale_schedule(sigma, step_index.item())
+
+        if isinstance(step_index, torch.Tensor):
+            step_index = step_index.item()
+        scale_value = self.scale_schedule(sigma, step_index)
         x_pred = self.dyn_thresh(x_u, x_c, scale_value)
         return x_pred
 
+
+class TriangleCFG(VanillaCFG):
+    def __init__(self, scale, num_steps, dyn_thresh_config=None, leading_constant=False, n_periods=1):
+        super().__init__(scale, dyn_thresh_config)
+
+
+        # # Each period operate like scale_schedule
+        # # All periods are the same, but repeatedly
+        # def scale_schedule_period(scale, sigma, step_index):
+
+        # Define scale schedule with start and end points at 1
+        def scale_schedule(scale, sigma, step_index):
+            num_steps_period = num_steps // n_periods
+            num_half_steps_period = num_steps_period // 2
+
+            step_index_period = step_index % num_steps_period
+            if step_index_period < num_half_steps_period:
+                if leading_constant:
+                    return scale
+                else:
+                    # Linearly increase in the first half of the steps
+                    return 1 + (scale - 1) * (step_index_period / (num_half_steps_period - 1))
+            else:
+                # Linearly decrease in the second half of the steps
+                return scale - (scale - 1) * ((step_index_period - num_half_steps_period) / (num_steps_period - num_half_steps_period - 1))
+
+            # half_steps = num_steps // 2
+            # if step_index < half_steps:
+            #     if leading_constant:
+            #         return scale
+            #     else:
+            #         # Linearly increase in the first half of the steps
+            #         return 1 + (scale - 1) * (step_index / (half_steps - 1))
+            # else:
+            #     # Linearly decrease in the second half of the steps
+            #     return scale - (scale - 1) * ((step_index - half_steps) / (num_steps - half_steps - 1))
+        
+        # Partial function with predefined scale
+        self.scale_schedule = partial(scale_schedule, scale)
+        
+        # Instantiate dynamic thresholding as in DynamicCFG
+        self.dyn_thresh = instantiate_from_config(
+            default(
+                dyn_thresh_config,
+                {"target": "sgm.modules.diffusionmodules.sampling_utils.NoDynamicThresholding"},
+            )
+        )
+
+    def __call__(self, x, sigma, step_index, scale=None):
+        x_u, x_c = x.chunk(2)
+        
+        if isinstance(step_index, torch.Tensor):
+            step_index = step_index.item()
+        scale_value = self.scale_schedule(sigma, step_index)
+        # import pdb; pdb.set_trace()
+        x_pred = self.dyn_thresh(x_u, x_c, scale_value)
+        return x_pred
 
 class IdentityGuider:
     def __call__(self, x, sigma):
