@@ -1,41 +1,101 @@
-# Latest checkpoint with more iterations
+# * Larger LR: 1e-5 -> 1e-4
+# * Action zero-init
+# * Action balance
+# * Bugfix: skip 3 -> skip 7
+# * Condition frames: 0, 3 -> 0, 1, 2, 3
+# * Mask out heading: 0.3
+# * Use all tokens
 
 args:
-  latent_channels: 16
-  mode: inference
-  load: "/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/sat/ckpts/nuplan4_lora_not-contained_all_tokens-10-24-03-02"
+  checkpoint_activations: True ## using gradient checkpointing
+  model_parallel_size: 1
+  experiment_name: nus
+  mode: finetune
+  load: "/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/sat/ckpts/nuplan5_lora_not-contained_all_token_res256-10-27-07-10"
+  
 
-  batch_size: 1
-  input_type: dataset
+  no_load_rng: True
+  # train_iters: 10000
+  train_iters: 1000000
+  eval_iters: 1
+  eval_interval: 10000  # * Log video every 100 iterations
+  eval_batch_size: 1
+  save: ckpts
+  save_interval: 2000  # * Save checkpoints
+  log_interval: 20   # * Log info
 
-  # * Num of Latent frames
-  sampling_num_frames: 13  # Must be 13, 11 or 9
+  train_data: [
+    "/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/custom_data/navsim/token2info_train_list.json" # * Previous train-val, now train-only
+  ]
+  valid_data: [
+   "/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/custom_data/navsim/token2info_test_all_list.json" 
+  ]
 
-  sampling_fps: &fps 10  # * For youtube
+  split: 1,0,0
+  # num_workers: 0  # !!! DEBUG
+  num_workers: 8
+  force_train: True
+  # only_log_video_latents: True
+  only_log_video_latents: False
 
-  fp16: True
-  force_inference: True
-
-  epochs: 1
-
-  valid_data: ["/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/custom_data/navsim/token2info_test_all_list.json"]
-
-  sampling_video_size: [512, 896]
-  n_prediction_round: 2
-  apply_traj: False
-  save_recon: False  # * Not saving recon to speed up.
+  lr_decay_style: 'constant'  # !!!!!! Using constant LR
 
 data:
     # target: data_video_custom.SFTDataset
     target: data_nuplan.nuPlanDataset
     params:
       # video_size: [480, 720]
-      video_size: [512, 896]
 
-      fps: *fps  # TODO: Change to 10
+      video_size: [512, 896]
+      fps: 10
       max_num_frames: 49
       skip_frms_num: 7.
       prefix_prompt: "This video depicts a realistic view from the driver's perspective of a car driving on the road."
+
+      p_mask_out_heading: 0.5     # * Inference: 0.
+      p_drop_action_caption: 0.5  # * Inference: 0.
+
+      # # navsim train: {'Moving_Forward': 54414, 'Turning_Right': 9128, 'Turning_Left': 21567}
+      n_repeat_of_actions:
+        Moving_Forward: 1
+        Turning_Left: 2
+        Turning_Right: 5
+
+deepspeed:
+  # train_micro_batch_size_per_gpu: 1
+  train_micro_batch_size_per_gpu: 2   # * Larger bs
+  gradient_accumulation_steps: 1
+  steps_per_print: 50
+  gradient_clipping: 0.1
+  zero_optimization:
+    stage: 2
+    cpu_offload: false
+    contiguous_gradients: false
+    overlap_comm: true
+    reduce_scatter: true
+    reduce_bucket_size: 1000000000
+    allgather_bucket_size: 1000000000
+    load_from_fp32_weights: false
+  zero_allow_untested_optimizer: true
+  bf16:
+    enabled: False
+  fp16:
+    enabled: True
+    loss_scale: 0
+    loss_scale_window: 400
+    hysteresis: 2
+    min_loss_scale: 1
+  optimizer:
+    type: sat.ops.FusedEmaAdam
+    params:
+      lr: 0.0001
+      betas: [0.9, 0.95]
+      eps: 1e-8
+      weight_decay: 1e-4
+  activation_checkpointing:
+    partition_activations: false
+    contiguous_memory_optimization: false
+  wall_clock_breakdown: false
 
 
 model:
@@ -49,8 +109,9 @@ model:
     - txt
 
   en_and_decode_n_samples_a_time: 1  # * split samples
-  # en_and_decode_n_frames_a_time: 17  # * split frames
-  # truncate_n_frames_decode: 8
+  en_and_decode_n_frames_a_time: 17  # * split frames
+  truncate_n_frames_decode: 8
+
   cond_inds_sampling: &cond_inds_sampling [0, 1, 2]  # * For log videos
   
   denoiser_config:
@@ -75,7 +136,6 @@ model:
       elementwise_affine: True
       num_frames: 49
       time_compressed_rate: 4
-      
       # * For (480, 720), originally supported
       # latent_width: 90
       # latent_height: 60
@@ -93,6 +153,7 @@ model:
       num_attention_heads: 30
 
       transformer_args:
+        checkpoint_activations: True ## using gradient checkpointing
         vocab_size: 1
         max_sequence_length: 64
         layernorm_order: pre
@@ -139,7 +200,7 @@ model:
         # * text enc
         - is_trainable: false
           input_key: txt
-          ucg_rate: 0.1
+          ucg_rate: 0.2  # * Higher dropout rate, to encourage learning from fut_traj
           target: sgm.modules.encoders.modules.FrozenT5Embedder
           params:
             model_dir: "/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/ckpts/CogVideoX-2b-sat/t5-v1_1-xxl"
@@ -150,8 +211,8 @@ model:
           input_key: fut_traj
           ucg_rate: 0.5    # * action (world model) and no-action (planning model)
           target: sgm.modules.encoders.traj_encoder.TrajEncoder
+          
           params:
-            # TODO: setup here
             seq_len: 8
             dim: 1024
             out_dim: 4096
@@ -206,7 +267,7 @@ model:
           gather_norm: false
 
   loss_fn_config:
-    target: sgm.modules.diffusionmodules.loss.VideoDiffusionLoss
+    target: sgm.modules.diffusionmodules.loss.VideoDiffusionLoss  # TODO: Dynamics Enhancement Loss + Per-sample Dynamics Weight (According to flow value?)
     params:
       offset_noise_level: 0
 
@@ -236,13 +297,12 @@ model:
   sampler_config:
     target: sgm.modules.diffusionmodules.sampling.VPSDEDPMPP2MSampler
     params:
-      num_steps: &num_steps 50
+      num_steps: 50  # TODO: Can we use less steps to speed up?? (GameNGen only uses 4)
       verbose: True
       fixed_frames: 3  # [0, 1, 2]
       cond_inds_sampling: *cond_inds_sampling  # [0, 1, 2]
       apply_cond_aug: *cond_aug # * sample aug_t in sampling, all 0
       apply_cond_aug_chunk_inference: 'min'
-      fix_timestep_bug: true
 
       discretization_config:
         target: sgm.modules.diffusionmodules.discretizer.ZeroSNRDDPMDiscretization
@@ -250,8 +310,8 @@ model:
           shift_scale: 3.0
 
       guider_config:
-        target: sgm.modules.diffusionmodules.guiders.TriangleCFG
+        target: sgm.modules.diffusionmodules.guiders.DynamicCFG
         params:
           scale: 6
-          leading_constant: True
-          num_steps: *num_steps
+          exp: 5
+          num_steps: 50

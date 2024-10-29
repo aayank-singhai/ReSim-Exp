@@ -3,7 +3,7 @@
 args:
   latent_channels: 16
   mode: inference
-  load: "/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/sat/ckpts/nuplan4_lora_not-contained_all_tokens-10-24-03-02"
+  load: "/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/sat/ckpts/nuplan5_lora_not-contained_all_token-10-28-20-48"
 
   batch_size: 1
   input_type: dataset
@@ -21,7 +21,7 @@ args:
   valid_data: ["/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/custom_data/navsim/token2info_test_all_list.json"]
 
   sampling_video_size: [512, 896]
-  n_prediction_round: 2
+  n_prediction_round: 1
   apply_traj: False
   save_recon: False  # * Not saving recon to speed up.
 
@@ -242,7 +242,6 @@ model:
       cond_inds_sampling: *cond_inds_sampling  # [0, 1, 2]
       apply_cond_aug: *cond_aug # * sample aug_t in sampling, all 0
       apply_cond_aug_chunk_inference: 'min'
-      fix_timestep_bug: true
 
       discretization_config:
         target: sgm.modules.diffusionmodules.discretizer.ZeroSNRDDPMDiscretization
@@ -250,8 +249,8 @@ model:
           shift_scale: 3.0
 
       guider_config:
-        target: sgm.modules.diffusionmodules.guiders.TriangleCFG
+        target: sgm.modules.diffusionmodules.guiders.DynamicCFG
         params:
           scale: 6
-          leading_constant: True
+          exp: 5
           num_steps: *num_steps

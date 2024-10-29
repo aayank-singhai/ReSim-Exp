@@ -22,8 +22,7 @@ args:
 
   sampling_video_size: [512, 896]
   n_prediction_round: 2
-  apply_traj: False
-  save_recon: False  # * Not saving recon to speed up.
+  apply_traj: True
 
 data:
     # target: data_video_custom.SFTDataset
@@ -242,7 +241,6 @@ model:
       cond_inds_sampling: *cond_inds_sampling  # [0, 1, 2]
       apply_cond_aug: *cond_aug # * sample aug_t in sampling, all 0
       apply_cond_aug_chunk_inference: 'min'
-      fix_timestep_bug: true
 
       discretization_config:
         target: sgm.modules.diffusionmodules.discretizer.ZeroSNRDDPMDiscretization
@@ -250,8 +248,8 @@ model:
           shift_scale: 3.0
 
       guider_config:
-        target: sgm.modules.diffusionmodules.guiders.TriangleCFG
+        target: sgm.modules.diffusionmodules.guiders.DynamicCFG
         params:
           scale: 6
-          leading_constant: True
+          exp: 5
           num_steps: *num_steps

@@ -236,7 +236,7 @@ model:
   sampler_config:
     target: sgm.modules.diffusionmodules.sampling.VPSDEDPMPP2MSampler
     params:
-      num_steps: &num_steps 50
+      num_steps: &num_steps 25
       verbose: True
       fixed_frames: 3  # [0, 1, 2]
       cond_inds_sampling: *cond_inds_sampling  # [0, 1, 2]

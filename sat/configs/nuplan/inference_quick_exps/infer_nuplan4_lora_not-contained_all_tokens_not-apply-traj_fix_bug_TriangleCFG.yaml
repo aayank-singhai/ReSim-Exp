@@ -253,5 +253,4 @@ model:
         target: sgm.modules.diffusionmodules.guiders.TriangleCFG
         params:
           scale: 6
-          leading_constant: True
           num_steps: *num_steps

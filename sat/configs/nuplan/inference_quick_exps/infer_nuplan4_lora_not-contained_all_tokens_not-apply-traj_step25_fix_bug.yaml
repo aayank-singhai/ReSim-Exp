@@ -23,7 +23,6 @@ args:
   sampling_video_size: [512, 896]
   n_prediction_round: 2
   apply_traj: False
-  save_recon: False  # * Not saving recon to speed up.
 
 data:
     # target: data_video_custom.SFTDataset
@@ -236,7 +235,7 @@ model:
   sampler_config:
     target: sgm.modules.diffusionmodules.sampling.VPSDEDPMPP2MSampler
     params:
-      num_steps: &num_steps 50
+      num_steps: &num_steps 25
       verbose: True
       fixed_frames: 3  # [0, 1, 2]
       cond_inds_sampling: *cond_inds_sampling  # [0, 1, 2]
@@ -250,8 +249,8 @@ model:
           shift_scale: 3.0
 
       guider_config:
-        target: sgm.modules.diffusionmodules.guiders.TriangleCFG
+        target: sgm.modules.diffusionmodules.guiders.DynamicCFG
         params:
           scale: 6
-          leading_constant: True
+          exp: 5
           num_steps: *num_steps

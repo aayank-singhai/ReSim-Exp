@@ -254,4 +254,6 @@ model:
         params:
           scale: 6
           leading_constant: True
+          n_periods: 2
           num_steps: *num_steps
+          

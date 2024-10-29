@@ -236,13 +236,14 @@ model:
   sampler_config:
     target: sgm.modules.diffusionmodules.sampling.VPSDEDPMPP2MSampler
     params:
-      num_steps: &num_steps 50
+      num_steps: &num_steps 25
       verbose: True
       fixed_frames: 3  # [0, 1, 2]
       cond_inds_sampling: *cond_inds_sampling  # [0, 1, 2]
       apply_cond_aug: *cond_aug # * sample aug_t in sampling, all 0
       apply_cond_aug_chunk_inference: 'min'
-      fix_timestep_bug: true
+      # fix_timestep_bug: true
+      directly_use_idx_as_timestep: true
 
       discretization_config:
         target: sgm.modules.diffusionmodules.discretizer.ZeroSNRDDPMDiscretization
@@ -253,5 +254,4 @@ model:
         target: sgm.modules.diffusionmodules.guiders.TriangleCFG
         params:
           scale: 6
-          leading_constant: True
           num_steps: *num_steps
