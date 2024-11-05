@@ -74,6 +74,8 @@ def add_evaluation_args(parser):
     group.add_argument('--use_ema', type=bool, default=False)
     group.add_argument('--apply_traj', type=bool, default=False)
     group.add_argument('--save_recon', type=bool, default=True)
+    group.add_argument('--concat_gt_for_demo', type=bool, default=False)
+
 
 
     return parser

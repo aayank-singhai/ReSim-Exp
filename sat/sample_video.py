@@ -26,11 +26,6 @@ from torchvision.transforms import InterpolationMode
 from datetime import datetime
 import shutil
 
-# * Tried, not useful
-# torch.backends.cuda.matmul.allow_tf32 = True
-# torch.backends.cudnn.allow_tf32 = True  # * Try this
-
-# TODO: Sampling code on nuPlan
 def read_from_cli():
     cnt = 0
     try:
@@ -213,6 +208,7 @@ def sampling_main(args, model_cls):
     force_uc_zero_embeddings = ["txt", "fut_traj"]
     APPLY_TRAJ = args.apply_traj  # * Default False
     SAVE_RECON = args.save_recon  # * Default True, Turn to false to speed up sampling
+    CONCAT_GT_FOR_DEMO = args.concat_gt_for_demo  # * Default False
 
     # force_uc_zero_embeddings = ["txt"]  # * Unable to roll out (diverge at the second round)
 
@@ -383,13 +379,20 @@ def sampling_main(args, model_cls):
                         gt_rec = torch.clamp((gt_rec + 1.0) / 2.0, min=0.0, max=1.0).cpu()
                         gt_rec = gt_rec.permute(0, 2, 1, 3, 4).contiguous()
                         save_video_as_grid_and_mp4(gt_rec, save_path, fps=args.sampling_fps, key="Rec", ind=lidar_pc_token)
-                        del gt_rec
+                        # del gt_rec
 
                     # Sample
                     samples_tot = torch.cat(samples_tot, dim=1)
                     save_video_as_grid_and_mp4(samples_tot, save_path, fps=args.sampling_fps, key="Sample", ind=lidar_pc_token)
                     save_text(text, save_path)
 
+                    # Concatenate gt for demo
+                    if CONCAT_GT_FOR_DEMO:
+                        assert SAVE_RECON
+                        print("sample_tot shape", samples_tot.shape)   # [1, 49, 3, 512, 896]
+                        print("gt_rec shape", gt_rec.shape)            # [1, 49, 3, 512, 896]
+                        concated = torch.cat([gt_rec, samples_tot], dim=-1)  # * Left: GT | Right: Sample
+                        save_video_as_grid_and_mp4(concated, save_path, fps=args.sampling_fps, key="Concated", ind=lidar_pc_token)
 
 if __name__ == "__main__":
     if "OMPI_COMM_WORLD_LOCAL_RANK" in os.environ:
