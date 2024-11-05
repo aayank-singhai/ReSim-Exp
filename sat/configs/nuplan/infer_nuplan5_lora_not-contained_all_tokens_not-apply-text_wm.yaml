@@ -3,7 +3,7 @@
 args:
   latent_channels: 16
   mode: inference
-  load: "/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/sat/ckpts/nuplan4_lora_not-contained_all_tokens-10-24-03-02"
+  load: "/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/sat/ckpts/nuplan5_lora_not-contained_all_token-10-28-20-48"
 
   batch_size: 1
   input_type: dataset
@@ -21,8 +21,9 @@ args:
   valid_data: ["/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/custom_data/navsim/token2info_test_all_list.json"]
 
   sampling_video_size: [512, 896]
-  n_prediction_round: 2
+  n_prediction_round: 1
   apply_traj: True
+  save_recon: False  # * Not saving recon to speed up.
 
 data:
     # target: data_video_custom.SFTDataset
@@ -36,6 +37,7 @@ data:
       skip_frms_num: 7.
       prefix_prompt: "This video depicts a realistic view from the driver's perspective of a car driving on the road."
 
+      p_drop_action_caption: 1.  # * Inference: 0.
 
 model:
   scale_factor: 1.15258426

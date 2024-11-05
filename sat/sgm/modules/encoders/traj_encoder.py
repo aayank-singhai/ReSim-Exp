@@ -161,12 +161,6 @@ class TrajEncoder(AbstractEmbModel):
         
         assert pos_emb in ["learnable", "sine"]
 
-        # learn_pos = nn.Parameter(torch.randn(1, seq_len + 1, dim))
-        # grid_t = np.arange(1 + seq_len, dtype=np.float32)  # +1 for cls token
-        # sine_pos = get_1d_sincos_pos_embed_from_grid(dim, grid_t)
-        # sine_pos = torch.tensor(sine_pos).unsqueeze(0)
-        # import pdb; pdb.set_trace()
-
         if pos_emb == "learnable":
             self.pos_embedding = nn.Parameter(torch.randn(1, seq_len + 1, dim))
         else:

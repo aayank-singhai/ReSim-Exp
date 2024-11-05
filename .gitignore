@@ -16,3 +16,4 @@ nuscenes
 custom_data/
 nuplan-devkit/
 .vscode/
+navsim_eval/
