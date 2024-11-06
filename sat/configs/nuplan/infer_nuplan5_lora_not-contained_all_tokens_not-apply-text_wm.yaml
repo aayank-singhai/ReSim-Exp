@@ -23,7 +23,8 @@ args:
   sampling_video_size: [512, 896]
   n_prediction_round: 1
   apply_traj: True
-  save_recon: False  # * Not saving recon to speed up.
+  save_recon: True  # * Not saving recon to speed up.
+  concat_gt_for_demo: True
 
 data:
     # target: data_video_custom.SFTDataset
