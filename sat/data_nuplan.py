@@ -394,12 +394,6 @@ class VideoDataset(MetaDistributedWebDataset):
 
 
 # TODO: Sample weights according to action
-# TODO: Merge "Static" and "Highly Static" to "Forward".
-# TODO: Exclude "Highly Static" ?
-# TODO: Drop out action indicators in the caption at p?
-
-
-
 # TODO: Improve data loading: load clip as a dict, rather than each attributes separately
 class nuPlanDataset(Dataset):
 
@@ -414,7 +408,7 @@ class nuPlanDataset(Dataset):
                 n_fut_traj_points=8,
                 p_mask_out_heading=0,
                 p_drop_action_caption=0,
-                ):
+                **kwargs):
         """
         skip_frms_num: ignore the first and the last xx frames, avoiding transitions.
         """

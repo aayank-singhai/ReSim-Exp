@@ -353,42 +353,153 @@ def process_fn_video(src, image_size, fps, num_frames, skip_frms_num=0.0, txt_ke
 
         yield item
 
-class MultiSourceSamplerDataset:
-    def __init__(self, 
-                data_dir,
-                video_size, 
-                fps, 
-                max_num_frames, 
-                skip_frms_num=3, 
-                prefix_prompt="", 
-                n_repeat_of_actions=None, 
-                merge_static=False,
-                exclude_highly_static=False):
+# class MultiSourceDataset:
+#     def __init__(self, 
+#                 data_dir,
+#                 video_size, 
+#                 fps, 
+#                 max_num_frames, 
+#                 skip_frms_num=3, 
+#                 prefix_prompt="", 
+#                 n_repeat_of_actions=None, 
+#                 merge_static=False,
+#                 exclude_highly_static=False):
         
-        if "youtube" in data_dir:
-            self.create_dataset = SFTDataset(
-                data_dir=data_dir, 
-                video_size=video_size, 
-                fps=fps, 
-                max_num_frames=max_num_frames, 
-                skip_frms_num=skip_frms_num, 
-                prefix_prompt=prefix_prompt, 
-                n_repeat_of_actions=n_repeat_of_actions, 
-                merge_static=merge_static, 
-                exclude_highly_static=exclude_highly_static
-            )
+#         if "youtube" in data_dir:
+#             self.create_dataset = SFTDataset(
+#                 data_dir=data_dir, 
+#                 video_size=video_size, 
+#                 fps=fps, 
+#                 max_num_frames=max_num_frames, 
+#                 skip_frms_num=skip_frms_num, 
+#                 prefix_prompt=prefix_prompt, 
+#                 n_repeat_of_actions=n_repeat_of_actions, 
+#                 merge_static=merge_static, 
+#                 exclude_highly_static=exclude_highly_static
+#             )
         
-        elif "nuplan" in data_dir:
-            self.create_dataset = nuPlanDataset(
-                data_dir=data_dir, 
-                video_size=video_size,
-                fps=fps, 
-                max_num_frames=max_num_frames, 
-                skip_frms_num=skip_frms_num, 
-                prefix_prompt=prefix_prompt, 
-                n_repeat_of_actions=n_repeat_of_actions, 
-            )
+#         elif "nuplan" in data_dir:
+#             self.create_dataset = nuPlanDataset(
+#                 data_dir=data_dir, 
+#                 video_size=video_size,
+#                 fps=fps, 
+#                 max_num_frames=max_num_frames, 
+#                 skip_frms_num=skip_frms_num, 
+#                 prefix_prompt=prefix_prompt, 
+#                 n_repeat_of_actions=n_repeat_of_actions, 
+#             )
     
+#     @classmethod
+#     def create_dataset_function(cls, path, args, **kwargs):
+#         return cls(data_dir=path, **kwargs)
+
+# class MultiSourceDataset(SFTDataset, nuPlanDataset):
+#     def __init__(self, 
+#                 data_dir, 
+#                 video_size, 
+#                 fps,
+#                 max_num_frames,
+#                 **kwargs):
+        
+#         if "youtube" in data_dir:
+#             print("!!!Initiating SFTDataset!!!")
+#             # SFTDataset.__init__(
+#             #     self,
+#             #     data_dir=data_dir,
+#             #     video_size=video_size,
+#             #     fps=fps,
+#             #     max_num_frames=max_num_frames,
+#             #     **kwargs
+#             # )
+#             super(SFTDataset, self).__init__(
+#                 data_dir=data_dir,
+#                 video_size=video_size,
+#                 fps=fps,
+#                 max_num_frames=max_num_frames,
+#                 **kwargs
+#             )
+        
+#         elif "nuplan" in data_dir:
+#             print("!!!Initiating nuPlanDataset!!!")
+#             # nuPlanDataset.__init__(
+#             #     self,
+#             #     data_dir=data_dir,
+#             #     video_size=video_size,
+#             #     fps=fps,
+#             #     max_num_frames=max_num_frames,
+#             #     **kwargs
+#             # )
+
+#             super(nuPlanDataset, self).__init__(
+#                 data_dir=data_dir,
+#                 video_size=video_size,
+#                 fps=fps,
+#                 max_num_frames=max_num_frames,
+#                 **kwargs
+#             )
+    
+#     @classmethod
+#     def create_dataset_function(cls, path, args, **kwargs):
+#         return cls(data_dir=path, **kwargs)
+
+def get_dataset(data_dir):
+    # Return SFTDataset if data_dir contains 'youtube', otherwise return nuPlanDataset
+    if "youtube" in data_dir:
+        print("!!!Setting class to SFTDataset!!!")
+        return SFTDataset
+    elif "nuplan" in data_dir:
+        print("!!!Setting class to nuPlanDataset!!!")
+        return nuPlanDataset
+    else:
+        raise ValueError("Invalid data_dir: should contain either 'youtube' or 'nuplan'.")
+
+
+class MultiSourceDataset(Dataset):
+    def __init__(self, data_dir, video_size, fps, max_num_frames, **kwargs):
+        # Get the appropriate dataset class based on `data_dir`
+        # dataset_class = get_dataset(data_dir)
+        # dataset_class.__init__(
+        #     self,
+        #     data_dir=data_dir,
+        #     video_size=video_size,
+        #     fps=fps,
+        #     max_num_frames=max_num_frames,
+        #     **kwargs
+        # )
+
+        # Initialize the appropriate dataset based on `data_dir` or other conditions
+        if "youtube" in data_dir.lower():
+            print("!!!Initializing SFTDataset!!!")
+            self.dataset = SFTDataset(
+                data_dir=data_dir,
+                video_size=video_size,
+                fps=fps,
+                max_num_frames=max_num_frames,
+                **kwargs
+            )
+        elif "navsim" in data_dir.lower():
+            print("!!!Initializing nuPlanDataset!!!")
+            self.dataset = nuPlanDataset(
+                data_dir=data_dir,
+                video_size=video_size,
+                fps=fps,
+                max_num_frames=max_num_frames,
+                **kwargs
+            )
+        else:
+            raise ValueError("Invalid data_dir: should contain either 'youtube' or 'nuplan'.")
+
+    # # Delegate attribute and method calls to the dataset instance
+    def __getattr__(self, name):
+        # Only get attributes from the dataset instance if they aren’t found in MultiSourceDataset
+        return getattr(self.dataset, name)
+
+    def __len__(self):
+        return len(self.dataset)
+
+    def __getitem__(self, index):
+        return self.dataset[index]
+
     @classmethod
     def create_dataset_function(cls, path, args, **kwargs):
         return cls(data_dir=path, **kwargs)

@@ -268,7 +268,10 @@ def sampling_main(args, model_cls):
             if "fut_traj" in batch:
                 value_dict["fut_traj"] = batch["fut_traj"].to(device)
 
-            lidar_pc_tokens = batch["lidar_pc_token"]
+            if "lidar_pc_token" in batch:
+                lidar_pc_tokens = batch["lidar_pc_token"]
+            else:
+                lidar_pc_tokens = [str(ind_batch)]
             
             batch, batch_uc = get_batch(
                 get_unique_embedder_keys_from_conditioner(model.conditioner), value_dict, num_samples

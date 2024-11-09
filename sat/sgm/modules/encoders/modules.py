@@ -162,6 +162,7 @@ class GeneralConditioner(nn.Module):
             emb_out = [emb_out]
         for emb in emb_out:
             out_key = self.OUTPUT_DIM2KEYS[emb.dim()]
+            # emb.shape: [2, 226, 4096]
             if embedder.ucg_rate > 0.0 and embedder.legacy_ucg_val is None:
                 if cond_or_not is None:
                     emb = (
@@ -179,6 +180,13 @@ class GeneralConditioner(nn.Module):
                         )
                         * emb
                     )
+
+            # * Deal with with_traj for joint training on OpenDV and nuPlan
+            with_traj = batch.get('with_traj', None)
+            if with_traj is not None and embedder.input_key == 'fut_traj':
+                emb = emb * with_traj.view(-1, 1, 1).float()
+                # * verified
+            
             if hasattr(embedder, "input_key") and embedder.input_key in force_zero_embeddings:
                 emb = torch.zeros_like(emb)
             if out_key in output:
@@ -192,7 +200,10 @@ class GeneralConditioner(nn.Module):
         if force_zero_embeddings is None:
             force_zero_embeddings = []
 
+        # * self.cor_embs: []
+
         if len(self.cor_embs) > 0:
+            # NOT Getting here
             batch_size = len(batch[list(batch.keys())[0]])
             rand_idx = np.random.choice(len(self.cor_p), size=(batch_size,), p=self.cor_p)
             for emb_idx in self.cor_embs:

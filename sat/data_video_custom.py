@@ -393,6 +393,7 @@ class VideoDataset(MetaDistributedWebDataset):
         return cls(path, **kwargs)
 
 
+# * TODO: Improve loading samples, per video clip, not per attribute
 class SFTDataset(Dataset):
 
     def __init__(self, 
@@ -405,7 +406,8 @@ class SFTDataset(Dataset):
                 n_repeat_of_actions=None, 
                 merge_static=False,
                 exclude_highly_static=False,
-                p_drop_action_caption=0,):
+                p_drop_action_caption=0,
+                **kwargs):
         """
         skip_frms_num: ignore the first and the last xx frames, avoiding transitions.
         """
@@ -612,12 +614,13 @@ class SFTDataset(Dataset):
 
 
         item = {
-            "with_traj": False,
+            "with_traj": False,   # TODO: Use with_traj to maskout pseudo-traj of OpenDV in training
             "mp4": video_clip,
             "txt": caption,
             "num_frames": num_frames,
             "fps": self.fps,  # ? What's the use of fps?
-            "fut_traj": torch.zeros((8, 3))  # * Placeholder, not used, no traj actually
+            "fut_traj": torch.zeros((8, 3)),  # * Placeholder, not used, no traj actually,
+            "lidar_pc_token": str(index),  # * Placeholder to align with nuplan dataset
         }
         return item
 
