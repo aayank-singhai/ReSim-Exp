@@ -1,6 +1,8 @@
 import json
 import yaml
 from tqdm import tqdm
+import os
+import cv2
 
 cmd_to_action = {
     0: "Turning_Left",
@@ -68,38 +70,39 @@ def dump_json(data, json_path):
         json.dump(data, f, indent=2)
     print("Dumped to: {}".format(json_path))
 
+import cv2
+import os
 
+def video_to_images(vid_path, frame_rate):
+    # Create an output folder based on the video file name
+    output_folder = os.path.dirname(vid_path)
+    output_folder = os.path.join(output_folder, "frames")
+    os.makedirs(output_folder, exist_ok=True)
+    image_paths = []
 
+    # Open the video file
+    cap = cv2.VideoCapture(vid_path)
+    original_frame_rate = cap.get(cv2.CAP_PROP_FPS)
+    frame_count = 0
+    saved_frame_count = 0
 
+    while cap.isOpened():
+        ret, frame = cap.read()
+        if not ret:
+            break
 
-navsim = load_json("/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/custom_data/navsim/token2info_train_list.json")
-act_dist = count_actions(navsim)
-navsim['meta']['action_distribution'] = act_dist
-dump_json(navsim, "/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/custom_data/navsim/token2info_train_list.json")
-# navsim train: {'Moving_Forward': 54414, 'Turning_Right': 9128, 'Turning_Left': 21567}
-import pdb; pdb.set_trace()
+        # Save frame based on the specified frame rate
+        if frame_count % int(original_frame_rate // frame_rate) == 0:
+            image_path = os.path.join(output_folder, f"{saved_frame_count:09d}.jpg")
+            cv2.imwrite(image_path, frame)
+            image_paths.append(image_path)
+            saved_frame_count += 1
 
+        frame_count += 1
 
+    cap.release()
+    print(f"Extracted {saved_frame_count} frames from {vid_path}")
 
-log_split = parse_yaml("/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/custom_data/navsim/default_train_val_test_log_split.yaml")
-train_logs = log_split['train_logs']
-val_logs = log_split['val_logs']
+    return image_paths
 
-# navsim = load_json("/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/custom_data/navsim/token2info_all.json")
-navsim = load_json("/cpfs01/shared/opendrivelab/opendrivelab_hdd/tianhaochen/token2info_all.json")
-navsim_train = convert_dict_to_list(navsim, train_logs)
-
-navsim = load_json("/cpfs01/shared/opendrivelab/opendrivelab_hdd/tianhaochen/token2info_all.json")
-navsim_val = convert_dict_to_list(navsim, val_logs)
-
-dump_json(navsim_train, "/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/custom_data/navsim/token2info_train_list.json")
-dump_json(navsim_val, "/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/custom_data/navsim/token2info_val_list.json")
-
-navsim_train = load_json("/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/custom_data/navsim/token2info_train_list.json")
-# import pdb; pdb.set_trace()
-
-# dump_json(nuplan_list, "/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/custom_data/nuplan/token2info_all_list.json")
-
-# nuplan_new = load_json("/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/custom_data/nuplan/token2info_all_list.json")
-
-# import pdb; pdb.set_trace()
+video_to_images('/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/tmp/OOD.mp4', frame_rate=10)

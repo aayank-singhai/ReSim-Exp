@@ -3,7 +3,7 @@
 args:
   latent_channels: 16
   mode: inference
-  load: "/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/sat/ckpts/main/main4_resume4_bs2_improved1_not-contained-10-14-03-52"
+  load: "/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/sat/ckpts/main5_resume4_bs2_improved1_not-contained_256_lora-10-27-11-06"
 
   batch_size: 1
   input_type: dataset
@@ -18,19 +18,18 @@ args:
 
   epochs: 1
 
-  valid_data: ["/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/tmp/one_vid_ood.json"]
+  valid_data: ["/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/custom_data/youtube_json/YouTube_svd_val_1080p_clip-len-49_interval-10_77k_flow.json"]
 
-  sampling_video_size: [512, 896]
+  sampling_video_size: [256, 448]
   n_prediction_round: 4
   apply_traj: False
   save_recon: True  # * Not saving recon to speed up.
-  concat_gt_for_demo: True
+  # concat_gt_for_demo: True
 
 data:
     target: data_video_custom.SFTDataset
     params:
-      # video_size: [480, 720]
-      video_size: [512, 896]
+      video_size: [256, 448]
 
       fps: *fps  # TODO: Change to 10
       max_num_frames: 49
@@ -41,7 +40,7 @@ data:
 model:
   scale_factor: 1.15258426
   disable_first_stage_autocast: true
-  not_trainable_prefixes: ['model'] ## Using Lora, conditioners are trainable
+  not_trainable_prefixes: ['all'] ## Using Lora, conditioners are trainable
   # [model.diffusion_model.xxx]
   # [conditioner.xxx]
 
@@ -80,9 +79,13 @@ model:
       # latent_width: 90
       # latent_height: 60
 
-      # !!! DEBUG: For (512, 896)
-      latent_width: 112
-      latent_height: 64
+      # # !!! DEBUG: For (512, 896)
+      # latent_width: 112
+      # latent_height: 64
+      
+      # * For (256, 448)
+      latent_width: 56
+      latent_height: 32
 
       num_layers: 30
       patch_size: 2
@@ -104,14 +107,16 @@ model:
         pos_embed_config:
           target: dit_video_concat.Basic3DPositionEmbeddingMixin
           params:
-            text_length: 235  # TODO: Need to be adjusted with traj feature length
-            # * 226 + 9 = 235
+            text_length: 226
             # height_interpolation: 1.875  # * cur_height // 256
             # width_interpolation: 1.875   # * cur_width  // 384
 
-            # !!! DEBUG: For (512, 896) 
-            height_interpolation: 2.0   # * cur_height // 256
-            width_interpolation:  2.3333   # * cur_width  // 384
+            # # !!! DEBUG: For (512, 896) 
+            # height_interpolation: 2.0   # * cur_height // 256
+            # width_interpolation:  2.3333   # * cur_width  // 384
+
+            height_interpolation: 1  # * cur_height // 256
+            width_interpolation: 1.16666   # * cur_width  // 384
 
         lora_config: ## Using Lora
           target: sat.model.finetune.lora2.LoraMixin
@@ -143,23 +148,6 @@ model:
           params:
             model_dir: "/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/ckpts/CogVideoX-2b-sat/t5-v1_1-xxl"
             max_length: 226
-
-        # * traj enc
-        - is_trainable: true
-          input_key: fut_traj
-          ucg_rate: 0.5    # * action (world model) and no-action (planning model)
-          target: sgm.modules.encoders.traj_encoder.TrajEncoder
-          params:
-            # TODO: setup here
-            seq_len: 8
-            dim: 1024
-            out_dim: 4096
-            depth: 2   # * Lower depth, to speed up
-            mlp_dim: 2048
-            pos_emb: "sine"
-            avoid_first_ln: true
-            zero_init: true
-            use_all_tokens: true  # * 9 tokens
 
   first_stage_config:
     target: vae_modules.autoencoder.VideoAutoencoderInferenceWrapper

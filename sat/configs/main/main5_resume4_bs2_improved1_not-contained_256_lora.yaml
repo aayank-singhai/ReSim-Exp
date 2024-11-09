@@ -10,7 +10,7 @@ args:
   model_parallel_size: 1
   experiment_name: nus
   mode: finetune
-  load: "/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/sat/ckpts/main4_resume4_bs2_improved1_not-contained-10-14-03-52"
+  load: "/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/sat/ckpts/main/main4_resume4_bs2_improved1_not-contained-10-14-03-52"
   
   no_load_rng: True
   # train_iters: 10000

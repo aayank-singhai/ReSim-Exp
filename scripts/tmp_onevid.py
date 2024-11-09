@@ -69,37 +69,12 @@ def dump_json(data, json_path):
     print("Dumped to: {}".format(json_path))
 
 
+meta = {'data_root': '/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/tmp', 'clip_length': 49, 'num_interval_frames': 10, 'fps_clip': 10, 'num_clips': 1, 'num_incomplete': 0}
 
+clips = [
+    {'folder_name': 'frames', 'first_frame': '000000000.jpg', 'end_frame': '000000048.jpg', 'flow_direction': 'Moving_Forward'}
+]
 
+data = {'meta': meta, 'clips': clips}
 
-navsim = load_json("/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/custom_data/navsim/token2info_train_list.json")
-act_dist = count_actions(navsim)
-navsim['meta']['action_distribution'] = act_dist
-dump_json(navsim, "/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/custom_data/navsim/token2info_train_list.json")
-# navsim train: {'Moving_Forward': 54414, 'Turning_Right': 9128, 'Turning_Left': 21567}
-import pdb; pdb.set_trace()
-
-
-
-log_split = parse_yaml("/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/custom_data/navsim/default_train_val_test_log_split.yaml")
-train_logs = log_split['train_logs']
-val_logs = log_split['val_logs']
-
-# navsim = load_json("/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/custom_data/navsim/token2info_all.json")
-navsim = load_json("/cpfs01/shared/opendrivelab/opendrivelab_hdd/tianhaochen/token2info_all.json")
-navsim_train = convert_dict_to_list(navsim, train_logs)
-
-navsim = load_json("/cpfs01/shared/opendrivelab/opendrivelab_hdd/tianhaochen/token2info_all.json")
-navsim_val = convert_dict_to_list(navsim, val_logs)
-
-dump_json(navsim_train, "/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/custom_data/navsim/token2info_train_list.json")
-dump_json(navsim_val, "/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/custom_data/navsim/token2info_val_list.json")
-
-navsim_train = load_json("/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/custom_data/navsim/token2info_train_list.json")
-# import pdb; pdb.set_trace()
-
-# dump_json(nuplan_list, "/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/custom_data/nuplan/token2info_all_list.json")
-
-# nuplan_new = load_json("/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/custom_data/nuplan/token2info_all_list.json")
-
-# import pdb; pdb.set_trace()
+dump_json(data, '/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/tmp/one_vid_ood.json')
