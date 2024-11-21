@@ -11,7 +11,7 @@ args:
   model_parallel_size: 1
   experiment_name: nus
   mode: finetune
-  load: "/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/sat/ckpts/abl_nuplan_only_stage1-low-11-09-11-33"
+  load: "/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/sat/ckpts/abl_nuplan_only_stage1-low-11-11-15-46"
   
   no_load_rng: True
   # train_iters: 10000
@@ -20,7 +20,7 @@ args:
   eval_interval: 10000  # * Log video every 100 iterations
   eval_batch_size: 1
   save: ckpts
-  save_interval: 2000  # * Save checkpoints
+  save_interval: 5000  # * Save checkpoints
   log_interval: 20   # * Log info
 
   train_data: [
@@ -43,9 +43,9 @@ data:
     # target: data_video_custom.SFTDataset
     target: data_nuplan.nuPlanDataset
     params:
-      video_size: [256, 448]
+      # video_size: [480, 720]
 
-      # video_size: [512, 896]
+      video_size: [512, 896]
       fps: 10
       max_num_frames: 49
       skip_frms_num: 7.
@@ -139,13 +139,9 @@ model:
       # latent_width: 90
       # latent_height: 60
 
-      # # !!! DEBUG: For (512, 896)
-      # latent_width: 112
-      # latent_height: 64
-      
-      # * For (256, 448)
-      latent_width: 56
-      latent_height: 32
+      # !!! DEBUG: For (512, 896)
+      latent_width: 112
+      latent_height: 64
 
       num_layers: 30
       patch_size: 2
@@ -173,12 +169,9 @@ model:
             # height_interpolation: 1.875  # * cur_height // 256
             # width_interpolation: 1.875   # * cur_width  // 384
 
-            # # !!! DEBUG: For (512, 896) 
-            # height_interpolation: 2.0   # * cur_height // 256
-            # width_interpolation:  2.3333   # * cur_width  // 384
-
-            height_interpolation: 1  # * cur_height // 256
-            width_interpolation: 1.16666   # * cur_width  // 384
+            # !!! DEBUG: For (512, 896) 
+            height_interpolation: 2.0   # * cur_height // 256
+            width_interpolation:  2.3333   # * cur_width  // 384
 
         lora_config: ## Using Lora
           target: sat.model.finetune.lora2.LoraMixin
@@ -215,7 +208,7 @@ model:
         # * traj enc
         - is_trainable: true
           input_key: fut_traj
-          ucg_rate: 0.2    # * action (world model) and no-action (planning model)
+          ucg_rate: 0.5    # * stage1:0.2 -> stage2:0.5   action (world model) and no-action (planning model)
           target: sgm.modules.encoders.traj_encoder.TrajEncoder
           
           params:

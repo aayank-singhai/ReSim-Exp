@@ -49,7 +49,7 @@ data:
       video_size: [512, 896]
       fps: 10
       max_num_frames: 49
-      skip_frms_num: 7.
+      skip_frms_num: 7.  # * Skip first 7 frames (past frames saved in json, but not needed.)
       prefix_prompt: "This video depicts a realistic view from the driver's perspective of a car driving on the road."
 
       p_mask_out_heading: 0.5     # * Inference: 0.

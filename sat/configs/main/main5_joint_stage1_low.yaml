@@ -1,18 +1,18 @@
-# * Larger LR: 1e-5 -> 1e-4
-# * Action zero-init
-# * Action balance
-# * Bugfix: skip 3 -> skip 7
-# * Condition frames: 0, 3 -> 0, 1, 2, 3
-# * Mask out heading: 0.3
-# * Use all tokens
+# TODO: 
+# - Larger bs
+# - Grad Norm Clip
+# - Offset Noise
+# - Video Offset Noise
+
 
 args:
   checkpoint_activations: True ## using gradient checkpointing
   model_parallel_size: 1
   experiment_name: nus
   mode: finetune
-  load: "/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/sat/ckpts/abl_nuplan_only_stage1-low-11-09-11-33"
+  load: "/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/sat/ckpts/main/main4_resume4_bs2_improved1_not-contained-10-14-03-52"
   
+
   no_load_rng: True
   # train_iters: 10000
   train_iters: 300000
@@ -20,15 +20,20 @@ args:
   eval_interval: 10000  # * Log video every 100 iterations
   eval_batch_size: 1
   save: ckpts
-  save_interval: 2000  # * Save checkpoints
+  save_interval: 4000  # * Save checkpoints
   log_interval: 20   # * Log info
 
   train_data: [
-    "/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/custom_data/navsim/token2info_train_list.json" # * Previous train-val, now train-only
+    "/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/custom_data/youtube_json/YouTube_svd_clip-len-49_interval-10_5M_flow_round2.json",  # * OpenDV
+    "/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/custom_data/navsim/token2info_train_list.json"  # * navsim
   ]
   valid_data: [
    "/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/custom_data/navsim/token2info_test_all_list.json" 
   ]
+
+  train_data_weights: [1, 40]
+  # * OpenDV: 1, 5M
+  # * navsim: 40, 40 * 80k = 3.2M
 
   split: 1,0,0
   # num_workers: 0  # !!! DEBUG
@@ -40,8 +45,7 @@ args:
   lr_decay_style: 'constant'  # !!!!!! Using constant LR
 
 data:
-    # target: data_video_custom.SFTDataset
-    target: data_nuplan.nuPlanDataset
+    target: data_multi.MultiSourceDataset
     params:
       video_size: [256, 448]
 
@@ -50,19 +54,23 @@ data:
       max_num_frames: 49
       skip_frms_num: 7.
       prefix_prompt: "This video depicts a realistic view from the driver's perspective of a car driving on the road."
-
+      
+      merge_static: True           # merging static to forward
+      exclude_highly_static: True  # exclude highly static
+      
       p_mask_out_heading: 0.5     # * Inference: 0.
       p_drop_action_caption: 0.5  # * Inference: 0.
 
       # # navsim train: {'Moving_Forward': 54414, 'Turning_Right': 9128, 'Turning_Left': 21567}
       n_repeat_of_actions:
+        Static: 1
         Moving_Forward: 1
-        Turning_Left: 5   # * 2 --> 5 to align with joint exp
+        Turning_Left: 5
         Turning_Right: 5
 
 deepspeed:
   # train_micro_batch_size_per_gpu: 1
-  train_micro_batch_size_per_gpu: 2   # * Larger bs
+  train_micro_batch_size_per_gpu: 4  # * Larger bs for main
   gradient_accumulation_steps: 1
   steps_per_print: 50
   gradient_clipping: 0.1
@@ -87,7 +95,7 @@ deepspeed:
   optimizer:
     type: sat.ops.FusedEmaAdam
     params:
-      lr: 0.0001
+      lr: 0.00005
       betas: [0.9, 0.95]
       eps: 1e-8
       weight_decay: 1e-4
@@ -135,6 +143,7 @@ model:
       elementwise_affine: True
       num_frames: 49
       time_compressed_rate: 4
+      
       # * For (480, 720), originally supported
       # latent_width: 90
       # latent_height: 60

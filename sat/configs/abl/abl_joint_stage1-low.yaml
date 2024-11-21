@@ -21,7 +21,7 @@ args:
   eval_interval: 10000  # * Log video every 100 iterations
   eval_batch_size: 1
   save: ckpts
-  save_interval: 2000  # * Save checkpoints
+  save_interval: 4000  # * Save checkpoints
   log_interval: 20   # * Log info
 
   train_data: [
@@ -71,7 +71,7 @@ data:
 
 deepspeed:
   # train_micro_batch_size_per_gpu: 1
-  train_micro_batch_size_per_gpu: 2   # * Larger bs
+  train_micro_batch_size_per_gpu: 2   # * smaller bs for abl, faster per iter
   gradient_accumulation_steps: 1
   steps_per_print: 50
   gradient_clipping: 0.1
