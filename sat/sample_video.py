@@ -26,6 +26,16 @@ from torchvision.transforms import InterpolationMode
 from datetime import datetime
 import shutil
 
+
+# TODO: Visualize Same intermediate results for each timestep
+# * Optimize Sampling Quality for Short-term Sequence
+# TODO: 1. For each video clip, optimize the timestep scheduler for denoising
+# TODO: 2. For each video clip, optimize the conditioning scheduler for denosing
+# TODO: 3. For each video clip, optimize the conditioning augmentation scheduler for denoising
+
+# * Optimize Sampling Quality for long-term Rollouts
+# TODO: 1. For multiple round rollouts, optimize the conditioning augmentation scheduler for different sequence in a roll
+
 def read_from_cli():
     cnt = 0
     try:

@@ -188,7 +188,7 @@ class GeneralConditioner(nn.Module):
                 # * verified
             
             if hasattr(embedder, "input_key") and embedder.input_key in force_zero_embeddings:
-                emb = torch.zeros_like(emb)
+                emb = torch.zeros_like(emb)   # * Verified for planning mode, emb of fut_traj will be masked out
             if out_key in output:
                 output[out_key] = torch.cat((output[out_key], emb), self.KEY2CATDIM[out_key])
             else:
@@ -222,7 +222,7 @@ class GeneralConditioner(nn.Module):
                 continue
             output = self.get_single_embedding(
                 embedder, batch, output=output, force_zero_embeddings=force_zero_embeddings
-            )  # * Check this. Log video and sampling are different?
+            )
         return output
 
     def get_unconditional_conditioning(self, batch_c, batch_uc=None, force_uc_zero_embeddings=None, force_c_zero_embeddings=None):
