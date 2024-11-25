@@ -204,7 +204,7 @@ def create_waymo_traj_and_cmd(json_path, is_debug=False, n_past=9, fut_horizon=8
         raw = json.load(raw_json)
         raw_clips = raw["clips"]
         if is_debug:
-            raw_clips = raw_clips[:1000]
+            raw_clips = raw_clips[:100]
     cmd_clips = list()
 
     for clip in tqdm(raw_clips):
@@ -245,7 +245,8 @@ def create_waymo_traj_and_cmd(json_path, is_debug=False, n_past=9, fut_horizon=8
             gt_trajectory[k, :2] = [origin[0], origin[1]]
 
         # clip.update({"traj": gt_trajectory.flatten().tolist()})
-        clip.update({"traj": gt_trajectory.tolist()})
+        clip.update({"traj_fut": gt_trajectory.tolist()})
+        clip['img_seq_fut'] = get_frame_list(clip['first_frame'], clip['end_frame'])
 
 
         # * Vista Cmds
@@ -261,15 +262,15 @@ def create_waymo_traj_and_cmd(json_path, is_debug=False, n_past=9, fut_horizon=8
 
         # * Waymo Cmds
         if origin[1] >= 2:  # turn left
-            clip.update({"flow_direction": "Turning_Left"})
+            clip.update({"cmd": "Turning_Left"})
         elif origin[1] <= -2:  # turn right
-            clip.update({"flow_direction": "Turning_Right"})
+            clip.update({"cmd": "Turning_Right"})
         # elif origin[0] <= 2:  # stop
         #     clip.update({"flow_direction": 2})
         # else:  # go straight
         #     clip.update({"flow_direction": 3})
         else:
-            clip.update({"flow_direction": "Moving_Forward"})
+            clip.update({"cmd": "Moving_Forward"})
 
         # cmd_samples.append(sample)
         cmd_clips.append(clip)
