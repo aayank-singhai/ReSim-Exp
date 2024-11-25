@@ -197,15 +197,18 @@ def create_waymo_json(clip_length=49, is_debug=False, interval=1):
 
     dump_json(clip_infos, out_path)
 
-def create_waymo_traj_and_cmd(json_path, is_debug=False, n_past=9, fut_horizon=8, n_traj_channels=3):
+def create_waymo_traj_and_cmd(json_path, is_debug=False, n_past=9, fut_horizon=8, n_traj_channels=3, interval=1):
     meta_path = "/cpfs01/shared/opendrivelab/opendrivelab_hdd/GenAD_Proj/ad_datasets/Waymo/kitti_format/validation/meta"
 
     with open(json_path, "r") as raw_json:
         raw = json.load(raw_json)
         raw_clips = raw["clips"]
-        if is_debug:
-            raw_clips = raw_clips[:100]
+    
+    raw_clips = raw_clips[::interval]  # * interval between each clips
+    if is_debug:
+        raw_clips = raw_clips[:100]
     cmd_clips = list()
+    raw['meta']['interval'] = interval  # * 0.1 s
 
     for clip in tqdm(raw_clips):
         gt_trajectory = np.zeros((fut_horizon, n_traj_channels), np.float64)
@@ -246,7 +249,7 @@ def create_waymo_traj_and_cmd(json_path, is_debug=False, n_past=9, fut_horizon=8
 
         # clip.update({"traj": gt_trajectory.flatten().tolist()})
         clip.update({"traj_fut": gt_trajectory.tolist()})
-        clip['img_seq_fut'] = get_frame_list(clip['first_frame'], clip['end_frame'])
+        clip['img_seq'] = get_frame_list(clip['first_frame'], clip['end_frame'])
 
 
         # * Vista Cmds
@@ -274,7 +277,8 @@ def create_waymo_traj_and_cmd(json_path, is_debug=False, n_past=9, fut_horizon=8
 
         # cmd_samples.append(sample)
         cmd_clips.append(clip)
-        raw['clips'] = cmd_clips  # * Update the clips
+    
+    raw['clips'] = cmd_clips  # * Update the clips
 
     cmd_file = "/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/custom_data/waymo/waymo_val_traj_cmd.json"
     with open(cmd_file, "w") as cmd_json:
@@ -296,7 +300,6 @@ if __name__ == '__main__':
     # waymo_json = '/cpfs01/shared/opendrivelab/opendrivelab_hdd/GenAD_Proj/ad_datasets/Waymo/kitti_format/validation/waymo_val_all.json'
     # waymo = load_json('/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/custom_data/waymo/waymo_val_all.json')
 
-    create_waymo_traj_and_cmd('/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/custom_data/waymo/waymo_val_all.json', is_debug=True)
-
-
+    INTERVAL = 5  # * interval 2hz for first frames
+    create_waymo_traj_and_cmd('/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/custom_data/waymo/waymo_val_all.json', is_debug=False, interval=5)
     import pdb; pdb.set_trace()
