@@ -36,6 +36,8 @@ import shutil
 # * Optimize Sampling Quality for long-term Rollouts
 # TODO: 1. For multiple round rollouts, optimize the conditioning augmentation scheduler for different sequence in a roll
 
+# * TODO: Log traj.
+
 def read_from_cli():
     cnt = 0
     try:
@@ -111,6 +113,16 @@ def save_text(text: str, save_path: str):
     with open(txt_save_path, "w") as fout:
         fout.write(text)
 
+def save_traj(traj: torch.tensor, save_path: str):
+    # Write the traj in the end of the txt file
+    txt_save_path = os.path.join(save_path, "text.txt")
+    traj = traj.cpu().numpy().tolist()
+    traj = traj[0] # * bs = 1
+    with open(txt_save_path, "a") as fout:
+        fout.write("\n")
+        for waypoint in traj:
+            fout.write(str(waypoint) + "\n")
+
 def resize_for_rectangle_crop(arr, image_size, reshape_mode="random"):
     if arr.shape[3] / arr.shape[2] > image_size[1] / image_size[0]:
         arr = resize(
@@ -176,6 +188,25 @@ def decode_latents(model, latents):
 
             del latent, recon, samples_x, samples
 
+
+# For n_cond: 1
+# - if n_round = 0, cond_inds = [0]
+# - if n_round = 1, cond_inds = [-1]
+
+# For n_cond: 2
+# - if n_round = 0, cond_inds = [0, 1]
+# - if n_round = 1, cond_inds = [-2, -1]
+
+# For n_cond: 3
+# - if n_round = 0, cond_inds = [0, 1, 2]
+# - if n_round = 1, cond_inds = [-3, -2, -1]
+
+def get_cond_inds(n_cond, n_round=0):
+    if n_round == 0:
+        return list(range(n_cond))
+    else:
+        return list(range(-n_cond, 0))
+
 def sampling_main(args, model_cls):
     if isinstance(model_cls, type):
         model = get_model(args, model_cls)
@@ -219,8 +250,8 @@ def sampling_main(args, model_cls):
     APPLY_TRAJ = args.apply_traj  # * Default False
     SAVE_RECON = args.save_recon  # * Default True, Turn to false to speed up sampling
     CONCAT_GT_FOR_DEMO = args.concat_gt_for_demo  # * Default False
-
-    # force_uc_zero_embeddings = ["txt"]  # * Unable to roll out (diverge at the second round)
+    N_COND_FRAMES = args.n_cond_frames  # * Default 3
+    # model.cond_inds = get_cond_inds(N_COND_FRAMES)
 
     device = model.device
 
@@ -310,17 +341,12 @@ def sampling_main(args, model_cls):
                 lidar_pc_token = lidar_pc_tokens[index]
                 samples_tot = []
                 for ind_round in range(n_prediction_round):
-                    is_end = (ind_round == n_prediction_round - 1)
 
                     sampling_kwargs = dict()
                     sampling_kwargs['round_progress'] = ind_round / n_prediction_round
 
                     if args.input_type == "dataset":
-                        if ind_round == 0:
-                            cond_inds = [0, 1, 2]
-                        else:
-                            cond_inds = [-3, -2, -1]   # * Auto-regressive
-
+                        cond_inds = get_cond_inds(N_COND_FRAMES, ind_round)
                         sampling_kwargs['prefix'] = z[:, cond_inds]
 
                     # reload model on GPUp
@@ -398,6 +424,8 @@ def sampling_main(args, model_cls):
                     samples_tot = torch.cat(samples_tot, dim=1)
                     save_video_as_grid_and_mp4(samples_tot, save_path, fps=args.sampling_fps, key="Sample", ind=lidar_pc_token)
                     save_text(text, save_path)
+                    if APPLY_TRAJ and "fut_traj" in batch:
+                        save_traj(value_dict["fut_traj"], save_path)
 
                     # Concatenate gt for demo
                     if CONCAT_GT_FOR_DEMO:
