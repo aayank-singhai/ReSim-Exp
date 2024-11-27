@@ -230,7 +230,7 @@ def create_waymo_traj_and_cmd(json_path, is_debug=False, n_past=9, fut_horizon=8
         origin = None
         for k in range(0, fut_horizon):
             # future_index = int(current_index_txt) + k * 5 - 1   # * 10 hz -> 2 hz
-            future_index = int(current_index_txt) + (k + 1) * 5  # * Bug here?
+            future_index = int(current_index_txt) + (k + 1) * 5  # * Bug here? - fixed
 
             # future_index_txt = f"{future_index:07d}"
             future_index_txt = str(future_index).zfill(len_name)

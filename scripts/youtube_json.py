@@ -149,7 +149,7 @@ def create_youtube_json(clip_length=49, is_train=True, is_debug=False, interval=
         json_path = '/cpfs01/shared/opendrivelab/opendrivelab_hdd/gaoshenyuan/YouTube_svd.json'  # * Train
     else:
         # json_path = '/cpfs01/shared/opendrivelab/opendrivelab_hdd/gaoshenyuan/YouTube_svd_val.json'  # * Val
-        json_path = '/cpfs01/shared/opendrivelab/opendrivelab_hdd/yangjiazhi/DVGen/data_json/YouTube_svd_val_1080p.json'  # * New Val 1080p
+        json_path = '/cpfs01/shared/opendrivelab/opendrivelab_hdd/yangjiazhi/GenADv3/data_json/YouTube_svd_val_1080p.json'  # * New Val 1080p
     infos = load_json(json_path)
 
     if is_debug:
@@ -188,6 +188,9 @@ def create_youtube_json(clip_length=49, is_train=True, is_debug=False, interval=
         successful_clip = True
 
         start_frame_ind = frame_ind * interval
+        # Might be a bug ?
+        # * Verified, correct, between frame_ind is consecutive without interval (interval=1)
+
         end_frame_ind = start_frame_ind + clip_length - 1
         if end_frame_ind >= len(infos):
             successful_clip = False
@@ -222,11 +225,11 @@ def create_youtube_json(clip_length=49, is_train=True, is_debug=False, interval=
     dump_json(clip_infos, out_path)
 
 
-# clip_length: 49 or 101
-# create_youtube_json(clip_length=101)
-create_youtube_json(clip_length=49, is_train=False, is_debug=False, interval=10, new_val=True)
-print("successful!")
-import pdb; pdb.set_trace()
+# # clip_length: 49 or 101
+# # create_youtube_json(clip_length=101)
+# create_youtube_json(clip_length=49, is_train=False, is_debug=False, interval=10, new_val=True)
+# print("successful!")
+# import pdb; pdb.set_trace()
 
 
 def merge_json_dir(json_dir, merged_json_path, end_identifier):
