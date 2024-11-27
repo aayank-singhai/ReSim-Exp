@@ -3,7 +3,7 @@
 args:
   latent_channels: 16
   mode: inference
-  load: "/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/sat/ckpts/nuplan5_lora_not-contained_all_token_resume-from-256-10-28-20-48"
+  load: "/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/sat/ckpts/abl_joint_onestage-high-11-20-06-09"
 
   batch_size: 1
   input_type: dataset
@@ -18,27 +18,27 @@ args:
 
   epochs: 1
 
-  valid_data: ["/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/custom_data/navsim/token2info_test_all_list.json"]
+  valid_data: ["/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/custom_data/waymo/waymo_val_traj_cmd.json"]
 
   sampling_video_size: [512, 896]
-  n_prediction_round: 2
-  apply_traj: False
+  n_prediction_round: 1
+  apply_traj: True
   save_recon: True  # * Not saving recon to speed up.
   concat_gt_for_demo: True
-  n_cond_frames: &n_cond_frames 1
 
 data:
-    # target: data_video_custom.SFTDataset
-    target: data_nuplan.nuPlanDataset
+    target: data_waymo.WaymoDataset
     params:
       # video_size: [480, 720]
       video_size: [512, 896]
 
       fps: *fps  # TODO: Change to 10
       max_num_frames: 49
-      skip_frms_num: 7.
+      skip_frms_num: 0.
       prefix_prompt: "This video depicts a realistic view from the driver's perspective of a car driving on the road."
 
+      p_drop_action_caption: 1.  # * Inference: 0.
+      reshape_mode: 'center'
 
 model:
   scale_factor: 1.15258426
@@ -53,7 +53,7 @@ model:
   en_and_decode_n_samples_a_time: 1  # * split samples
   # en_and_decode_n_frames_a_time: 17  # * split frames
   # truncate_n_frames_decode: 8
-  cond_inds_sampling: &cond_inds_sampling [0]  # * For log videos
+  cond_inds_sampling: &cond_inds_sampling [0, 1, 2]  # * For log videos
   
   denoiser_config:
     target: sgm.modules.diffusionmodules.denoiser.DiscreteDenoiser
@@ -138,7 +138,6 @@ model:
     target: sgm.modules.GeneralConditioner
     params:
       emb_models:
-        # * text enc
         - is_trainable: false
           input_key: txt
           ucg_rate: 0.1
@@ -240,7 +239,7 @@ model:
     params:
       num_steps: &num_steps 50
       verbose: True
-      fixed_frames: *n_cond_frames
+      fixed_frames: 3  # [0, 1, 2]
       cond_inds_sampling: *cond_inds_sampling  # [0, 1, 2]
       apply_cond_aug: *cond_aug # * sample aug_t in sampling, all 0
       apply_cond_aug_chunk_inference: 'min'

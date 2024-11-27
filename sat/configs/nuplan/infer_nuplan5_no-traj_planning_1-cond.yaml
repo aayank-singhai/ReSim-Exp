@@ -21,7 +21,7 @@ args:
   valid_data: ["/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/custom_data/navsim/token2info_test_all_list.json"]
 
   sampling_video_size: [512, 896]
-  n_prediction_round: 2
+  n_prediction_round: 1
   apply_traj: False
   save_recon: True  # * Not saving recon to speed up.
   concat_gt_for_demo: True

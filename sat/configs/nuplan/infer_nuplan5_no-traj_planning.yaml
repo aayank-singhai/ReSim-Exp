@@ -21,11 +21,10 @@ args:
   valid_data: ["/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/custom_data/navsim/token2info_test_all_list.json"]
 
   sampling_video_size: [512, 896]
-  n_prediction_round: 2
+  n_prediction_round: 1
   apply_traj: False
   save_recon: True  # * Not saving recon to speed up.
   concat_gt_for_demo: True
-  n_cond_frames: &n_cond_frames 1
 
 data:
     # target: data_video_custom.SFTDataset
@@ -53,7 +52,7 @@ model:
   en_and_decode_n_samples_a_time: 1  # * split samples
   # en_and_decode_n_frames_a_time: 17  # * split frames
   # truncate_n_frames_decode: 8
-  cond_inds_sampling: &cond_inds_sampling [0]  # * For log videos
+  cond_inds_sampling: &cond_inds_sampling [0, 1, 2]  # * For log videos
   
   denoiser_config:
     target: sgm.modules.diffusionmodules.denoiser.DiscreteDenoiser
@@ -240,7 +239,7 @@ model:
     params:
       num_steps: &num_steps 50
       verbose: True
-      fixed_frames: *n_cond_frames
+      fixed_frames: 3  # [0, 1, 2]
       cond_inds_sampling: *cond_inds_sampling  # [0, 1, 2]
       apply_cond_aug: *cond_aug # * sample aug_t in sampling, all 0
       apply_cond_aug_chunk_inference: 'min'
