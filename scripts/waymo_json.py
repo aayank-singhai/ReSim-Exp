@@ -230,7 +230,7 @@ def create_waymo_traj_and_cmd(json_path, is_debug=False, n_past=9, fut_horizon=8
         origin = None
         for k in range(0, fut_horizon):
             # future_index = int(current_index_txt) + k * 5 - 1   # * 10 hz -> 2 hz
-            future_index = int(current_index_txt) + k * 5  # * Bug here?
+            future_index = int(current_index_txt) + (k + 1) * 5  # * Bug here?
 
             # future_index_txt = f"{future_index:07d}"
             future_index_txt = str(future_index).zfill(len_name)
@@ -297,8 +297,11 @@ if __name__ == '__main__':
     # youtube = load_json(youtube_json)
     # import pdb; pdb.set_trace()
 
-    # waymo_json = '/cpfs01/shared/opendrivelab/opendrivelab_hdd/GenAD_Proj/ad_datasets/Waymo/kitti_format/validation/waymo_val_all.json'
-    # waymo = load_json('/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/custom_data/waymo/waymo_val_all.json')
+    
+
+    # waymo_json = '/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/custom_data/waymo/waymo_val_traj_cmd.json'
+    # waymo = load_json(waymo_json)
+    # import pdb; pdb.set_trace()
 
     INTERVAL = 5  # * interval 2hz for first frames
     create_waymo_traj_and_cmd('/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/custom_data/waymo/waymo_val_all.json', is_debug=False, interval=5)
