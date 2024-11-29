@@ -16,7 +16,11 @@ SEED=${4:-42}  # * Need to change your seed if resume a model (trained with seed
 # [TODO] Round3: 3407
 
 
-WORK_DIR="/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/sat/runs/logs"
+# * Get basename of CFG as exp name
+EXP_NAME=$(basename $CFG)
+EXP_NAME="${EXP_NAME%.yaml}"
+
+WORK_DIR="/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/sat/info_logs"
 
 python -m torch.distributed.launch \
     --nproc_per_node=${GPUS} \
@@ -27,4 +31,4 @@ python -m torch.distributed.launch \
     train_video.py \
     --base=${CFG} \
     --seed=${SEED} \
-    2>&1 | tee ${WORK_DIR}/train_$T.log
+    2>&1 | tee ${WORK_DIR}/${EXP_NAME}_$T.log
