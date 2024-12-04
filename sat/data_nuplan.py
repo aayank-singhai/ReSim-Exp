@@ -392,6 +392,11 @@ class VideoDataset(MetaDistributedWebDataset):
     def create_dataset_function(cls, path, args, **kwargs):
         return cls(path, **kwargs)
 
+cmd_to_action = {
+    0: "Turning_Left",
+    1: "Moving_Forward",
+    2: "Turning_Right",
+}
 
 # TODO: Sample weights according to action
 # TODO: Improve data loading: load clip as a dict, rather than each attributes separately
@@ -408,6 +413,7 @@ class nuPlanDataset(Dataset):
                 n_fut_traj_points=8,
                 p_mask_out_heading=0,
                 p_drop_action_caption=0,
+                traj_key='traj_fut',
                 **kwargs):
         """
         skip_frms_num: ignore the first and the last xx frames, avoiding transitions.
@@ -433,6 +439,7 @@ class nuPlanDataset(Dataset):
         self.length = len(self.captions_list)
         self.p_mask_out_heading = p_mask_out_heading
         self.p_drop_action_caption = p_drop_action_caption
+        self.traj_key = traj_key
 
         if data_dir.endswith(".json"):
             self.load_data_json(data_dir)
@@ -451,10 +458,18 @@ class nuPlanDataset(Dataset):
         for clip in tqdm(clip_infos):
             
             # sample_path_tuple = (data_root, clip['folder_name'], clip['first_frame'], clip['end_frame'])
-            sample_seq = clip['img_seq_his'] + clip['img_seq_fut']
+            if 'img_seq' in clip:
+                sample_seq = clip['img_seq']
+            else:
+                sample_seq = clip['img_seq_his'] + clip['img_seq_fut']
             raw_caption = clip.get(caption_key, "")  # include static and highly static
-            fut_traj = clip['traj_fut'][:self.n_fut_traj_points]
-            lidar_pc_token = clip['lidar_pc_token']
+            if isinstance(raw_caption, int):
+                raw_caption = cmd_to_action[raw_caption]
+
+            fut_traj = clip[self.traj_key][:self.n_fut_traj_points]  # TODO: replace traj_fut key.
+
+            token_key = 'lidar_pc_token' if 'lidar_pc_token' in clip else 'token'
+            lidar_pc_token = clip[token_key]
             
             sample_caption = raw_caption
 

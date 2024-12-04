@@ -79,13 +79,14 @@ def make_navsim_json_from_folder(output_folder):
 
     n_subfolders = len(os.listdir(output_folder))
     # os.walk: get all files with .mp4 extension
+    N_GEN = 1000
     for i, (root, dirs, files) in enumerate(os.walk(output_folder)):
-        # DEBUG = True
-        # if DEBUG:
-        #     if i > 100: break
+        DEBUG = True
+        if DEBUG:
+            if i > N_GEN: break
         print(f"Processing {i}/{n_subfolders}...")
         for file in files:
-            if file.endswith(".mp4"):
+            if file.endswith(".mp4") and "Sample" in file:
                 clip = dict()
                 video_path = os.path.join(root, file)
                 token_name, image_paths = video_to_images(video_path)
@@ -95,6 +96,7 @@ def make_navsim_json_from_folder(output_folder):
                 # * Load GT image, need data root.
                 clip['img_seq_his'] = token2info[token_name]['img_seq_his']
                 clip['img_seq_fut'] = token2info[token_name]['img_seq_fut']
+                clip['cmd']         = token2info[token_name]['cmd']
                      
                 # * Load generated images, no need for data root
                 clip['img_seq_gen_2hz'] = image_paths  # * Generated images, used for planning
@@ -114,7 +116,9 @@ if __name__ == "__main__":
     
     # json_path = '/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/custom_data/navsim/dict_token2info_test_all.json'
     # json_path = '/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/custom_data/navsim/token2info_test_all_list.json'
-    # # json_path = '/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/custom_data/waymo/waymo_val_traj_cmd.json'
+    # json_path = '/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/custom_data/waymo/waymo_val_traj_cmd.json'
+
+    # json_path = '/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/navsim_eval/debug2/infer_nuplan5_lora_not-contained_all_tokens_resume-from-256_not-apply-traj_planning-11-01-14-30_out_traj_eval_video_idm_planner_trans.json'
 
     # data = load_json(json_path)
     # import pdb; pdb.set_trace()
