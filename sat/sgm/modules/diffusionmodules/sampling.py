@@ -515,8 +515,38 @@ class VideoDDIMSampler(BaseDiffusionSampler):
             return_idx=True,
             do_append_zero=False,
         )
+
+        # linear - timesteps - len: 50
+        # array([ 19,  39,  59,  79,  99, 119, 139, 159, 179, 199, 219, 239, 259,
+        #     279, 299, 319, 339, 359, 379, 399, 419, 439, 459, 479, 499, 519,
+        #     539, 559, 579, 599, 619, 639, 659, 679, 699, 719, 739, 759, 779,
+        #     799, 819, 839, 859, 879, 899, 919, 939, 959, 979, 999])
+        # alpha_cumprod_sqrt - len: 50
+        # tensor([0.0000, 0.0052, 0.0109, 0.0171, 0.0239, 0.0312, 0.0390, 0.0474, 0.0565,
+        #         0.0661, 0.0764, 0.0873, 0.0988, 0.1110, 0.1239, 0.1374, 0.1516, 0.1664,
+        #         0.1819, 0.1982, 0.2151, 0.2327, 0.2510, 0.2700, 0.2897, 0.3101, 0.3313,
+        #         0.3531, 0.3757, 0.3990, 0.4231, 0.4478, 0.4733, 0.4996, 0.5265, 0.5541,
+        #         0.5823, 0.6112, 0.6407, 0.6706, 0.7010, 0.7317, 0.7627, 0.7938, 0.8249,
+        #         0.8558, 0.8864, 0.9164, 0.9456, 0.9739], device='cuda:0')
+
+        # import pdb; pdb.set_trace()
         alpha_cumprod_sqrt = torch.cat([alpha_cumprod_sqrt, alpha_cumprod_sqrt.new_ones([1])])
         timesteps = torch.cat([torch.tensor(list(timesteps)).new_zeros([1]) - 1, torch.tensor(list(timesteps))])
+        
+        # alpha_cumprod_sqrt - len 50
+        # tensor([0.0000, 0.0052, 0.0109, 0.0171, 0.0239, 0.0312, 0.0390, 0.0474, 0.0565,
+        #         0.0661, 0.0764, 0.0873, 0.0988, 0.1110, 0.1239, 0.1374, 0.1516, 0.1664,
+        #         0.1819, 0.1982, 0.2151, 0.2327, 0.2510, 0.2700, 0.2897, 0.3101, 0.3313,
+        #         0.3531, 0.3757, 0.3990, 0.4231, 0.4478, 0.4733, 0.4996, 0.5265, 0.5541,
+        #         0.5823, 0.6112, 0.6407, 0.6706, 0.7010, 0.7317, 0.7627, 0.7938, 0.8249,
+        #         0.8558, 0.8864, 0.9164, 0.9456, 0.9739, 1.0000], device='cuda:0')
+        # timesteps - len 51
+        # tensor([ -1,  19,  39,  59,  79,  99, 119, 139, 159, 179, 199, 219, 239, 259,
+        #         279, 299, 319, 339, 359, 379, 399, 419, 439, 459, 479, 499, 519, 539,
+        #         559, 579, 599, 619, 639, 659, 679, 699, 719, 739, 759, 779, 799, 819,
+        #         839, 859, 879, 899, 919, 939, 959, 979, 999])   # TODO: Bugfix: The end should be 999 or 1000?
+
+        # import pdb; pdb.set_trace()
 
         uc = default(uc, cond)
 
@@ -618,7 +648,7 @@ class VideoDDIMSampler(BaseDiffusionSampler):
                 x,
                 cond,
                 uc,
-                idx=self.num_steps - i,
+                idx=self.num_steps - i,  # * What's the use of idx, difference between timestep
                 timestep=timesteps[-(i + 1)],
                 scale=scale,
                 scale_emb=scale_emb,
@@ -767,6 +797,7 @@ class VPSDEDPMPP2MSampler(VideoDDIMSampler):
         old_denoised = None
 
         # TODO: Check here!
+        # TODO: For first round, not applying cond_aug.
         for i in self.get_sigma_gen(num_sigmas):
             if fixed_frames is not None:
                 if self.sdedit:

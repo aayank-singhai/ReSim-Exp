@@ -95,7 +95,7 @@ class DiscreteSampling:
                 ),
             )
         else:
-            sampled_idx = torch.randint(0, self.num_idx, (n_samples,))
+            sampled_idx = torch.randint(0, self.num_idx, (n_samples,))  # !!!! Maximum 999, not 1000
             if self.custom_sampling:
                 # TODO: Check if the weighted_sampling is actually working, or it's just the uniform_sampling not working.
                 sampled_idx = weighted_randint(sampled_idx, weight_function=my_weight_function)
