@@ -1,0 +1,22 @@
+
+
+==========================================================
+[TIMESTAMP] 2024-04-22 11:52:34
+
+prepare metrics...
+Metric [FID] is initialized.
+
+collect dataset...
+{'format': 'png', 'gt_key': 'real', 'gen_key': 'virtual', 'split_len': 596, 'supp': None, 'root': '/cpfs01/shared/opendrivelab/opendrivelab_hdd/gaoshenyuan/NUSC_outputs/vista_final_infer_nusc_cond', 'freq': 12, 'max_frameid': 25, 'gen_startid': 1}
+You are loading paired dataset from [/cpfs01/shared/opendrivelab/opendrivelab_hdd/gaoshenyuan/NUSC_outputs/vista_final_infer_nusc_cond]
+A GT sample is as follows: [split00/real/images/NUSCENES_000000_0001.png]
+#(samples): [128856]
+
+uploading ground truth...
+
+evaluating...
+FID: 7.049335956573486
+
+
+==========================================================
+[TIMESTAMP] 2024-04-22 18:39:35

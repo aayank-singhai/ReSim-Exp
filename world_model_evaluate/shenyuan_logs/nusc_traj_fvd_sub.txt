@@ -1,0 +1,39 @@
+
+
+==========================================================
+[TIMESTAMP] 2024-04-22 12:13:48
+
+prepare metrics...
+Metric [cmd_FVD] is initialized.
+
+collect dataset...
+{'format': 'png', 'gt_key': 'real', 'gen_key': 'virtual', 'split_len': 596, 'supp': '/cpfs01/shared/opendrivelab/opendrivelab_hdd/gaoshenyuan/NUSC_outputs/nuScenes_svd_val.json', 'root': '/cpfs01/shared/opendrivelab/opendrivelab_hdd/gaoshenyuan/NUSC_outputs/vista_final_infer_nusc_traj', 'freq': 12, 'max_frameid': 25, 'gen_startid': 1}
+You are loading paired dataset from [/cpfs01/shared/opendrivelab/opendrivelab_hdd/gaoshenyuan/NUSC_outputs/vista_final_infer_nusc_traj]
+A GT sample is as follows: [split00/real/images/NUSCENES_000000_0001.png]
+#(samples): [5369]
+GT supplement is loaded from [/cpfs01/shared/opendrivelab/opendrivelab_hdd/gaoshenyuan/NUSC_outputs/nuScenes_svd_val.json]
+
+uploading ground truth...
+GT path updated.
+
+evaluating...
+
+==========================================================
+[Command] 0
+FVD: 229.22958374023438
+
+==========================================================
+[Command] 1
+FVD: 357.7326965332031
+
+==========================================================
+[Command] 2
+FVD: 118.52207946777344
+
+==========================================================
+[Command] 3
+FVD: 125.21568298339844
+
+
+==========================================================
+[TIMESTAMP] 2024-04-22 18:54:01

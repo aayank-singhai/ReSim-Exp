@@ -1,0 +1,12 @@
+metric: cmd_fvd
+paired_dataset:
+  root: /cpfs01/shared/opendrivelab/opendrivelab_hdd/gaoshenyuan/NUSC_outputs/2node_ep14_320
+  supp: /cpfs01/shared/opendrivelab/opendrivelab_hdd/gaoshenyuan/NUSC_outputs/nuScenes_svd_val.json
+  freq: 12
+  max_frameid: 25
+  gen_startid: 1
+gpu: 0
+batch_size: 32
+n_runs: 1
+shuffle: True
+total_cmds: 4
