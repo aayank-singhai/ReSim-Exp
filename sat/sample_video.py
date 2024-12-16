@@ -36,7 +36,9 @@ import shutil
 # * Optimize Sampling Quality for long-term Rollouts
 # TODO: 1. For multiple round rollouts, optimize the conditioning augmentation scheduler for different sequence in a roll
 
-# * TODO: Log traj.
+# TODO: Simply code, remove all useless parts.
+
+# TODO: Align the VAE process used in training / sampling / reconstruction. Avoid inproper VAE use in training.
 
 def read_from_cli():
     cnt = 0
@@ -83,13 +85,16 @@ def get_batch(keys, value_dict, N: Union[List, ListConfig], T=None, device="cuda
     return batch, batch_uc
 
 
-def save_video_as_grid_and_mp4(video_batch: torch.Tensor, save_path: str, fps: int = 5, args=None, key=None, ind=None):
+def save_video_as_grid_and_mp4(video_batch: torch.Tensor, save_path: str, fps: int = 5, args=None, key=None, ind=None, foldername=None):
     os.makedirs(save_path, exist_ok=True)
 
     for i, vid in enumerate(video_batch):
         gif_frames = []
         for frame in vid:
             frame = rearrange(frame, "c h w -> h w c")
+
+            if key == "GT":
+                frame = (frame + 1.0) / 2.0
             frame = (255.0 * frame).cpu().numpy().astype(np.uint8)
             gif_frames.append(frame)
         
@@ -97,6 +102,9 @@ def save_video_as_grid_and_mp4(video_batch: torch.Tensor, save_path: str, fps: i
 
         if ind is not None:
             file_name = f"{ind}_{file_name}"
+
+        if foldername is not None:
+            file_name = f"folder-{foldername}_{file_name}"
         
         if key is not None:
             file_name  = f"{key}_{file_name}"
@@ -207,6 +215,7 @@ def get_cond_inds(n_cond, n_round=0):
     else:
         return list(range(-n_cond, 0))
 
+
 def sampling_main(args, model_cls):
     if isinstance(model_cls, type):
         model = get_model(args, model_cls)
@@ -249,7 +258,9 @@ def sampling_main(args, model_cls):
     force_uc_zero_embeddings = ["txt", "fut_traj"]
     APPLY_TRAJ = args.apply_traj  # * Default False
     SAVE_RECON = args.save_recon  # * Default True, Turn to false to speed up sampling
-    CONCAT_GT_FOR_DEMO = args.concat_gt_for_demo  # * Default False
+    SAVE_GT = args.save_gt
+    
+    CONCAT_RECON_FOR_DEMO = args.concat_recon_for_demo  # * Default False
     N_COND_FRAMES = args.n_cond_frames  # * Default 3
     # model.cond_inds = get_cond_inds(N_COND_FRAMES)
 
@@ -281,6 +292,8 @@ def sampling_main(args, model_cls):
 
             if predictive_mode:
                 x = batch["mp4"].to(device).to(model.dtype)
+                input_video = x.clone()  # [b, t, c, h, w]
+
                 x = x.permute(0, 2, 1, 3, 4).contiguous()
 
                 # * Might be slow
@@ -417,23 +430,26 @@ def sampling_main(args, model_cls):
                         gt_rec = model.decode_first_stage(z_origin).to(torch.float32)  # * TODO: Memory efficient mode
                         gt_rec = torch.clamp((gt_rec + 1.0) / 2.0, min=0.0, max=1.0).cpu()
                         gt_rec = gt_rec.permute(0, 2, 1, 3, 4).contiguous()
-                        save_video_as_grid_and_mp4(gt_rec, save_path, fps=args.sampling_fps, key="Rec", ind=lidar_pc_token)
+                        save_video_as_grid_and_mp4(gt_rec, save_path, fps=args.sampling_fps, key="Rec", ind=lidar_pc_token, foldername=str(ind_batch))
                         # del gt_rec
+                    
+                    if SAVE_GT:
+                        save_video_as_grid_and_mp4(input_video, save_path, fps=args.sampling_fps, key="GT", ind=lidar_pc_token, foldername=str(ind_batch))
 
                     # Sample
                     samples_tot = torch.cat(samples_tot, dim=1)
-                    save_video_as_grid_and_mp4(samples_tot, save_path, fps=args.sampling_fps, key="Sample", ind=lidar_pc_token)
+                    save_video_as_grid_and_mp4(samples_tot, save_path, fps=args.sampling_fps, key="Sample", ind=lidar_pc_token, foldername=str(ind_batch))
                     save_text(text, save_path)
                     if APPLY_TRAJ and "fut_traj" in batch:
                         save_traj(value_dict["fut_traj"], save_path)
 
                     # Concatenate gt for demo
-                    if CONCAT_GT_FOR_DEMO:
+                    if CONCAT_RECON_FOR_DEMO:
                         assert SAVE_RECON
                         print("sample_tot shape", samples_tot.shape)   # [1, 49, 3, 512, 896]
                         print("gt_rec shape", gt_rec.shape)            # [1, 49, 3, 512, 896]
                         concated = torch.cat([gt_rec, samples_tot], dim=-1)  # * Left: GT | Right: Sample
-                        save_video_as_grid_and_mp4(concated, save_path, fps=args.sampling_fps, key="Concated", ind=lidar_pc_token)
+                        save_video_as_grid_and_mp4(concated, save_path, fps=args.sampling_fps, key="Concated", ind=lidar_pc_token, foldername=str(ind_batch))
 
 if __name__ == "__main__":
     if "OMPI_COMM_WORLD_LOCAL_RANK" in os.environ:
