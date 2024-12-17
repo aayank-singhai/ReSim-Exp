@@ -4,9 +4,10 @@ from matplotlib.colors import to_rgb
 import numpy as np
 import os
 import sys
+from PIL import Image
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
-from recon_datavis.gps.plotter import GPSPlotter
+# from recon_datavis.gps.plotter import GPSPlotter
 
 from recon_datavis import pyblit
 from recon_datavis.utils import Getch, bytes2im
@@ -46,7 +47,7 @@ class HDF5Visualizer(object):
         self._pyblit_lidar = pyblit.Scatter(ax_lidar)
         self._pyblit_lidar_ax = pyblit.Axis(ax_lidar, [self._pyblit_lidar])
 
-        self._gps_plotter = GPSPlotter()
+        # self._gps_plotter = GPSPlotter()
 
         self._pyblit_coll = pyblit.Bar(ax_coll)
         self._pyblit_coll_ax = pyblit.Axis(ax_coll, [self._pyblit_coll])
@@ -75,6 +76,8 @@ class HDF5Visualizer(object):
         self._curr_hdf5 = h5py.File(self._hdf5_fnames[self._curr_hdf5_idx], 'r')
         self._curr_hdf5_len = len(self._curr_hdf5['collision/any'])
 
+
+    # * Important !
     def _next_timestep(self):
         if (self._curr_hdf5_timestep == self._curr_hdf5_len - 1) and (self._curr_hdf5_idx == len(self._hdf5_fnames) - 1):
             return # at the end, do nothing
@@ -244,9 +247,30 @@ class HDF5Visualizer(object):
     def _update_visualization(self):
         self._pyblit_rgb_left.draw(self._get_hdf5_topic('images/rgb_left'))
         self._pyblit_rgb_left_ax.draw()
-        import pdb; pdb.set_trace()
+        
+        
+        # plt.savefig('/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/nav_recon/vis/left.png')
+
+        save_root = '/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/nav_recon/vis/'
+
+        im = self._get_hdf5_topic('images/rgb_left')
+        image = Image.fromarray(im)
+        
+        folder = f"{save_root}/left/{self._curr_hdf5_idx}"
+        os.makedirs(f"{folder}", exist_ok=True)
+        image.save(f"{folder}/{self._curr_hdf5_timestep}.png")
+        
 
         self._pyblit_rgb_right.draw(self._get_hdf5_topic('images/rgb_right'))
+
+        im = self._get_hdf5_topic('images/rgb_right')
+        image = Image.fromarray(im)
+
+        folder = f"{save_root}/right/{self._curr_hdf5_idx}"
+        os.makedirs(f"{folder}", exist_ok=True)
+        image.save(f"{folder}/{self._curr_hdf5_timestep}.png")
+
+
         self._pyblit_rgb_right_illuminance.draw(
             0.25,
             0.0,
@@ -272,8 +296,8 @@ class HDF5Visualizer(object):
         self._plot_imu()
         # self._plot_gpscompass()
 
-        plt.savefig('/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/custom_data/nav_recon/vis/test.png')
-        import pdb; pdb.set_trace()
+        # plt.savefig('/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/custom_data/nav_recon/vis/test.png')
+        # import pdb; pdb.set_trace()
 
         if not self._plot_is_showing:
             plt.show(block=False)
@@ -294,25 +318,27 @@ class HDF5Visualizer(object):
                                             self._curr_hdf5_idx+1, len(self._hdf5_fnames)))
             self._update_visualization()
 
-            char = Getch.getch()
+            # char = Getch.getch()
             self._prev_hdf5_idx = self._curr_hdf5_idx
 
-            if char == 'q':
-                break
-            elif char == 'e':
-                self._next_timestep()
-            elif char == 'w':
-                self._prev_timestep()
-            elif char == 'd':
-                self._next_hdf5()
-            elif char == 's':
-                self._prev_hdf5()
-            elif char >= '1' and char <= '9':
-                for _ in range(int(char)):
-                    self._next_timestep()
-            elif char == 'c':
-                self._next_hdf5_end()
-            elif char == 'x':
-                self._prev_hdf5_end()
-            else:
-                continue
+            self._next_timestep()
+
+            # if char == 'q':
+            #     break
+            # elif char == 'e':
+            #     self._next_timestep()
+            # elif char == 'w':
+            #     self._prev_timestep()
+            # elif char == 'd':
+            #     self._next_hdf5()
+            # elif char == 's':
+            #     self._prev_hdf5()
+            # elif char >= '1' and char <= '9':
+            #     for _ in range(int(char)):
+            #         self._next_timestep()
+            # elif char == 'c':
+            #     self._next_hdf5_end()
+            # elif char == 'x':
+            #     self._prev_hdf5_end()
+            # else:
+            #     continue

@@ -123,6 +123,8 @@ if __name__ == "__main__":
     # data = load_json(json_path)
     # import pdb; pdb.set_trace()
 
-    folder_path = '/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/outputs/infer_nuplan5_lora_not-contained_all_tokens_resume-from-256_not-apply-traj_planning-11-01-14-30'
+    # folder_path = '/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/outputs/infer_nuplan5_lora_not-contained_all_tokens_resume-from-256_not-apply-traj_planning-11-01-14-30'
+    # folder_path = '/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/outputs/reward_infer_nuplan5_lora_resume-from-256_wm_pred-traj-12-04-11-27'
+    folder_path = '/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/outputs/reward_infer_nuplan5_lora_resume-from-256_wm_gt-traj-12-04-11-23'
 
     make_navsim_json_from_folder(folder_path)

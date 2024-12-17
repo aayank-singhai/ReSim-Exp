@@ -51,6 +51,28 @@ def draw_plot(res, filename='reward'):
         'Pred_Traj_PDMScore': pdm_scores
     })
 
+    # Statistics using data (pd)
+    # is_good: pred_traj_pdmscore >= 0.5
+    # is_bad: pred_traj_pdmscore < 0.5
+    pdm_thresh = 0.6
+    good_pred_data = data[data['Pred_Traj_PDMScore'] >= pdm_thresh]
+    bad_pred_data = data[data['Pred_Traj_PDMScore'] < pdm_thresh]
+
+    good_pred_data_avg_pred_reward = good_pred_data['Pred_Traj_Reward'].mean()
+    good_pred_data_avg_gt_reward = good_pred_data['GT_Traj_Reward'].mean()
+
+
+    bad_pred_data_avg_pred_reward = bad_pred_data['Pred_Traj_Reward'].mean()
+    bad_pred_data_avg_gt_reward = bad_pred_data['GT_Traj_Reward'].mean()
+
+    print(f"Good Pred Data Avg GT Reward: {good_pred_data_avg_gt_reward}")
+    print(f"Good Pred Data Avg Pred Reward: {good_pred_data_avg_pred_reward}")
+
+    print(f"Bad Pred Data Avg GT Reward: {bad_pred_data_avg_gt_reward}")
+    print(f"Bad Pred Data Avg Pred Reward: {bad_pred_data_avg_pred_reward}")
+    
+    import pdb; pdb.set_trace()
+
     plt.figure(figsize=(10, 5))
     
     plt.plot(gt_traj_reward, label='GT_Traj_Reward', color='orange')
@@ -134,8 +156,8 @@ if __name__ == "__main__":
         all_eval_res.append(policy_and_traj_clip)
 
     draw_plot(all_eval_res, filename='all_traj')
-    draw_plot([res for res in all_eval_res if res['pdm_score'] < 0.5], filename='bad_pred_traj')
-    draw_plot([res for res in all_eval_res if res['pdm_score'] >= 0.5], filename='good_pred_traj')
+    # draw_plot([res for res in all_eval_res if res['pdm_score'] < 0.5], filename='bad_pred_traj')
+    # draw_plot([res for res in all_eval_res if res['pdm_score'] >= 0.5], filename='good_pred_traj')
 
 
     dump_json(all_eval_res, '/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/navsim_eval/reward/reward.json')
