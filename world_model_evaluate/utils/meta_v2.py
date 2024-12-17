@@ -304,6 +304,9 @@ class CustomizedPairedDataSourceV2(EasyDict):
                 clip = [
                     f.replace(self.gen_key, self.SUBSET_FLAG) for f in clip
                 ]
+                
+                # * Select frames to evaluate
+                clip = clip[self.gen_startid: self.max_frameid]
 
                 # import pdb; pdb.set_trace()
                 all_clips.append(clip)
