@@ -60,7 +60,7 @@ if __name__ == '__main__':
     # generated data
     paired_dataset.gen()
     print("\nevaluating...")
-    metric(paired_dataset, **configs)
+    metric(paired_dataset, **configs)  # * averaged over all data
 
     print("\n\n==========================================================")
     print("[TIMESTAMP] {}".format(time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())))
