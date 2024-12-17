@@ -40,26 +40,6 @@ import shutil
 
 # TODO: Align the VAE process used in training / sampling / reconstruction. Avoid inproper VAE use in training.
 
-def read_from_cli():
-    cnt = 0
-    try:
-        while True:
-            x = input("Please input English text (Ctrl-D quit): ")
-            yield x.strip(), cnt
-            cnt += 1
-    except EOFError as e:
-        pass
-
-
-def read_from_file(p, rank=0, world_size=1):
-    with open(p, "r") as fin:
-        cnt = -1
-        for l in fin:
-            cnt += 1
-            if cnt % world_size != rank:
-                continue
-            yield l.strip(), cnt
-
 
 def get_unique_embedder_keys_from_conditioner(conditioner):
     return list(set([x.input_key for x in conditioner.embedders]))
@@ -93,8 +73,6 @@ def save_video_as_grid_and_mp4(video_batch: torch.Tensor, save_path: str, fps: i
         for frame in vid:
             frame = rearrange(frame, "c h w -> h w c")
 
-            if key == "GT":
-                frame = (frame + 1.0) / 2.0
             frame = (255.0 * frame).cpu().numpy().astype(np.uint8)
             gif_frames.append(frame)
         
@@ -130,36 +108,6 @@ def save_traj(traj: torch.tensor, save_path: str):
         fout.write("\n")
         for waypoint in traj:
             fout.write(str(waypoint) + "\n")
-
-def resize_for_rectangle_crop(arr, image_size, reshape_mode="random"):
-    if arr.shape[3] / arr.shape[2] > image_size[1] / image_size[0]:
-        arr = resize(
-            arr,
-            size=[image_size[0], int(arr.shape[3] * image_size[0] / arr.shape[2])],
-            interpolation=InterpolationMode.BICUBIC,
-        )
-    else:
-        arr = resize(
-            arr,
-            size=[int(arr.shape[2] * image_size[1] / arr.shape[3]), image_size[1]],
-            interpolation=InterpolationMode.BICUBIC,
-        )
-
-    h, w = arr.shape[2], arr.shape[3]
-    arr = arr.squeeze(0)
-
-    delta_h = h - image_size[0]
-    delta_w = w - image_size[1]
-
-    if reshape_mode == "random" or reshape_mode == "none":
-        top = np.random.randint(0, delta_h + 1)
-        left = np.random.randint(0, delta_w + 1)
-    elif reshape_mode == "center":
-        top, left = delta_h // 2, delta_w // 2
-    else:
-        raise NotImplementedError
-    arr = TT.functional.crop(arr, top=top, left=left, height=image_size[0], width=image_size[1])
-    return arr
 
 def get_all_file_from_dir(dir, ext=".pt"):
     out_files = []
@@ -197,6 +145,30 @@ def decode_latents(model, latents):
             del latent, recon, samples_x, samples
 
 
+# * Efficient Decoding
+def get_reconstruction_from_latents(latent, T, first_stage_model):
+    recons = []
+    loop_num = (T - 1) // 2
+    for i in range(loop_num):
+        if i == 0:
+            start_frame, end_frame = 0, 3
+        else:
+            start_frame, end_frame = i * 2 + 1, i * 2 + 3
+        if i == loop_num - 1:
+            clear_fake_cp_cache = True
+        else:
+            clear_fake_cp_cache = False
+        with torch.no_grad():
+            recon = first_stage_model.decode(
+                latent[:, :, start_frame:end_frame].contiguous(), clear_fake_cp_cache=clear_fake_cp_cache
+            )   # torch.Size([1, 16, 3 (or 2), 64, 112])
+
+        recons.append(recon)
+    
+    recons = torch.cat(recons, dim=2).to(torch.float32)  # [b, c, t, h, w]
+    return recons
+
+
 # For n_cond: 1
 # - if n_round = 0, cond_inds = [0]
 # - if n_round = 1, cond_inds = [-1]
@@ -227,13 +199,7 @@ def sampling_main(args, model_cls):
 
     predictive_mode = False
 
-    if args.input_type == "cli":
-        data_iter = read_from_cli()
-    elif args.input_type == "txt":
-        rank, world_size = mpu.get_data_parallel_rank(), mpu.get_data_parallel_world_size()
-        print("rank and world_size", rank, world_size)
-        data_iter = read_from_file(args.input_file, rank=rank, world_size=world_size)
-    elif args.input_type == "latent_dir":
+    if args.input_type == "latent_dir":
         latent_files = get_all_file_from_dir(args.input_file)
         print("show latent_files\n", latent_files[:5])
         decode_latents(model, latent_files)
@@ -261,8 +227,8 @@ def sampling_main(args, model_cls):
     SAVE_GT = args.save_gt
     
     CONCAT_RECON_FOR_DEMO = args.concat_recon_for_demo  # * Default False
+    CONCAT_GT_FOR_DEMO = args.concat_gt_for_demo  # * Default False
     N_COND_FRAMES = args.n_cond_frames  # * Default 3
-    # model.cond_inds = get_cond_inds(N_COND_FRAMES)
 
     device = model.device
 
@@ -299,6 +265,7 @@ def sampling_main(args, model_cls):
                 # * Might be slow
                 z = model.encode_first_stage(x, batch)
                 z_origin = z.clone()  # * For logging
+                # torch.Size([1, 16, 13, 64, 112])
 
                 z = z.permute(0, 2, 1, 3, 4).contiguous()
                 # torch.Size([1, 13, 16, 64, 112])
@@ -308,11 +275,8 @@ def sampling_main(args, model_cls):
 
             # reload model on GPU
             model.to(device)
-            # print("rank:", rank, "start to process", text, cnt)
-            # print("rank:", rank, "start to process", text, ind_batch)
             print("start to process", text, ind_batch)
 
-            # TODO: broadcast image2video
             value_dict = {
                 "prompt": text,
                 "negative_prompt": "",
@@ -325,6 +289,7 @@ def sampling_main(args, model_cls):
             if "lidar_pc_token" in batch:
                 lidar_pc_tokens = batch["lidar_pc_token"]
             else:
+                print(f"No lidar_pc_token in batch, generating a new token: {ind_batch}")
                 lidar_pc_tokens = [str(ind_batch)]
             
             batch, batch_uc = get_batch(
@@ -386,31 +351,10 @@ def sampling_main(args, model_cls):
                     # Decode latent serial to save GPU memory
                     # Proved: Do we need this?? If so, can we apply this in training to reduce memory?
                     # Replacing the slided decoding to full decoding is not that helpful.
-                    recons = []
-                    loop_num = (T - 1) // 2
-                    for i in range(loop_num):
-                        if i == 0:
-                            start_frame, end_frame = 0, 3
-                        else:
-                            start_frame, end_frame = i * 2 + 1, i * 2 + 3
-                        if i == loop_num - 1:
-                            clear_fake_cp_cache = True
-                        else:
-                            clear_fake_cp_cache = False
-                        with torch.no_grad():
-                            recon = first_stage_model.decode(
-                                latent[:, :, start_frame:end_frame].contiguous(), clear_fake_cp_cache=clear_fake_cp_cache
-                            )
 
-                        recons.append(recon)
-                    
-                    # with torch.no_grad():
-                    #     recon = first_stage_model.decode(latent).to(torch.float32)
-                    # recons.append(recon)
-
-                    recon = torch.cat(recons, dim=2).to(torch.float32)
-                    samples_x = recon.permute(0, 2, 1, 3, 4).contiguous()
-                    samples = torch.clamp((samples_x + 1.0) / 2.0, min=0.0, max=1.0).cpu() # !!! Check shape
+                    samples = get_reconstruction_from_latents(latent, T, first_stage_model)  # [b, c, t, h, w]
+                    samples = samples.permute(0, 2, 1, 3, 4).contiguous()
+                    samples = torch.clamp((samples + 1.0) / 2.0, min=0.0, max=1.0).cpu()
                     # samples: torch.Size([1, 49, 3, 512, 896])
 
                     # * Autoregressive rollout
@@ -425,15 +369,19 @@ def sampling_main(args, model_cls):
                     z = samples_z.permute(0, 2, 1, 3, 4).contiguous()
 
                 if mpu.get_model_parallel_rank() == 0:
-                    # Gt_rec: memory consuming
+
+
+                    assert not SAVE_RECON and not CONCAT_RECON_FOR_DEMO, "save memory, do not save recon or concat_recon_for_demo"
                     if SAVE_RECON:
-                        gt_rec = model.decode_first_stage(z_origin).to(torch.float32)  # * TODO: Memory efficient mode
-                        gt_rec = torch.clamp((gt_rec + 1.0) / 2.0, min=0.0, max=1.0).cpu()
+                        # gt_rec = model.decode_first_stage(z_origin).to(torch.float32)  # * Memory consuming
+                        gt_rec = get_reconstruction_from_latents(z_origin, T, first_stage_model)  # * Memory efficient mode
                         gt_rec = gt_rec.permute(0, 2, 1, 3, 4).contiguous()
+                        gt_rec = torch.clamp((gt_rec + 1.0) / 2.0, min=0.0, max=1.0).cpu()
                         save_video_as_grid_and_mp4(gt_rec, save_path, fps=args.sampling_fps, key="Rec", ind=lidar_pc_token, foldername=str(ind_batch))
-                        # del gt_rec
-                    
+
                     if SAVE_GT:
+                        input_video = input_video = (input_video + 1.0) / 2.0
+                        input_video = input_video.cpu()
                         save_video_as_grid_and_mp4(input_video, save_path, fps=args.sampling_fps, key="GT", ind=lidar_pc_token, foldername=str(ind_batch))
 
                     # Sample
@@ -442,7 +390,7 @@ def sampling_main(args, model_cls):
                     save_text(text, save_path)
                     if APPLY_TRAJ and "fut_traj" in batch:
                         save_traj(value_dict["fut_traj"], save_path)
-
+                    
                     # Concatenate gt for demo
                     if CONCAT_RECON_FOR_DEMO:
                         assert SAVE_RECON
@@ -450,6 +398,11 @@ def sampling_main(args, model_cls):
                         print("gt_rec shape", gt_rec.shape)            # [1, 49, 3, 512, 896]
                         concated = torch.cat([gt_rec, samples_tot], dim=-1)  # * Left: GT | Right: Sample
                         save_video_as_grid_and_mp4(concated, save_path, fps=args.sampling_fps, key="Concated", ind=lidar_pc_token, foldername=str(ind_batch))
+
+                    if CONCAT_GT_FOR_DEMO:
+                        assert SAVE_GT
+                        concated = torch.cat([input_video, samples_tot], dim=-1)  # * Left: GT | Right: Sample
+                        save_video_as_grid_and_mp4(concated, save_path, fps=args.sampling_fps, key="ConcatedGT", ind=lidar_pc_token, foldername=str(ind_batch))
 
 if __name__ == "__main__":
     if "OMPI_COMM_WORLD_LOCAL_RANK" in os.environ:
