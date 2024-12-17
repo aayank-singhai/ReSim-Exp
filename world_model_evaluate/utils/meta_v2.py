@@ -4,8 +4,6 @@ import os
 import json
 from PIL import Image
 
-# import pynvml
-
 from utils.easydict import EasyDict
 import cv2
 from tqdm import tqdm
@@ -24,10 +22,6 @@ PAIRED_DATASET_SUBSET_FLAG = "DOMAIN"
 
 
 def video_to_images(video_path):
-    # token_name = video_path.split("_")[-2]
-    # output_folder = os.path.dirname(video_path)
-    # output_folder = os.path.join(output_folder, token_name)
-
     output_folder = video_path.replace(".mp4", "")
 
     os.makedirs(output_folder, exist_ok=True)
@@ -37,11 +31,6 @@ def video_to_images(video_path):
     # Open the video file
     cap = cv2.VideoCapture(video_path)
     frame_ind = 0
-
-    # * 2 hz
-    # past_indices = [3, 8]  # ind 8 is the current frame
-    # future_indices = [i for i in range(13, n_frames, 5)]
-    # total_indices_2hz = past_indices + future_indices
 
     while cap.isOpened():
         ret, frame = cap.read()
@@ -55,134 +44,9 @@ def video_to_images(video_path):
         frame_ind += 1
 
     cap.release()
-    # image_paths_2hz = [image_paths[i] for i in total_indices_2hz]  # * Generated video, with compression
-
     return image_paths
 
-# class CustomizedPairedDataSource(EasyDict):
-#     # expected folder structure
-#     # <root>
-#     # |-- <splitxx>
-#     # |   |-- <real> 
-#     # |   |   |-- <images>
-#     # |   |   |   |-- <xxxxxx_[CLIP ID]_[FRAME INDEX]>.<FORMAT>
-#     # |   |   |-- other folders
-#     # |   |   |-- ...
-#     # |   |-- <virtual> 
-#     # |   |   |-- <images>
-#     # |   |   |-- other folders
-#     # |   |   |-- ...
-    
-#     SUBSET_FLAG = PAIRED_DATASET_SUBSET_FLAG
-#     DEFAULT = {
-#         "format": "png",
-#         "gt_key": "real",
-#         "gen_key": "virtual",
-#         "split_len": 3860,  # 166 for Waymo, 596 for nuScenes
-#         "supp": None
-#     }
-
-#     def __init__(self, initial, mode=None):
-#         assert isinstance(initial, dict)
-#         tmp = EasyDict(self.DEFAULT)
-#         tmp.update(initial)
-#         initial = tmp
-
-#         print(initial)
-        
-#         if "mode" in initial:
-#             assert initial.mode in ["image", "video"]
-#             if mode is None:
-#                 mode = initial.mode
-#         if mode is None:
-#             mode = "image"
-
-#         self.recollect = False
-#         if mode == "image":
-#             self.recollect = True
-
-#         assert "freq" in initial, "You must set the frequency of your dataset."
-#         assert "max_frameid" in initial, "You must set the number of frames per clip as `max_frameid` in your dataset."
-#         assert "gen_startid" in initial, "You need to specify the start id of all clips as `gen_startid` for your generated data."
-        
-#         self.update(initial)
-#         self.pop("path")
-        
-#         self.source = []
-#         self._sweep_for_all("backup_root" in initial.keys())
-
-#         print("You are loading paired dataset from [{}]".format(self.root))
-#         sample = self.source[0]
-#         if isinstance(sample, list):
-#             sample = sample[0]
-#         print("A GT sample is as follows: [{}]".format(sample.replace(self.SUBSET_FLAG, self.gt_key)))
-#         print("#(samples): [{}]".format(len(self.source)))
-
-#         if self.supp is not None:
-#             print("GT supplement is loaded from [{}]".format(self.supp))
-        
-
-#     def _sweep_for_all(self, has_backup=False):
-#         root = self.backup_root if has_backup else self.root
-#         for split in os.listdir(root):
-#             folders = os.listdir(os.path.join(root, split))
-#             assert "real" in folders, \
-#                 "no `real` folder found in {}. Please check your dataset.".format(os.path.join(root, split))
-            
-#             collect_path = os.path.join(split, self.SUBSET_FLAG, "images")
-#             file_list = os.listdir(os.path.join(root, collect_path.replace(self.SUBSET_FLAG, self.gt_key)))
-#             for sample in file_list:
-#                 if sample.endswith(self.format):
-#                     break
-            
-#             sample = sample.split(".")[0]
-#             clip_id_width = len(sample.split("_")[-2])
-#             frm_id_width = len(sample.split("_")[-1])
-#             prefix = "_".join(sample.split("_")[:-2])
-#             clip_count = len(file_list) // self.max_frameid
-
-#             for i in range(clip_count):
-#                 self.source.append([])
-#                 for j in range(self.gen_startid, self.max_frameid):
-#                     self.source[-1].append( os.path.join(collect_path, \
-#                                 "{}_{}_{}.{}".format(prefix, str(i).zfill(clip_id_width), 
-#                                                         str(j).zfill(frm_id_width), self.format)) )
-            
-#         if self.recollect:
-#             tmp = []
-#             for x in self.source:
-#                 tmp.extend(x)
-#             self.source = tmp
-
-#     def switch_to_subset(self, subset):
-#         self.paired_subset = subset
-
-#     def gt(self):
-#         self.paired_subset = self.gt_key
-    
-#     def gen(self):
-#         self.paired_subset = self.gen_key
-
-#     def get_index(self, filename):
-#         split_id = int(filename.split("/")[-4].split("split")[-1])
-#         scene_id = int(filename.split("/")[-1].split("_")[1])
-#         return split_id * self.split_len + scene_id
-
-
 class CustomizedPairedDataSourceV2(EasyDict):
-    # expected folder structure
-    # <root>
-    # |-- <splitxx>
-    # |   |-- <real> 
-    # |   |   |-- <images>
-    # |   |   |   |-- <xxxxxx_[CLIP ID]_[FRAME INDEX]>.<FORMAT>
-    # |   |   |-- other folders
-    # |   |   |-- ...
-    # |   |-- <virtual> 
-    # |   |   |-- <images>
-    # |   |   |-- other folders
-    # |   |   |-- ...
-
     # expected folder structure
     # <roots> (multiple splits)
     # | -- <root>
@@ -312,35 +176,6 @@ class CustomizedPairedDataSourceV2(EasyDict):
                 all_clips.append(clip)
 
         self.source = all_clips
-        # for split in os.listdir(root):q
-        #     folders = os.listdir(os.path.join(root, split))
-        #     assert "real" in folders, \
-        #         "no `real` folder found in {}. Please check your dataset.".format(os.path.join(root, split))
-            
-        #     collect_path = os.path.join(split, self.SUBSET_FLAG, "images")
-        #     file_list = os.listdir(os.path.join(root, collect_path.replace(self.SUBSET_FLAG, self.gt_key)))
-        #     for sample in file_list:
-        #         if sample.endswith(self.format):
-        #             break
-            
-        #     sample = sample.split(".")[0]
-        #     clip_id_width = len(sample.split("_")[-2])
-        #     frm_id_width = len(sample.split("_")[-1])
-        #     prefix = "_".join(sample.split("_")[:-2])
-        #     clip_count = len(file_list) // self.max_frameid
-
-        #     for i in range(clip_count):
-        #         self.source.append([])
-        #         for j in range(self.gen_startid, self.max_frameid):
-        #             self.source[-1].append( os.path.join(collect_path, \
-        #                         "{}_{}_{}.{}".format(prefix, str(i).zfill(clip_id_width), 
-        #                                                 str(j).zfill(frm_id_width), self.format)) )
-            
-        # if self.recollect:
-        #     tmp = []
-        #     for x in self.source:
-        #         tmp.extend(x)
-        #     self.source = tmp
 
     def switch_to_subset(self, subset):
         self.paired_subset = subset
@@ -435,16 +270,6 @@ class Metric(object):
 
     def __call__(self, gen_paths, **kwargs):
         return self.forward(gen_paths, **kwargs)
-
-
-
-def gpu_state():
-    pynvml.nvmlInit()
-    handle = pynvml.nvmlDeviceGetHandleByIndex(0)
-    meminfo = pynvml.nvmlDeviceGetMemoryInfo(handle)
-    print("GPU memory: {}/{}".format(meminfo.used / 1024**2, meminfo.total / 1024**2))
-    print("Free memory: {}".format(meminfo.free / 1024**2))
-    print("--------------------------------------")
 
 
 
