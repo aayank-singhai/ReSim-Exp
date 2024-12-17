@@ -116,6 +116,7 @@ class WaymoDataset(Dataset):
         self.num_frames_list = []
         self.fps_list = []
         self.fut_traj_list = []
+        self.lidar_pc_token_list = []
         
         self.video_size = video_size
         self.fps = fps
@@ -147,6 +148,11 @@ class WaymoDataset(Dataset):
             sample_seq = clip['img_seq']
             raw_caption = clip.get(caption_key, "")  # include static and highly static
             fut_traj = clip['traj_fut'][:self.n_fut_traj_points]
+
+            token_key = 'lidar_pc_token' if 'lidar_pc_token' in clip else 'token'
+            lidar_pc_token = clip[token_key]
+            if not isinstance(lidar_pc_token, str):
+                lidar_pc_token = str(lidar_pc_token)
             
             sample_caption = raw_caption
 
@@ -164,10 +170,12 @@ class WaymoDataset(Dataset):
             sample_seq = [sample_seq] * n_repeat
             sample_caption = [sample_caption] * n_repeat
             sample_traj = [fut_traj] * n_repeat
+            sample_token = [lidar_pc_token] * n_repeat
 
             self.video_list.extend(sample_seq)
             self.captions_list.extend(sample_caption)
             self.fut_traj_list.extend(sample_traj)
+            self.lidar_pc_token_list.extend(sample_token)
 
     def read_img_list(self, img_path_list):
         video_size, fps, max_num_frames, skip_frms_num = \
@@ -231,6 +239,8 @@ class WaymoDataset(Dataset):
         fut_traj = torch.tensor(fut_traj, dtype=torch.float32)  # [8, 3]
         if self.p_mask_out_heading > 0 and random.random() < self.p_mask_out_heading:
             fut_traj[:, -1] = 0  # mask out the heading
+        # Lidar pc token
+        lidar_pc_token = self.lidar_pc_token_list[index]
 
         item = {
             "with_traj": True,
@@ -239,7 +249,7 @@ class WaymoDataset(Dataset):
             "num_frames": num_frames,
             "fps": self.fps,  # ? What's the use of fps?
             "fut_traj": fut_traj,
-            "lidar_pc_token": str(index),
+            "lidar_pc_token": lidar_pc_token
         }
         return item
 

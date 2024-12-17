@@ -143,6 +143,8 @@ def create_waymo_json(clip_length=49, is_debug=False, interval=1):
         infos = infos[:1000]
 
     out_path = '/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/custom_data/waymo'
+
+    # out_path = os.path.join(out_path, 'debug.json')
     
     if is_debug:
         out_path = os.path.join(out_path, 'debug.json')
@@ -210,7 +212,7 @@ def create_waymo_traj_and_cmd(json_path, is_debug=False, n_past=9, fut_horizon=8
     cmd_clips = list()
     raw['meta']['interval'] = interval  # * 0.1 s
 
-    for clip in tqdm(raw_clips):
+    for clip_ind, clip in tqdm(enumerate(raw_clips)):
         gt_trajectory = np.zeros((fut_horizon, n_traj_channels), np.float64)
         
         # current_index_txt = clip["first_frame"].split(".")[0]
@@ -250,7 +252,7 @@ def create_waymo_traj_and_cmd(json_path, is_debug=False, n_past=9, fut_horizon=8
         # clip.update({"traj": gt_trajectory.flatten().tolist()})
         clip.update({"traj_fut": gt_trajectory.tolist()})
         clip['img_seq'] = get_frame_list(clip['first_frame'], clip['end_frame'])
-
+        clip['token'] = clip_ind
 
         # * Vista Cmds
         # x-axis is positive forwards, y-axis is positive to the left, different from nuScenes
@@ -278,11 +280,24 @@ def create_waymo_traj_and_cmd(json_path, is_debug=False, n_past=9, fut_horizon=8
         # cmd_samples.append(sample)
         cmd_clips.append(clip)
     
+    raw['meta']['num_clips'] = len(cmd_clips)
     raw['clips'] = cmd_clips  # * Update the clips
+
+    print("Num clips: {}".format(len(cmd_clips)))
 
     cmd_file = "/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/custom_data/waymo/waymo_val_traj_cmd.json"
     with open(cmd_file, "w") as cmd_json:
         json.dump(raw, cmd_json, indent=4)
+
+def traverse_waymo(json_path):
+    data = load_json(json_path)
+    clips = data['clips']
+    for i, clip in enumerate(clips):
+        clip['token'] = i
+
+    data['clips'] = clips
+    out_path = json_path.replace(".json", "_token.json")
+    dump_json(data, out_path)
 
 if __name__ == '__main__':
     # nuplan_json = '/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/custom_data/navsim/token2info_test_all_list.json'
@@ -297,10 +312,12 @@ if __name__ == '__main__':
     # youtube = load_json(youtube_json)
     # import pdb; pdb.set_trace()
 
-    
 
     # waymo_json = '/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/custom_data/waymo/waymo_val_traj_cmd.json'
     # waymo = load_json(waymo_json)
+    # import pdb; pdb.set_trace()
+
+    # traverse_waymo('/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/custom_data/waymo/waymo_val_traj_cmd.json')
     # import pdb; pdb.set_trace()
 
     INTERVAL = 5  # * interval 2hz for first frames
