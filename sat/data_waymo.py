@@ -105,6 +105,8 @@ class WaymoDataset(Dataset):
                 p_mask_out_heading=0,
                 p_drop_action_caption=0,
                 reshape_mode='center',
+                n_subset=None,  # 30
+                ind_subset=None,  # 0,...,29
                 **kwargs):
         """
         skip_frms_num: ignore the first and the last xx frames, avoiding transitions.
@@ -132,15 +134,22 @@ class WaymoDataset(Dataset):
         self.p_drop_action_caption = p_drop_action_caption
         self.reshape_mode = reshape_mode
 
-        self.load_data_json(data_dir)
+        self.load_data_json(data_dir, n_subset=n_subset, ind_subset=ind_subset)
 
     # * Repeat data here
-    def load_data_json(self, data_json):
+    def load_data_json(self, data_json, n_subset=None, ind_subset=None):
         infos = load_json(data_json)
         data_root = infos['meta']['data_root']
         self.data_root = data_root
 
         clip_infos = infos['clips']
+        if n_subset is not None and ind_subset is not None:
+            print("Using subset: {}/{}".format(ind_subset, n_subset))
+            length_per_subset = math.ceil(len(clip_infos) / n_subset)
+            start_ind = ind_subset * length_per_subset
+            end_ind = (ind_subset + 1) * length_per_subset
+            clip_infos = clip_infos[start_ind:end_ind]
+
         caption_key = "cmd"
 
         for clip in tqdm(clip_infos):

@@ -238,7 +238,12 @@ def sampling_main(args, model_cls):
     else:
         cfg_path = args.base
 
-    cfg_name = os.path.basename(cfg_path).replace(".yaml", "")
+    if "GROUP" not in cfg_path:
+        cfg_name = os.path.basename(cfg_path).replace(".yaml", "")
+    else:
+        cfg_name = os.path.join(*cfg_path.split("/")[-2:]).replace(".yaml", "")
+
+    # cfg_name = os.path.basename(cfg_path).replace(".yaml", "")
     out_dir = os.path.join(out_root, cfg_name)
     out_dir = out_dir + '-' +datetime.now().strftime("%m-%d-%H-%M")
     os.makedirs(out_dir, exist_ok=True)
@@ -251,6 +256,10 @@ def sampling_main(args, model_cls):
 
     with torch.no_grad():
         for ind_batch, batch in enumerate(tqdm(data_iter)):
+            
+            print(f"Processing {ind_batch} / {len(data_iter)} batch")
+
+
             if args.input_type != "dataset":
                 text, _ = batch
             else:
