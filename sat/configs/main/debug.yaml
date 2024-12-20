@@ -249,6 +249,7 @@ model:
         target: sgm.modules.diffusionmodules.discretizer.ZeroSNRDDPMDiscretization
         params:
           shift_scale: 3.0
+          sd3_time_shift: 2
 
       guider_config:
         target: sgm.modules.diffusionmodules.guiders.DynamicCFG

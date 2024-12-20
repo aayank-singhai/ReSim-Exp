@@ -3,7 +3,7 @@
 args:
   latent_channels: 16
   mode: inference
-  load: "/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/sat/ckpts/main5_joint_stage2_high_small-lr_full-12-14-07-46"
+  load: "/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/sat/ckpts/ckpts0/_important/main5_joint_stage2_high-11-29-03-11"
 
   batch_size: 1
   input_type: dataset
@@ -41,6 +41,9 @@ data:
       p_drop_action_caption: 1.  # * Inference: 0.
       reshape_mode: 'lower'
 
+      n_subset: 20
+      ind_subset: 12
+
 model:
   scale_factor: 1.15258426
   disable_first_stage_autocast: true
@@ -54,7 +57,7 @@ model:
   en_and_decode_n_samples_a_time: 1  # * split samples
   # en_and_decode_n_frames_a_time: 17  # * split frames
   # truncate_n_frames_decode: 8
-  cond_inds_sampling: &cond_inds_sampling [0, 1, 2]  # * For log videos
+  cond_inds_sampling: &cond_inds_sampling [0]  # * For log videos
   
   denoiser_config:
     target: sgm.modules.diffusionmodules.denoiser.DiscreteDenoiser
@@ -240,7 +243,7 @@ model:
     params:
       num_steps: &num_steps 50
       verbose: True
-      fixed_frames: 3  # [0, 1, 2]
+      fixed_frames: 1  # [0, 1, 2]
       cond_inds_sampling: *cond_inds_sampling  # [0, 1, 2]
       apply_cond_aug: *cond_aug # * sample aug_t in sampling, all 0
       apply_cond_aug_chunk_inference: 'min'
