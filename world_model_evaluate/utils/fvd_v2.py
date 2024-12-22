@@ -16,9 +16,9 @@ PRINT_WARNING = False
 
 def i3d_process_img_paths(paths, i3d, freq, max_sample=-1, batch_size=8, device='cuda:0', shuffle=True, mode='repeat'):
     global PRINT_WARNING
-    root = paths["root"]
+    # root = paths["root"]
     length = len(paths["source"])
-    gen_startid = paths["gen_startid"]
+    # gen_startid = paths["gen_startid"]
     if max_sample < 0:
         max_sample = length
     elif max_sample > length:
@@ -31,11 +31,13 @@ def i3d_process_img_paths(paths, i3d, freq, max_sample=-1, batch_size=8, device=
     for idx in tqdm(indices[:max_sample]):
         datum = paths["source"][idx]
         videos = []
-        for frame in datum[gen_startid:]:
+
+        for frame in datum:  
             if "paired_subset" in paths.keys():
                 frame = frame.replace(SUBSET_FLAG, paths["paired_subset"])
             
-            img = np.asarray(open_and_resize(os.path.join(root, frame)))     # (h, w, c)
+            # img = np.asarray(open_and_resize(os.path.join(root, frame)))     # (h, w, c)
+            img = np.asarray(open_and_resize(frame))
             # try:
             #     img = np.asarray(open_and_resize(os.path.join(root, frame)))     # (h, w, c)
             # except:

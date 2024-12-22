@@ -47,7 +47,9 @@ if __name__ == '__main__':
         from utils.iscore import IScore
         metric = IScore(device=device)
     elif (configs.metric.lower() == "cmd_fvd"):
-        from utils.cmd_fvd import cmd_FVD
+        # from utils.cmd_fvd import cmd_FVD
+        from utils.cmd_fvd_v2 import cmd_FVD
+
         metric = cmd_FVD(device=device)
 
     print('\ncollect dataset...')

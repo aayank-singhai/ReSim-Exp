@@ -118,11 +118,26 @@ class CustomizedPairedDataSourceV2(EasyDict):
         all_clips = []
 
         roots = self.backup_root if has_backup else self.root  # * Could be a list
+
+        if "GROUP" in roots.split('/')[-1]:
+            roots = [
+                os.path.join(roots, split) for split in os.listdir(roots)
+            ]
+
         if not isinstance(roots, list):
             roots = [roots]
 
+        print(f"Evaluating roots: {roots}")
+
         for root in roots:
+            
+            print(f"Evaluating Root: {root}")
+
+
             for folder in tqdm(os.listdir(root)):
+                print(f"Folder: {folder}")
+
+
                 # folder: 0, 1, 2, 3, ...
                 collect_path = os.path.join(root, folder)
 
@@ -154,14 +169,24 @@ class CustomizedPairedDataSourceV2(EasyDict):
                 if not os.path.exists(gen_images):
                     video_to_images(gen_path)
 
+                try:
+                    assert len(os.listdir(gt_images)) == len(os.listdir(gen_images)), \
+                    f"The number of frames in GT: {len(os.listdir(gt_images))} and \
+                        generated videos:{len(os.listdir(gen_images))} are not matched."
+                except:
+                    print(f"In Folder: {folder}, Re generating frames")
+                    video_to_images(gt_path)
+                    video_to_images(gen_path)
+
                 assert len(os.listdir(gt_images)) == len(os.listdir(gen_images)), \
-                    "The number of frames in GT and generated videos are not matched."
+                    f"The number of frames in GT: {len(os.listdir(gt_images))} and \
+                        generated videos:{len(os.listdir(gen_images))} are not matched."
                 
                 clip = []
                 for frame in os.listdir(gen_images):
-                    # clip.append(os.path.join(gen_images, frame))
+                    clip.append(os.path.join(gen_images, frame))
                     # * Do not include root here
-                    clip.append(os.path.join(folder, gen_filename.replace(".mp4", ""), frame))
+                    # clip.append(os.path.join(folder, gen_filename.replace(".mp4", ""), frame))
                 
                 # Sort 
                 clip.sort(key=lambda x: int(x.split("_")[-1].split(".")[0]))
@@ -187,10 +212,14 @@ class CustomizedPairedDataSourceV2(EasyDict):
         self.paired_subset = self.gen_key
 
     def get_index(self, filename):
-        split_id = int(filename.split("/")[-4].split("split")[-1])
-        scene_id = int(filename.split("/")[-1].split("_")[1])
-        return split_id * self.split_len + scene_id
+        # split_id = int(filename.split("/")[-4].split("split")[-1])
+        # scene_id = int(filename.split("/")[-1].split("_")[1])
+        # return split_id * self.split_len + scene_id
+        # filename: one filename of one frame in a video clip
+        index = int(filename.split('/')[-2].split('_')[-2])
 
+        # import pdb; pdb.set_trace()  # TODO: Check this?
+        return index
 
 class DataSource(EasyDict):
     # To use `DataSource` class, you must generate a `summary.json` for your generated datasets and GT datasets.
