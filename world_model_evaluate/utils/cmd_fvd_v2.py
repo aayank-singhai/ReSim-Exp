@@ -78,7 +78,10 @@ class cmd_FVD(Metric):
         tmp["source"] = []
         cmd_gts = [ copy.deepcopy(tmp) for _ in range(total_cmds) ]
         for clip in source:
-            clip_index = gt_paths.get_index(clip[0])
+            try:
+                clip_index = gt_paths.get_index(clip[0])
+            except:
+                import pdb; pdb.set_trace()
             assert clip_index == supp[clip_index]['token']
 
             cmd = supp[clip_index]["cmd"]  # str

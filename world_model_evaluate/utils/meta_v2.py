@@ -170,7 +170,7 @@ class CustomizedPairedDataSourceV2(EasyDict):
                     video_to_images(gen_path)
 
                 try:
-                    assert len(os.listdir(gt_images)) == len(os.listdir(gen_images)), \
+                    assert len(os.listdir(gt_images)) == len(os.listdir(gen_images)) and len(os.listdir(gt_images)) > 0, \
                     f"The number of frames in GT: {len(os.listdir(gt_images))} and \
                         generated videos:{len(os.listdir(gen_images))} are not matched."
                 except:
@@ -179,7 +179,7 @@ class CustomizedPairedDataSourceV2(EasyDict):
                     video_to_images(gen_path)
 
                 assert len(os.listdir(gt_images)) == len(os.listdir(gen_images)), \
-                    f"The number of frames in GT: {len(os.listdir(gt_images))} and \
+                    f"Gt_images: {gt_images}, The number of frames in GT: {len(os.listdir(gt_images))} and \
                         generated videos:{len(os.listdir(gen_images))} are not matched."
                 
                 clip = []
