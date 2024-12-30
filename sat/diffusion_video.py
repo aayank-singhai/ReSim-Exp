@@ -24,7 +24,8 @@ from sat import mpu
 import random
 
 
-
+def is_scalar(tensor):
+    return torch.is_tensor(tensor) and tensor.dim() == 0
 
 class SATVideoDiffusionEngine(nn.Module):
     def __init__(self, args, **kwargs):
@@ -153,9 +154,18 @@ class SATVideoDiffusionEngine(nn.Module):
 
     def forward(self, x, batch):
         loss = self.loss_fn(self.model, self.denoiser, self.conditioner, x, batch)
-        loss_mean = loss.mean()
-        loss_dict = {"loss": loss_mean}
-        return loss_mean, loss_dict
+        
+        if not isinstance(loss, dict):
+            loss = {"loss": loss}
+
+        for k, v in loss.items():
+            if not is_scalar(v):
+                loss[k] = v.mean()  # * mean loss for different losses
+
+        loss_mean = sum(loss.values())
+
+        # return loss_mean, loss_dict
+        return loss_mean, loss
 
     def shared_step(self, batch: Dict) -> Any:
         x = self.get_input(batch)

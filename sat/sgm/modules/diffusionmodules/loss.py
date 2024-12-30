@@ -80,6 +80,8 @@ class VideoDiffusionLoss(StandardDiffusionLoss):
                  max_aug_t=700,  # * For V2
                  contained_aug_t=False,
                  exclude_cond_from_loss=True,
+                 loss_weight_short_dcl=False,
+                 loss_weight_long_dcl=False,
                 **kwargs):
         self.fixed_frames = fixed_frames  # TODO: Remove this?
         self.block_scale = block_scale
@@ -98,6 +100,8 @@ class VideoDiffusionLoss(StandardDiffusionLoss):
         self.max_aug_t = max_aug_t  # * For V2
         self.contained_aug_t = contained_aug_t  # contain the aug_t to be no greater than t (on prediction frames)
         self.exclude_cond_from_loss = exclude_cond_from_loss
+        self.loss_weight_short_dcl = loss_weight_short_dcl
+        self.loss_weight_long_dcl = loss_weight_long_dcl
 
     def __call__(self, network, denoiser, conditioner, input, batch):
         cond = conditioner(batch)
@@ -134,8 +138,6 @@ class VideoDiffusionLoss(StandardDiffusionLoss):
         # Add traj here.
         additional_model_inputs["with_traj"] = batch["with_traj"]
         additional_model_inputs["fut_traj"] = batch["fut_traj"]
-
-        # TODO: Use transformer to encode the traj.
 
         if self.offset_noise_level > 0.0:
             # * Original implementation, but is incorrect
@@ -220,16 +222,52 @@ class VideoDiffusionLoss(StandardDiffusionLoss):
             # w = min(w, self.min_snr_value)  # Minor issue here: w might not be a tensor
             w = torch.where(w > self.min_snr_value, self.min_snr_value, w)
 
-        return self.get_loss(model_output, input, w)
+        loss = self.get_loss(model_output, input, w)
+        loss = {
+            'loss': loss
+        }
+        
+        if self.loss_weight_short_dcl > 0.:
+            dcl_loss = self.get_dynamics_consistency_loss(model_output, input, w, type='short', loss_weight=self.loss_weight_short_dcl)
+            loss.update(dcl_loss)
+
+        return loss
 
     def get_loss(self, model_output, target, w):
         if self.type == "l2":
-            return torch.mean((w * (model_output - target) ** 2).reshape(target.shape[0], -1), 1)
+            # NOTE: Condition frames are excluded from loss calculation
+            loss = torch.mean((w * (model_output - target) ** 2).reshape(target.shape[0], -1), 1)  # * Reshape to [bs]
+            return loss
         elif self.type == "l1":
             return torch.mean((w * (model_output - target).abs()).reshape(target.shape[0], -1), 1)
         elif self.type == "lpips":
             loss = self.lpips(model_output, target).reshape(-1)
             return loss
+    
+    def get_dynamics_consistency_loss(self, model_output, target, w, type='short', loss_weight=1.):
+        if type == "short":
+            # * Dynamics
+            dynamics_model_output = model_output[:, 1:] - model_output[:, :-1]
+            dynamics_target = target[:, 1:] - target[:, :-1]
+
+            # * Consistency
+            loss = torch.mean((w * (dynamics_model_output - dynamics_target) ** 2).reshape(target.shape[0], -1), 1)
+            loss = loss * loss_weight
+            loss = {
+                'loss_short_dc': loss
+            }
+
+            return loss
+
+        elif type == "long":
+            
+
+
+
+
+
+            raise NotImplementedError
+
 
 
 def get_3d_position_ids(frame_len, h, w):
