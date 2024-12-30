@@ -1,0 +1,1 @@
+{"config": "configs/video_translator_flow_aeaug_noisy_0.5.py", "metric": {"ADE_1s": 0.6891918778419495, "ADE_2s": 1.1232175827026367, "ADE": 1.1232175827026367, "FDE": 1.8073440790176392}}
