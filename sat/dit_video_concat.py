@@ -1023,8 +1023,6 @@ class DiffusionTransformer(BaseModel):
             lora_config = module_configs["lora_config"]
             self.add_mixin("lora", instantiate_from_config(lora_config, layer_num=self.num_layers), reinit=True)
 
-        # TODO: Add traj encoder
-        
         return
 
     def forward(self, x, timesteps=None, context=None, y=None, **kwargs):

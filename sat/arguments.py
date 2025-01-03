@@ -78,7 +78,7 @@ def add_evaluation_args(parser):
     group.add_argument('--save_gt', type=bool, default=True)
 
     group.add_argument('--concat_recon_for_demo', type=bool, default=False)  # * Save memory
-    group.add_argument('--concat_gt_for_demo', type=bool, default=True)
+    group.add_argument('--concat_gt_for_demo', type=bool, default=False)
 
     group.add_argument('--n_cond_frames', type=int, default=3)  # * DEFAULT: 3
 

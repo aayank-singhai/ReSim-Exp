@@ -168,7 +168,7 @@ class nuPlanDataset(Dataset):
             if isinstance(raw_caption, int):
                 raw_caption = cmd_to_action[raw_caption]
 
-            fut_traj = clip[self.traj_key][:self.n_fut_traj_points]  # TODO: replace traj_fut key.
+            fut_traj = clip[self.traj_key][:self.n_fut_traj_points]
 
             token_key = 'lidar_pc_token' if 'lidar_pc_token' in clip else 'token'
             lidar_pc_token = clip[token_key]
