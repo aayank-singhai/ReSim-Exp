@@ -9,7 +9,7 @@ logs/
 .idea
 local_save/
 ckpts/
-tmp/
+tmp*/
 outputs/
 nuscenes/
 nuscenes

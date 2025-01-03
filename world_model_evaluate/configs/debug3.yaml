@@ -2,7 +2,7 @@ metric: cmd_fvd
 
 paired_dataset:
   # root: /cpfs01/shared/opendrivelab/opendrivelab_hdd/gaoshenyuan/NUSC_outputs/vista_final_infer_waymo_traj_all
-  root: /cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/outputs/GROUP_full_free/infer_waymo_main5_joint_stage2_high_free_split3-12-21-06-56
+  root: /cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/outputs/GROUP_full_free_center_shift2/infer_waymo_main5_joint_stage2_high_free_center_shift2_split3-12-30-11-04
   supp: /cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/custom_data/waymo/waymo_val_traj_cmd.json
   freq: 12
   # max_frameid: 25

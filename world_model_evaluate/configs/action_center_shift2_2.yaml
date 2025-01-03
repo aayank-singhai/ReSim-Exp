@@ -1,0 +1,22 @@
+metric: cmd_fvd
+
+paired_dataset:
+  # root: /cpfs01/shared/opendrivelab/opendrivelab_hdd/gaoshenyuan/NUSC_outputs/vista_final_infer_waymo_traj_all
+  root: /cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/outputs/GROUP_full_action_center_shift2/infer_waymo_main5_joint_stage2_high_action_center_shift2_split2-12-30-09-19
+  supp: /cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/custom_data/waymo/waymo_val_traj_cmd.json
+  freq: 12
+  # max_frameid: 25
+  # gen_startid: 1
+  
+  gen_startid: 9  
+  # id 8 is the current frame
+  # id 9 is the first generation frame (should be evaluated as beginning)
+
+  max_frameid: 33
+
+
+gpu: 0
+batch_size: 32
+n_runs: 1
+shuffle: True
+total_cmds: 3

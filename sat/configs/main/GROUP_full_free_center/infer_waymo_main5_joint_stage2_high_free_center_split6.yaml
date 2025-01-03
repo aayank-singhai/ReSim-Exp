@@ -18,7 +18,7 @@ args:
 
   epochs: 1
 
-  valid_data: ["/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/custom_data/waymo/waymo_val_traj_cmd.json"]
+  valid_data: ["/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/custom_data/waymo/v2/waymo_val_traj_cmd_v2_sub.json"]
 
   sampling_video_size: [512, 896]
   n_prediction_round: 1
@@ -41,7 +41,7 @@ data:
       p_drop_action_caption: 1.  # * Inference: 0.
       # reshape_mode: 'lower'
 
-      n_subset: 20
+      n_subset: 10
       ind_subset: 6
 
 model:
