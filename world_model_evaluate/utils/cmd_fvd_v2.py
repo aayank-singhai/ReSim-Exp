@@ -22,6 +22,8 @@ cmd_str_to_ind = {
     "Turning_Right" : 2,
 }
 
+cmd_key = "cmd_vista"
+
 class cmd_FVD(Metric):
     def __init__(self, device):
         super().__init__("cmd_FVD")
@@ -43,7 +45,10 @@ class cmd_FVD(Metric):
         tmp["source"] = []
         cmd_gens = [ copy.deepcopy(tmp) for _ in range(self.total_cmds) ]
         for clip in source:
-            cmd_gens[self.cmd_mapping[gen_paths.get_index(clip[0])]]["source"].append(clip)
+            token = gen_paths.get_index(clip[0])
+            clip_index = self.token_to_index[token]
+            cmd = self.supp[clip_index][cmd_key]
+            cmd_gens[cmd]["source"].append(clip)
         
         embs_gen = [i3d_process_img_paths(cmd_gen, self.i3d, self.freq, max_sample=max_sample, batch_size=batch_size, device=self.device, shuffle=shuffle) \
                 for cmd_gen in cmd_gens]
@@ -72,6 +77,11 @@ class cmd_FVD(Metric):
         self.cmd_mapping = dict()
         supp = json.load(open(gt_paths.supp, "r"))
         supp = supp['clips']
+        self.supp = supp
+
+        self.token_to_index = dict()
+        for i_clip in range(len(supp)):
+            self.token_to_index[supp[i_clip]['token']] = i_clip
         
         tmp = copy.deepcopy(gt_paths)
         source = tmp.pop("source")
@@ -79,19 +89,27 @@ class cmd_FVD(Metric):
         cmd_gts = [ copy.deepcopy(tmp) for _ in range(total_cmds) ]
         for clip in source:
             try:
-                clip_index = gt_paths.get_index(clip[0])
+                # clip_index = gt_paths.get_index(clip[0])
+                token = gt_paths.get_index(clip[0])
             except:
                 import pdb; pdb.set_trace()
-            assert clip_index == supp[clip_index]['token']
+            # assert clip_index == supp[clip_index]['token']
+            
+            clip_index = self.token_to_index[token]
 
-            cmd = supp[clip_index]["cmd"]  # str
-            cmd = cmd_str_to_ind[cmd] # str to ind
+            cmd = supp[clip_index][cmd_key]  # str
+
+            # cmd = cmd_str_to_ind[cmd] # str to ind
             
             self.cmd_mapping[clip_index] = cmd
 
             # cmd_gts[self.cmd_mapping[clip_index]["source"].append(clip)
             cmd_gts[cmd]["source"].append(clip)
+        
+        for cmd in range(self.total_cmds):
+            print(f"num of samples of cmd {cmd}: {len(cmd_gts[cmd]['source'])}")
 
         self.embs_gt = [i3d_process_img_paths(cmd_gt, self.i3d, self.freq, max_sample=max_sample, batch_size=batch_size, device=self.device, shuffle=shuffle) \
                 for cmd_gt in cmd_gts]
+
         print("GT path updated.")

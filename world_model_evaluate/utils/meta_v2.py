@@ -216,9 +216,11 @@ class CustomizedPairedDataSourceV2(EasyDict):
         # scene_id = int(filename.split("/")[-1].split("_")[1])
         # return split_id * self.split_len + scene_id
         # filename: one filename of one frame in a video clip
-        index = int(filename.split('/')[-2].split('_')[-2])
 
-        # import pdb; pdb.set_trace()  # TODO: Check this?
+        # filename example: '/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/outputs/GROUP_full_action_center/infer_waymo_main5_joint_stage2_high_action_center_split0-12-30-05-55/34/DOMAIN_folder-34_113_000000/frame_0009.png'
+        # index of this example: 113
+        
+        index = int(filename.split('/')[-2].split('_')[-2])
         return index
 
 class DataSource(EasyDict):
