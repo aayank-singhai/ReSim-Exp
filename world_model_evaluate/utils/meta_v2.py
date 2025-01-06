@@ -138,18 +138,20 @@ class CustomizedPairedDataSourceV2(EasyDict):
                 print(f"Folder: {folder}")
 
 
-                # folder: 0, 1, 2, 3, ...
                 collect_path = os.path.join(root, folder)
+                # collect_path: folder 0, 1, 2, 3, ...
 
                 if os.path.isfile(collect_path):
                     continue
                 
+                # TODO: Check this part -------------------------------
                 for filename in os.listdir(collect_path):
                     if filename.endswith(self.format):
                         break
                 
                 if not filename.endswith(self.format):
                     continue
+                # ------------------------------------------------------
                 
                 gt_filename = f"{self.gt_key}_{filename.split('_', 1)[1]}"  # GT_xxx.mp4
                 gen_filename = f"{self.gen_key}_{filename.split('_', 1)[1]}"  # Sample_xxx.mp4

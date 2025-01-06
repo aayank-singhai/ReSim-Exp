@@ -3,7 +3,7 @@
 args:
   latent_channels: 16
   mode: inference
-  load: "/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/sat/tmp_ckpts/abl_loss_short_dcl_1e-1_full_gpu16-01-02-04-16/4000/mp_rank_00_model_states.pt"
+  load: "/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/sat/tmp_ckpts/abl_loss_short_dcl_1e-1_full_gpu16-01-02-04-16/10000/mp_rank_00_model_states.pt"
 
   batch_size: 1
   # input_type: txt
