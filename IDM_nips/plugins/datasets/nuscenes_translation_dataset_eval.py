@@ -29,7 +29,7 @@ class NuScenesTranslationDatasetEval(NuScenesTranslationDataset):
 
         nusc_file = "/cpfs01/user/gaoshenyuan/nuScenes_svd_val.json"
         with open(nusc_file, "r") as nusc_json:
-            nusc_samples = json.load(nusc_json)[::10]
+            nusc_samples = json.load(nusc_json)
 
         self.index_mapping = dict()
         for idx, sample in enumerate(nusc_samples):

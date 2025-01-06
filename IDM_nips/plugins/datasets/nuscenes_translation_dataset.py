@@ -28,9 +28,9 @@ class NuScenesTranslationDataset(Custom3DDataset):
         self.condition_frames = condition_frames
 
         if "_val" in ann_file:
-            nusc_file = "/cpfs01/user/gaoshenyuan/nuScenes_svd_val.json"
+            nusc_file = "/cpfs01/shared/opendrivelab/opendrivelab_hdd/gaoshenyuan/mess/nuScenes_svd_val.json"
         else:
-            nusc_file = "/cpfs01/user/gaoshenyuan/nuScenes_svd.json"
+            nusc_file = "/cpfs01/shared/opendrivelab/opendrivelab_hdd/gaoshenyuan/mess/nuScenes_svd.json"
         with open(nusc_file, "r") as nusc_json:
             nusc_samples = json.load(nusc_json)
 
@@ -108,9 +108,10 @@ class NuScenesTranslationDataset(Custom3DDataset):
                 sample_idx=cur_info['token'],
                 scene_token=scene_token,
                 timestamp=timestamp,
-                img_filename=image_paths,
+                img_filename=image_paths,  # * absolute paths, len: 25
                 gt_traj=traj.astype(np.float32)
             )
+
             planning_infos.append(planning_info)
 
         return planning_infos
@@ -135,8 +136,8 @@ class NuScenesTranslationDataset(Custom3DDataset):
         for i in range(len(self.data_infos)):
             gt_trajs.append(self.data_infos[i]['gt_traj'])
 
-        pred_trajs = np.stack(pred_trajs, axis=0)[..., :2]
-        gt_trajs = np.stack(gt_trajs, axis=0)[..., :2]
+        pred_trajs = np.stack(pred_trajs, axis=0)[..., :2]  # (1500, 4, 2)
+        gt_trajs = np.stack(gt_trajs, axis=0)[..., :2]      # (1500, 4, 2)
 
         ADE_1s = np.mean(
             np.sqrt(((pred_trajs[:, :2, :2] - gt_trajs[:, :2, :2]) ** 2).sum(axis=-1))

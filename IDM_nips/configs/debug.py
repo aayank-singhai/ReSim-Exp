@@ -17,8 +17,8 @@ model = dict(
 )
 
 train_pipeline = [
-    dict(type='UseAutoEncoderData', data_root='/cpfs01/shared/opendrivelab/opendrivelab_hdd/gaoshenyuan/IDM_samples_new',
-         p_noisy=0.5),
+    # dict(type='UseAutoEncoderData', data_root='/cpfs01/shared/opendrivelab/opendrivelab_hdd/gaoshenyuan/IDM_samples_new',
+    #      p_noisy=0.5),
     dict(type='CustomLoadMultiViewImageFromFiles', to_float32=False),
     dict(type='CenterCropResizeMultiViewImage', scale=(384, 640)),
     dict(type='NormalizeMultiviewImage', **img_norm_cfg),

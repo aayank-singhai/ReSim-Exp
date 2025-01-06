@@ -3,13 +3,19 @@ set -x
 
 timestamp=`date +"%y%m%d.%H%M%S"`
 
-WORK_DIR=$(dirname $(readlink -f "$0"))
-CODE_HOME=/cpfs01/user/gaoshenyuan/code/IDM
+CODE_HOME=/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/IDM_nips
 
-CONFIG=configs/video_translator_flow_aeaug_noisy_0.5.py
-CHECKPOINT=${WORK_DIR}/../epoch_2.pth
+CONFIG=$1
+CHECKPOINT=$2
+GPUS=$3
 
-GPUS=$1
+WORK_DIR=$(echo ${CONFIG%.*} | sed -e "s/configs/work_dirs/g")/
+echo "WORK_DIR: ${WORK_DIR}"
+
+if [ ! -d ${WORK_DIR} ]; then
+    mkdir -p ${WORK_DIR}
+fi
+
 PORT=${PORT:-23459}
 export PYTHONPATH=$CODE_HOME:$PYTHONPATH
 

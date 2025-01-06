@@ -1,12 +1,14 @@
-import copy
-import json
 import os
+import copy
+
+import numpy as np
 
 import cv2
+import torch
 import mmcv
-import numpy as np
 from mmdet.datasets import DATASETS
 from mmdet3d.datasets import Custom3DDataset
+
 from pyquaternion import Quaternion
 
 
@@ -21,23 +23,14 @@ class NuScenesTranslationDataset(Custom3DDataset):
                  load_interval=1,
                  queue_length=8,
                  condition_frames=2,
+                 coord='ego',
                  test_mode=False,
                  **kwargs):
         self.load_interval = load_interval
         self.queue_length = queue_length
         self.condition_frames = condition_frames
-
-        if "_val" in ann_file:
-            nusc_file = "/cpfs01/user/gaoshenyuan/nuScenes_svd_val.json"
-        else:
-            nusc_file = "/cpfs01/user/gaoshenyuan/nuScenes_svd.json"
-        with open(nusc_file, "r") as nusc_json:
-            nusc_samples = json.load(nusc_json)
-
-        self.fn_mapping = dict()
-        for idx, sample in enumerate(nusc_samples):
-            self.fn_mapping[sample["frames"][0].split("/")[-1]] = sample["frames"]
-
+        assert coord in ['ego', 'lidar']
+        self.coord = coord
         super().__init__(
             data_root=data_root,
             ann_file=ann_file,
@@ -49,7 +42,7 @@ class NuScenesTranslationDataset(Custom3DDataset):
     def load_annotations(self, ann_file):
         data = mmcv.load(ann_file, file_format='pkl')
         data_infos = list(sorted(data['infos'], key=lambda e: e['timestamp']))
-        # data_infos = data_infos[::self.load_interval]
+        data_infos = data_infos[::self.load_interval]
         data_infos = self.get_planning_label(data_infos)
         return data_infos
 
@@ -57,14 +50,6 @@ class NuScenesTranslationDataset(Custom3DDataset):
         planning_infos = []
         for index in range(len(data_infos)):
             cur_info = data_infos[index]
-
-            front_img_fn = os.path.basename(cur_info['cams']['CAM_FRONT']['data_path'])
-
-            if front_img_fn not in self.fn_mapping.keys():
-                continue
-            image_name_list = self.fn_mapping[front_img_fn]
-            image_paths = [os.path.join(self.data_root, fn) for fn in image_name_list]
-
             scene_token = cur_info['scene_token']
             timestamp = cur_info['timestamp']
             e2g_translation = np.array(cur_info['ego2global_translation'])
@@ -75,12 +60,24 @@ class NuScenesTranslationDataset(Custom3DDataset):
             e2g_matrix[:3, 3] = e2g_translation
             g2e_matrix = np.linalg.inv(e2g_matrix)
 
-            # image_paths = []
+            if self.coord == 'ego':
+                g2e_matrix = np.linalg.inv(e2g_matrix)
+            elif self.coord == 'lidar':
+                l2e_rotation = np.array(cur_info['lidar2ego_rotation'])
+                l2e_rotation = Quaternion(l2e_rotation).rotation_matrix
+                l2e_matrix = np.eye(4)
+                l2e_matrix[:3, :3] = l2e_rotation
+                l2e_matrix[:3, 3] = np.array(cur_info['lidar2ego_translation'])
+                l2g_matrix = np.matmul(e2g_matrix, l2e_matrix)
+                g2e_matrix = np.linalg.inv(l2g_matrix)
+
+            image_paths = []
             traj = np.zeros((self.queue_length, 3), dtype=np.float32)
             traj_mask = np.zeros((self.queue_length, 1), dtype=bool)
 
-            indices = list(range(index, index + self.queue_length))
-
+            indices = list(range(
+                index - self.condition_frames + 1,
+                index + self.queue_length - self.condition_frames + 1))
             for idx, frame_id in enumerate(indices):
                 if frame_id >= len(data_infos) or frame_id < 0:
                     break
@@ -92,16 +89,22 @@ class NuScenesTranslationDataset(Custom3DDataset):
                 e2g_t = np.array(info['ego2global_translation'])
                 traj[idx] = e2g_t
 
-                # image_path = info['cams']['CAM_FRONT']['data_path']
-                # # abs path to relative path
-                # image_path = os.path.join(self.data_root, image_path)
-                # image_paths.append(image_path)
+                image_path = info['cams']['CAM_FRONT']['data_path']
+                # abs path to relative path
+                image_path = os.path.join(self.data_root, 'samples', image_path.split('samples/')[-1])
+                image_paths.append(image_path)
 
             traj_xyz1 = np.concatenate([traj, np.ones((self.queue_length, 1))], axis=1)
             traj_xyz1 = np.matmul(traj_xyz1, g2e_matrix.T)
-            traj = traj_xyz1[self.condition_frames:, :3]
+            traj = traj_xyz1[self.condition_frames:, :2]
 
             if traj_mask.sum() < self.queue_length:
+                continue
+
+            try:
+                flow_cache = torch.load(f'/nvme/litianyu/save_tensors_xvo/{timestamp}.pt', map_location='cpu')
+            except:
+                print(f'/nvme/litianyu/save_tensors_xvo/{timestamp}.pt')
                 continue
 
             planning_info = dict(
@@ -109,6 +112,7 @@ class NuScenesTranslationDataset(Custom3DDataset):
                 scene_token=scene_token,
                 timestamp=timestamp,
                 img_filename=image_paths,
+                flow_cache=flow_cache,
                 gt_traj=traj.astype(np.float32)
             )
             planning_infos.append(planning_info)
@@ -134,29 +138,26 @@ class NuScenesTranslationDataset(Custom3DDataset):
         gt_trajs = []
         for i in range(len(self.data_infos)):
             gt_trajs.append(self.data_infos[i]['gt_traj'])
-
+        
         pred_trajs = np.stack(pred_trajs, axis=0)[..., :2]
         gt_trajs = np.stack(gt_trajs, axis=0)[..., :2]
 
-        ADE_1s = np.mean(
-            np.sqrt(((pred_trajs[:, :2, :2] - gt_trajs[:, :2, :2]) ** 2).sum(axis=-1))
-        )
-        ADE_2s = np.mean(
-            np.sqrt(((pred_trajs[:, :4, :2] - gt_trajs[:, :4, :2]) ** 2).sum(axis=-1))
-        )
+        # diff = np.sqrt((gt_trajs[:, 0, :2] ** 2).sum(axis=-1)) / np.sqrt((pred_trajs[:, 0, :2] ** 2).sum(axis=-1))
+        # pred_trajs = pred_trajs * diff[:, None, None]
+        # pred_trajs = pred_trajs[:, 1:] -  pred_trajs[:, 0:1]
+        # gt_trajs = gt_trajs[:, 1:] - gt_trajs[:, 0:1]
+
         ADE = np.mean(
-            np.sqrt(((pred_trajs[:, :, :2] - gt_trajs[:, :, :2]) ** 2).sum(axis=-1))
+            np.sqrt(((pred_trajs - gt_trajs) ** 2).sum(axis=-1))
         )
         FDE = np.mean(
-            np.sqrt(((pred_trajs[:, -1, :2] - gt_trajs[:, -1, :2]) ** 2).sum(axis=-1))
+            np.sqrt(((pred_trajs[:, -1] - gt_trajs[:, -1]) ** 2).sum(axis=-1))
         )
 
         if show:
             self.show(pred_trajs, gt_trajs, out_dir=out_dir, **kwargs)
 
         metrics = dict(
-            ADE_1s=ADE_1s,
-            ADE_2s=ADE_2s,
             ADE=ADE,
             FDE=FDE
         )
@@ -165,17 +166,17 @@ class NuScenesTranslationDataset(Custom3DDataset):
     def show(self, pred_trajs=None, gt_trajs=None, out_dir=None, show_num=100, **kwargs):
 
         def concat_8_images(images):
-            h, w, c = images[0].shape
-            canvas = np.zeros((h * 2, w * 4, c), dtype=np.uint8)
-            canvas[:h, :w] = images[0]
-            canvas[:h, w:2 * w] = images[1]
-            canvas[:h, 2 * w:3 * w] = images[2]
-            canvas[:h, 3 * w:] = images[3]
-            canvas[h:, :w] = images[4]
-            canvas[h:, w:2 * w] = images[5]
-            canvas[h:, 2 * w:3 * w] = images[6]
-            canvas[h:, 3 * w:] = images[7]
-            return canvas
+                h, w, c = images[0].shape
+                canvas = np.zeros((h*2, w*4, c), dtype=np.uint8)
+                canvas[:h, :w] = images[0]
+                canvas[:h, w:2*w] = images[1]
+                canvas[:h, 2*w:3*w] = images[2]
+                canvas[:h, 3*w:] = images[3]
+                canvas[h:, :w] = images[4]
+                canvas[h:, w:2*w] = images[5]
+                canvas[h:, 2*w:3*w] = images[6]
+                canvas[h:, 3*w:] = images[7]
+                return canvas
 
         def show_bev_results(gt_traj, pred_traj, map_size=[0, 50, -30, 30], scale=20):
             GT_COLOR = (0, 255, 0)
@@ -187,17 +188,14 @@ class NuScenesTranslationDataset(Custom3DDataset):
             draw_coor = (scale * (-gt_traj[:, :2] + np.array([map_size[1], map_size[3]]))).astype(int)
             gt_canvas = cv2.polylines(gt_canvas, [draw_coor[:, [1, 0]]], False, GT_COLOR, max(round(scale * 0.2), 1))
             for i in range(len(draw_coor)):
-                gt_canvas = cv2.circle(gt_canvas, (draw_coor[i, 1], draw_coor[i, 0]), max(2, round(scale * 0.5)),
-                                       GT_COLOR, -1)
+                gt_canvas = cv2.circle(gt_canvas, (draw_coor[i, 1], draw_coor[i, 0]), max(2, round(scale * 0.5)), GT_COLOR, -1)
             canvas = cv2.addWeighted(gt_canvas, 0.7, canvas, 1.0, 0)
             # PRED
             pred_canvas = np.zeros_like(canvas)
             draw_coor = (scale * (-pred_traj[:, :2] + np.array([map_size[1], map_size[3]]))).astype(int)
-            pred_canvas = cv2.polylines(pred_canvas, [draw_coor[:, [1, 0]]], False, PRED_COLOR,
-                                        max(round(scale * 0.2), 1))
+            pred_canvas = cv2.polylines(pred_canvas, [draw_coor[:, [1, 0]]], False, PRED_COLOR, max(round(scale * 0.2), 1))
             for i in range(len(draw_coor)):
-                pred_canvas = cv2.circle(pred_canvas, (draw_coor[i, 1], draw_coor[i, 0]), max(2, round(scale * 0.5)),
-                                         PRED_COLOR, -1)
+                pred_canvas = cv2.circle(pred_canvas, (draw_coor[i, 1], draw_coor[i, 0]), max(2, round(scale * 0.5)), PRED_COLOR, -1)
             canvas = cv2.addWeighted(pred_canvas, 0.7, canvas, 1.0, 0)
 
             return canvas
