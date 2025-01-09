@@ -19,6 +19,35 @@ def dump_json(data, json_path):
 def exist_file(file_path):
     return os.path.exists(file_path)
 
+
+# * Following /cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/custom_data/waymo/_deprecated/waymo_val_all.json
+def create_waymo_raw_json(image_folder):
+    raw_data = dict()
+    
+    imgs_all = os.listdir(image_folder)
+    imgs_all = [img for img in imgs_all if img.endswith('.jpg')]
+    imgs_all = sorted(imgs_all, key=lambda x: int(x.split('.')[0]))
+    videos = [
+        {
+            "folder_path": "images_0",
+            "num_frames": len(imgs_all),
+            "full_list": imgs_all,
+            "index_width": 7
+        }
+    ]
+
+    meta = {
+        "frame_rate": 10,
+        "total_frames": len(imgs_all),
+    }
+
+    raw_data['meta'] = meta
+    raw_data['videos'] = videos
+    
+    out_path = '/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/custom_data/waymo/train/waymo_train_all.json'
+    dump_json(raw_data, out_path)
+
+
 def get_frame_list(start_frame, end_frame):
     # eg:
     # start_frame: "000000000.jpg"
@@ -120,21 +149,16 @@ def create_youtube_json(clip_length=49, is_train=True, is_debug=False, interval=
 
     dump_json(clip_infos, out_path)
 
-def create_waymo_json(clip_length=49, is_debug=False, interval=1):
-    # new_val: use 1080p val set (newly downloaded)
-
-    # DATA_ROOT = '/cpfs01/shared/opendrivelab/GenAD_Datasets/YouTube/'
+def create_waymo_json(clip_length=49, is_debug=False, interval=1, is_train=False):
     DATA_ROOT = '/cpfs01/shared/opendrivelab/opendrivelab_hdd/GenAD_Proj/ad_datasets/Waymo/kitti_format/validation/images_0'
 
-    json_path = '/cpfs01/shared/opendrivelab/opendrivelab_hdd/GenAD_Proj/ad_datasets/Waymo/kitti_format/validation/waymo_val_all.json'
-    # if is_train:
-    #     json_path = '/cpfs01/shared/opendrivelab/opendrivelab_hdd/gaoshenyuan/YouTube_svd.json'  # * Train
-    # else:
-    #     # json_path = '/cpfs01/shared/opendrivelab/opendrivelab_hdd/gaoshenyuan/YouTube_svd_val.json'  # * Val
-    #     json_path = '/cpfs01/shared/opendrivelab/opendrivelab_hdd/yangjiazhi/DVGen/data_json/YouTube_svd_val_1080p.json'  # * New Val 1080p
+    if is_train:
+        json_path = '/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/custom_data/waymo/train/raw_waymo_train_all.json'
+    else:
+        json_path = '/cpfs01/shared/opendrivelab/opendrivelab_hdd/GenAD_Proj/ad_datasets/Waymo/kitti_format/validation/waymo_val_all.json'
+
     infos = load_json(json_path)
 
-    # import pdb; pdb.set_trace()
     infos = infos['videos'][0]['full_list']
 
     if is_debug:
@@ -142,8 +166,6 @@ def create_waymo_json(clip_length=49, is_debug=False, interval=1):
 
     out_path = '/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/custom_data/waymo'
 
-    # out_path = os.path.join(out_path, 'debug.json')
-    
     if is_debug:
         out_path = os.path.join(out_path, 'debug.json')
     else:
@@ -198,7 +220,11 @@ def create_waymo_json(clip_length=49, is_debug=False, interval=1):
     dump_json(clip_infos, out_path)
 
 def create_waymo_traj_and_cmd(json_path, is_debug=False, n_past=9, fut_horizon=8, n_traj_channels=3, interval=1, n_subset=None, ind_subset=None):
-    meta_path = "/cpfs01/shared/opendrivelab/opendrivelab_hdd/GenAD_Proj/ad_datasets/Waymo/kitti_format/validation/meta"
+
+    if 'train' in json_path:
+        meta_path = "/cpfs01/shared/opendrivelab/opendrivelab_hdd/GenAD_Proj/ad_datasets/Waymo/kitti_format/training/meta"
+    else:
+        meta_path = "/cpfs01/shared/opendrivelab/opendrivelab_hdd/GenAD_Proj/ad_datasets/Waymo/kitti_format/validation/meta"
 
     with open(json_path, "r") as raw_json:
         raw = json.load(raw_json)
@@ -216,14 +242,13 @@ def create_waymo_traj_and_cmd(json_path, is_debug=False, n_past=9, fut_horizon=8
 
         start_ind = ind_subset * length_per_subset
         end_ind = (ind_subset + 1) * length_per_subset
-        clip_infos = clip_infos[start_ind : end_ind]
+        raw_clips = raw_clips[start_ind : end_ind]
 
     if is_debug:
         raw_clips = raw_clips[:100]
     cmd_clips = list()
     raw['meta']['interval'] = interval  # * 0.1 s
 
-    # for clip_ind, clip in tqdm(enumerate(raw_clips)):
     for clip_ind, clip in enumerate(tqdm(raw_clips)):
 
         gt_trajectory = np.zeros((fut_horizon, n_traj_channels), np.float64)
@@ -288,14 +313,9 @@ def create_waymo_traj_and_cmd(json_path, is_debug=False, n_past=9, fut_horizon=8
             clip.update({"cmd": "Turning_Left"})
         elif origin[1] <= -2:  # turn right
             clip.update({"cmd": "Turning_Right"})
-        # elif origin[0] <= 2:  # stop
-        #     clip.update({"flow_direction": 2})
-        # else:  # go straight
-        #     clip.update({"flow_direction": 3})
         else:
             clip.update({"cmd": "Moving_Forward"})
 
-        # cmd_samples.append(sample)
         cmd_clips.append(clip)
     
     raw['meta']['num_clips'] = len(cmd_clips)
@@ -308,7 +328,8 @@ def create_waymo_traj_and_cmd(json_path, is_debug=False, n_past=9, fut_horizon=8
     else:
         ind_subset_str = ""
     
-    cmd_file = f"/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/custom_data/waymo/v2/waymo_val_traj_cmd_v2{ind_subset_str}.json"
+    cmd_file = f"/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/custom_data/waymo/train/waymo_train_traj_cmd_v2{ind_subset_str}.json"  # * train
+    # cmd_file = f"/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/custom_data/waymo/v2/waymo_val_traj_cmd_v2{ind_subset_str}.json"     # * val
     dump_json(raw, cmd_file)
 
 def traverse_waymo(json_path):
@@ -359,10 +380,16 @@ def downsample_waymo(json_path, n_downsample_per_cmd=375):
 
 if __name__ == '__main__':
 
-    downsample_waymo("/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/custom_data/waymo/v2/waymo_val_traj_cmd_v2.json", n_downsample_per_cmd=375)
-    import pdb; pdb.set_trace()
+    # * Step1
+    # create_waymo_raw_json('/cpfs01/shared/opendrivelab/opendrivelab_hdd/GenAD_Proj/ad_datasets/Waymo/kitti_format/training/images_0')
+    
+    # * Step2
+    # create_waymo_json(clip_length=49, is_debug=False, interval=1, is_train=True)
 
+    # downsample_waymo("/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/custom_data/waymo/v2/waymo_val_traj_cmd_v2.json", n_downsample_per_cmd=375)
+    # import pdb; pdb.set_trace()
 
+    # * Step3
     parser = argparse.ArgumentParser()
 
     # store_true
@@ -375,6 +402,12 @@ if __name__ == '__main__':
     # INTERVAL = 5  # * interval 2hz for first frames
     INTERVAL = 1  # * Align with Vista
 
-    create_waymo_traj_and_cmd('/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/custom_data/waymo/waymo_val_all.json', is_debug=args.is_debug, interval=INTERVAL, n_subset=args.n_split, ind_subset=args.split_ind)
+    # create_waymo_traj_and_cmd('/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/custom_data/waymo/waymo_val_all.json', is_debug=args.is_debug, interval=INTERVAL, n_subset=args.n_split, ind_subset=args.split_ind)
+    create_waymo_traj_and_cmd('/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/custom_data/waymo/train/waymo_train_all.json', is_debug=args.is_debug, interval=INTERVAL, n_subset=args.n_split, ind_subset=args.split_ind)
+
     print("Done!")
+
+
+    # * Step4
+    # downsample_waymo("/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/custom_data/waymo/v2/waymo_val_traj_cmd_v2.json", n_downsample_per_cmd=375)
     # import pdb; pdb.set_trace()
