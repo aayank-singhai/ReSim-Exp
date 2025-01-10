@@ -1,14 +1,14 @@
 _base_ = []
 custom_imports = dict(imports=['plugins'])
 
-dataset_type = 'WaymoTranslationDataset'
+dataset_type = 'NuScenesTranslationDataset'
 queue_length = 5
 condition_frames = 1
 
 img_norm_cfg = dict(
     mean=[123.675, 116.28, 103.53], std=[58.395, 57.12, 57.375], to_rgb=True)
 
-data_root = '/cpfs01/shared/opendrivelab/opendrivelab_hdd/GenAD_Proj/ad_datasets/Waymo/kitti_format/training/images_0'
+data_root = '/cpfs01/shared/opendrivelab/nuscenes/'
 model = dict(
     type='VideoTranslatorFlow',
     queue_length=queue_length,
@@ -17,8 +17,9 @@ model = dict(
 )
 
 train_pipeline = [
+    # dict(type='UseAutoEncoderData', data_root='/cpfs01/shared/opendrivelab/opendrivelab_hdd/gaoshenyuan/IDM_samples_new',
+    #      p_noisy=0.5),
     dict(type='CustomLoadMultiViewImageFromFiles', to_float32=False),
-    dict(type='CenterCropResizeMultiViewImage', scale=(512, 896)),  # * Align with diffusion model sampling
     dict(type='CenterCropResizeMultiViewImage', scale=(384, 640)),
     dict(type='NormalizeMultiviewImage', **img_norm_cfg),
     dict(type='CustomDefaultFormatBundle'),
@@ -27,7 +28,7 @@ train_pipeline = [
 
 test_pipeline = [
     dict(type='CustomLoadMultiViewImageFromFiles', to_float32=False),
-    dict(type='CenterCropResizeMultiViewImage', scale=(384, 640)),
+    dict(type='CenterCropResizeMultiViewImage', scale=(384, 640)),   # * TODO: Caused by the crop & resize?
     dict(type='NormalizeMultiviewImage', **img_norm_cfg),
     dict(type='CustomDefaultFormatBundle'),
     dict(type='Collect', keys=['img'], meta_keys=[])
@@ -39,29 +40,27 @@ data = dict(
     train=dict(
         type=dataset_type,
         data_root=data_root,
-        ann_file='/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/custom_data/waymo/train/waymo_train_traj_cmd_v2.json',
+        ann_file=data_root + 'nuscenes_infos_temporal_train.pkl',
         pipeline=train_pipeline,
-        load_interval=5,  # 10 hz -> 2hz
+        load_interval=1,
         queue_length=queue_length,
         condition_frames=condition_frames,
         test_mode=False),
     val=dict(
-        type='WaymoTranslationDatasetEval',
+        type=dataset_type,
         data_root=data_root,
-        ann_file= "/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/custom_data/waymo/v2/waymo_val_traj_cmd_v2_sub.json",
-        gen_image_root='/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/outputs/GROUP_full_action_center',
+        ann_file=data_root + 'nuscenes_infos_temporal_val.pkl',
         pipeline=test_pipeline,
         load_interval=1,
         queue_length=queue_length,
         condition_frames=condition_frames,
-        test_mode=True,
-        sample_key="GT"
-        ),  # * Val on GT
+        test_mode=True),
     test=dict(
         type='WaymoTranslationDatasetEval',
         data_root=data_root,
         ann_file= "/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/custom_data/waymo/v2/waymo_val_traj_cmd_v2_sub.json",
-        gen_image_root='/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/outputs/GROUP_full_action_center',
+        # gen_image_root='/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/outputs/GROUP_full_free_center',
+        gen_image_root='/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/outputs/GROUP_full_action_center',  # * Check whether this takes effect?
         pipeline=test_pipeline,
         load_interval=1,
         queue_length=queue_length,
@@ -69,9 +68,14 @@ data = dict(
         test_mode=True,
         sample_key="GT"
         ),
+    
     test_dataloader=dict(
         samples_per_gpu=1, workers_per_gpu=0, shuffle=False)
+    # test_dataloader=dict(
+    #     samples_per_gpu=2, workers_per_gpu=2, shuffle=False)
 )
+
+# !! Bug: samples_per_gpu could be changed, but workers will always be overriden to 8.
 
 optimizer = dict(
     type='AdamW',

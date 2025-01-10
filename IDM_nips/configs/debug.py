@@ -1,14 +1,14 @@
 _base_ = []
 custom_imports = dict(imports=['plugins'])
 
-dataset_type = 'NuScenesTranslationDataset'
+dataset_type = 'WaymoTranslationDataset'
 queue_length = 5
 condition_frames = 1
 
 img_norm_cfg = dict(
     mean=[123.675, 116.28, 103.53], std=[58.395, 57.12, 57.375], to_rgb=True)
 
-data_root = '/cpfs01/shared/opendrivelab/nuscenes/'
+data_root = '/cpfs01/shared/opendrivelab/opendrivelab_hdd/GenAD_Proj/ad_datasets/Waymo/kitti_format/training/images_0'
 model = dict(
     type='VideoTranslatorFlow',
     queue_length=queue_length,
@@ -17,9 +17,8 @@ model = dict(
 )
 
 train_pipeline = [
-    # dict(type='UseAutoEncoderData', data_root='/cpfs01/shared/opendrivelab/opendrivelab_hdd/gaoshenyuan/IDM_samples_new',
-    #      p_noisy=0.5),
     dict(type='CustomLoadMultiViewImageFromFiles', to_float32=False),
+    dict(type='CenterCropResizeMultiViewImage', scale=(512, 896)),  # * Align with diffusion model sampling
     dict(type='CenterCropResizeMultiViewImage', scale=(384, 640)),
     dict(type='NormalizeMultiviewImage', **img_norm_cfg),
     dict(type='CustomDefaultFormatBundle'),
@@ -35,36 +34,41 @@ test_pipeline = [
 ]
 
 data = dict(
-    samples_per_gpu=16,
-    workers_per_gpu=8,
+    samples_per_gpu=1,
+    workers_per_gpu=0,
     train=dict(
         type=dataset_type,
         data_root=data_root,
-        ann_file=data_root + 'nuscenes_infos_temporal_train.pkl',
+        ann_file='/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/custom_data/waymo/train/waymo_train_traj_cmd_v2.json',
         pipeline=train_pipeline,
-        load_interval=1,
+        load_interval=5,  # 10 hz -> 2hz
         queue_length=queue_length,
         condition_frames=condition_frames,
         test_mode=False),
     val=dict(
-        type=dataset_type,
+        type='WaymoTranslationDatasetEval',
         data_root=data_root,
-        ann_file=data_root + 'nuscenes_infos_temporal_val.pkl',
+        ann_file= "/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/custom_data/waymo/v2/waymo_val_traj_cmd_v2_sub.json",
+        gen_image_root='/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/outputs/GROUP_full_action_center',
         pipeline=test_pipeline,
         load_interval=1,
         queue_length=queue_length,
         condition_frames=condition_frames,
-        test_mode=True),
+        test_mode=True,
+        sample_key="GT"
+        ),  # * Val on GT
     test=dict(
-        type='NuScenesTranslationDatasetEval',
+        type='WaymoTranslationDatasetEval',
         data_root=data_root,
-        ann_file=data_root + 'nuscenes_infos_temporal_val.pkl',
-        gen_image_root='/cpfs01/shared/opendrivelab/opendrivelab_hdd/gaoshenyuan/NUSC_outputs/old_nusc_traj_cond_2',
+        ann_file= "/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/custom_data/waymo/v2/waymo_val_traj_cmd_v2_sub.json",
+        gen_image_root='/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/outputs/GROUP_full_action_center',
         pipeline=test_pipeline,
         load_interval=1,
         queue_length=queue_length,
         condition_frames=condition_frames,
-        test_mode=True),
+        test_mode=True,
+        sample_key="Sample"
+        ),
     test_dataloader=dict(
         samples_per_gpu=1, workers_per_gpu=0, shuffle=False)
 )
@@ -87,12 +91,14 @@ evaluation = dict(interval=1, pipeline=test_pipeline)
 
 runner = dict(type='EpochBasedRunner', max_epochs=total_epochs)
 log_config = dict(
-    interval=50,
+    interval=1,
     hooks=[
         dict(type='TextLoggerHook')
     ])
 
-checkpoint_config = dict(interval=1, max_keep_ckpts=1)
+# checkpoint_config = dict(interval=1, max_keep_ckpts=1)
+checkpoint_config = dict(interval=2)
+
 
 dist_params = dict(backend='nccl')
 log_level = 'INFO'

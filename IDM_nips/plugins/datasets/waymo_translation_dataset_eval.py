@@ -74,20 +74,16 @@ class WaymoTranslationDatasetEval(NuScenesTranslationDataset):
     def load_annotations(self, ann_file):
         data = mmcv.load(ann_file, file_format='json')
         data_infos = list(sorted(data['clips'], key=lambda e: e['token']))
-        # data_infos = data_infos[::self.load_interval]
+        data_infos = data_infos[::self.load_interval]
         data_infos = self.get_planning_label(data_infos)
         return data_infos
-
-    def translate_split_info(self, abs_index):
-        split_index = abs_index // 59
-        in_split_index = abs_index % 59
-        return split_index, in_split_index
 
     def get_planning_label(self, data_infos):
         planning_infos = []
         for index in range(len(data_infos)):
             cur_info = data_infos[index]
             token = cur_info['token']
+            cmd_vista = cur_info['cmd_vista']
 
             gen_folder = self.index_to_gen_folder[token]
             gen_image_paths = os.listdir(gen_folder)
@@ -98,11 +94,15 @@ class WaymoTranslationDatasetEval(NuScenesTranslationDataset):
                 gen_image_paths, key=lambda x: int(x.split("_")[-1].split(".")[0])
             )
 
-            # print(gen_image_paths)
-            
             # * HARD Code, aligned with Vista
             # TODO: Remove Hard Code
             gen_image_paths = gen_image_paths[8: 33]
+
+            # _tmp = [os.path.basename(p) for p in gen_image_paths]
+            # print("25 frames", _tmp)
+
+            # import pdb; pdb.set_trace()
+
             assert len(gen_image_paths) == 25
 
             gt_traj = cur_info['traj_fut']
@@ -117,6 +117,7 @@ class WaymoTranslationDatasetEval(NuScenesTranslationDataset):
                 token=token,  # * Used for sorting
                 img_filename=gen_image_paths,
                 gt_traj=np.array(gt_traj, dtype=np.float32),
+                cmd_vista=cmd_vista,
             )
             planning_infos.append(planning_info)
 

@@ -52,13 +52,30 @@ class CenterCropResizeMultiViewImage(object):
         h_size, w_size = scale[0], scale[1]
         ori_h, ori_w, _ = results['img'][0].shape
         images = []
+
+        # _tmp_ind = 0
         for img in results['img']:
             img = Image.fromarray(img)
+
+            # ! DEBUG, write img
+            # _tmp_ind += 1
+            # img.save(f"/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/IDM_nips/debug_{_tmp_ind}.jpg")
+
             if ori_w / ori_h > w_size / h_size:
                 tmp_w = int(w_size / h_size * ori_h)
                 left = (ori_w - tmp_w) // 2
                 right = (ori_w + tmp_w) // 2
                 img = img.crop((left, 0, right, ori_h))
+
+            elif ori_w / ori_h < w_size / h_size:
+                tmp_h = int(h_size / w_size * ori_w)
+                top = (ori_h - tmp_h) // 2
+                bottom = (ori_h + tmp_h) // 2
+                img = img.crop((0, top, ori_w, bottom))
+            
+            # img.save(f"/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/IDM_nips/debug_converted_{_tmp_ind}.jpg")
+            # import pdb; pdb.set_trace()
+
             img = img.resize((w_size, h_size), Image.Resampling.LANCZOS)
             images.append(np.array(img))
         results['img'] = images

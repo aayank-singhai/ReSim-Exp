@@ -67,7 +67,7 @@ data = dict(
         queue_length=queue_length,
         condition_frames=condition_frames,
         test_mode=True,
-        sample_key="GT"
+        sample_key="Sample"
         ),
     test_dataloader=dict(
         samples_per_gpu=1, workers_per_gpu=0, shuffle=False)
@@ -96,7 +96,9 @@ log_config = dict(
         dict(type='TextLoggerHook')
     ])
 
-checkpoint_config = dict(interval=1, max_keep_ckpts=1)
+# checkpoint_config = dict(interval=1, max_keep_ckpts=1)
+checkpoint_config = dict(interval=1)
+
 
 dist_params = dict(backend='nccl')
 log_level = 'INFO'

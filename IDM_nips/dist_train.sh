@@ -8,7 +8,8 @@ CODE_HOME=/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/IDM_nips
 CONFIG=$1
 GPUS=$2
 
-WORK_DIR=$(echo ${CONFIG%.*} | sed -e "s/configs/work_dirs/g")/
+WORK_DIR=$(echo ${CONFIG%.*} | sed -e "s/configs/work_dirs/g")
+WORK_DIR=${WORK_DIR}_${timestamp}
 echo "WORK_DIR: ${WORK_DIR}"
 
 if [ ! -d ${WORK_DIR} ]; then

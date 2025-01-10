@@ -198,6 +198,8 @@ def main():
         **cfg.data.get('test_dataloader', {})
     }
 
+    print("test_loader_cfg",  test_loader_cfg)
+
     rank, _ = get_dist_info()
     # allows not to create
     if args.work_dir is not None and rank == 0:

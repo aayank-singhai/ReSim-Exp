@@ -9,7 +9,8 @@ CONFIG=$1
 CHECKPOINT=$2
 GPUS=$3
 
-WORK_DIR=$(echo ${CONFIG%.*} | sed -e "s/configs/work_dirs/g")/
+WORK_DIR=$(echo ${CONFIG%.*} | sed -e "s/configs/work_dirs/g")
+WORK_DIR=${WORK_DIR}_${timestamp}
 echo "WORK_DIR: ${WORK_DIR}"
 
 if [ ! -d ${WORK_DIR} ]; then

@@ -8,7 +8,7 @@ import numpy as np
 from mmdet.datasets import DATASETS
 from mmdet3d.datasets import Custom3DDataset
 from pyquaternion import Quaternion
-
+from tqdm import tqdm
 
 cmd_vista_to_str = {
     0: "Right",
@@ -18,7 +18,7 @@ cmd_vista_to_str = {
 }
 
 @DATASETS.register_module()
-class NuScenesTranslationDataset(Custom3DDataset):
+class WaymoTranslationDataset(Custom3DDataset):
     CLASSES = ()
 
     def __init__(self,
@@ -34,17 +34,6 @@ class NuScenesTranslationDataset(Custom3DDataset):
         self.queue_length = queue_length
         self.condition_frames = condition_frames
 
-        if "_val" in ann_file:
-            nusc_file = "/cpfs01/shared/opendrivelab/opendrivelab_hdd/gaoshenyuan/mess/nuScenes_svd_val.json"
-        else:
-            nusc_file = "/cpfs01/shared/opendrivelab/opendrivelab_hdd/gaoshenyuan/mess/nuScenes_svd.json"
-        with open(nusc_file, "r") as nusc_json:
-            nusc_samples = json.load(nusc_json)
-
-        self.fn_mapping = dict()
-        for idx, sample in enumerate(nusc_samples):
-            self.fn_mapping[sample["frames"][0].split("/")[-1]] = sample["frames"]
-
         super().__init__(
             data_root=data_root,
             ann_file=ann_file,
@@ -54,75 +43,41 @@ class NuScenesTranslationDataset(Custom3DDataset):
             **kwargs)
 
     def load_annotations(self, ann_file):
-        data = mmcv.load(ann_file, file_format='pkl')
-        data_infos = list(sorted(data['infos'], key=lambda e: e['timestamp']))
+        data = mmcv.load(ann_file, file_format='json')
+        data_infos = list(sorted(data['clips'], key=lambda e: e['token']))
         data_infos = data_infos[::self.load_interval]
         data_infos = self.get_planning_label(data_infos)
         return data_infos
 
     def get_planning_label(self, data_infos):
         planning_infos = []
-        for index in range(len(data_infos)):
+        for index in tqdm(range(len(data_infos))):
             cur_info = data_infos[index]
+            token = cur_info['token']
+            cmd_vista = cur_info['cmd_vista']
 
-            front_img_fn = os.path.basename(cur_info['cams']['CAM_FRONT']['data_path'])
+            image_paths = cur_info['img_seq']
+            image_paths = image_paths[8: 33]
+            image_paths = [os.path.join(self.data_root, p) for p in image_paths]
 
-            if front_img_fn not in self.fn_mapping.keys():
-                continue
-            image_name_list = self.fn_mapping[front_img_fn]
-            image_paths = [os.path.join(self.data_root, fn) for fn in image_name_list]
+            assert len(image_paths) == 25
 
-            scene_token = cur_info['scene_token']
-            timestamp = cur_info['timestamp']
-            e2g_translation = np.array(cur_info['ego2global_translation'])
-            e2g_rotation = np.array(cur_info['ego2global_rotation'])
-            e2g_rotation = Quaternion(e2g_rotation).rotation_matrix
-            e2g_matrix = np.eye(4)
-            e2g_matrix[:3, :3] = e2g_rotation
-            e2g_matrix[:3, 3] = e2g_translation
-            g2e_matrix = np.linalg.inv(e2g_matrix)
-
-            # image_paths = []
-            traj = np.zeros((self.queue_length, 3), dtype=np.float32)
-            traj_mask = np.zeros((self.queue_length, 1), dtype=bool)
-
-            indices = list(range(index, index + self.queue_length))
-
-            for idx, frame_id in enumerate(indices):
-                if frame_id >= len(data_infos) or frame_id < 0:
-                    break
-                info = data_infos[frame_id]
-                if info['scene_token'] != scene_token:
-                    break
-
-                traj_mask[idx] = True
-                e2g_t = np.array(info['ego2global_translation'])
-                traj[idx] = e2g_t
-
-                # image_path = info['cams']['CAM_FRONT']['data_path']
-                # # abs path to relative path
-                # image_path = os.path.join(self.data_root, image_path)
-                # image_paths.append(image_path)
-
-            traj_xyz1 = np.concatenate([traj, np.ones((self.queue_length, 1))], axis=1)
-            traj_xyz1 = np.matmul(traj_xyz1, g2e_matrix.T)
-            traj = traj_xyz1[self.condition_frames:, :3]
-
-            if traj_mask.sum() < self.queue_length:
-                continue
+            gt_traj = cur_info['traj_fut']
+            
+            # * HARD Code, aligned with Vista
+            # TODO: Remove Hard Code
+            gt_traj = gt_traj[:4]
 
             planning_info = dict(
-                sample_idx=cur_info['token'],
-                scene_token=scene_token,
-                timestamp=timestamp,
-                img_filename=image_paths,  # * absolute paths, len: 25
-                gt_traj=traj.astype(np.float32)
+                token=token,  # * Used for sorting
+                img_filename=image_paths,
+                gt_traj=np.array(gt_traj, dtype=np.float32),
+                cmd_vista=cmd_vista,
             )
-
             planning_infos.append(planning_info)
 
         return planning_infos
-
+    
     def get_data_info(self, index):
         cur_info = self.data_infos[index]
         return copy.deepcopy(cur_info)
