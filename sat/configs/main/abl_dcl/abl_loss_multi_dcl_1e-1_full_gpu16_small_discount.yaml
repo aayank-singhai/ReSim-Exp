@@ -305,7 +305,7 @@ model:
 
       loss_weight_multi_dcl: 0.1
       k_multi_dcl: 4
-      discount_multi_dcl: 0.9  # TODO: 0.9 -> 0.6? Higher uncertainty?
+      discount_multi_dcl: 0.6
 
   sampler_config:
     target: sgm.modules.diffusionmodules.sampling.VPSDEDPMPP2MSampler
