@@ -19,6 +19,60 @@ def dump_json(data, json_path):
 def exist_file(file_path):
     return os.path.exists(file_path)
 
+def merge_json_dir(json_dir, merged_json_path, end_identifier):
+    json_files = [
+        f for f in os.listdir(json_dir) if f.startswith('waymo') and f.endswith(end_identifier)
+    ]
+    
+    print("Total number of json files: ", len(json_files))
+
+    def get_ind(filename):
+        # full_020_desc_blip2.json
+        # return int(filename.split('_')[1])
+        # ind = filename.replace(end_identifier,'').split('_')[-1]
+        ind = filename.split('_')[-1].replace(end_identifier, '')
+        return int(ind)
+    
+    json_files.sort(key=get_ind)
+    print("After sorted, the first 5 files are: ", json_files[:5])
+
+    # Initialize an empty list to store the data from each JSON file
+    total_cnt = 0
+
+    first_json = os.path.join(json_dir, json_files[0])
+    first_json = load_json(first_json)
+    meta = first_json['meta']
+    # info_annos = first_json['info_annos']
+    merged_clips = []
+    
+    # Read each JSON file and append its data to the merged_data list
+    for json_file in tqdm(json_files):
+        json_path = os.path.join(json_dir, json_file)
+        data = load_json(json_path)
+        merged_clips.extend(data["clips"])
+        total_cnt += len(data["clips"])
+
+    # merged = dict()
+    # merged['meta'] = {
+    #     'frame_rate': frame_rate,
+    #     'total_counts': total_cnt
+    # }
+    # merged['annotations'] = merged_data
+
+    merged = dict(
+        meta=meta,
+        # info_annos=info_annos,
+        clips=merged_clips
+    )
+
+    merged['meta']['num_clips'] = total_cnt
+
+    assert total_cnt == meta['num_clips'], f"{total_cnt} != {meta['num_clips']}"
+    # merged_json_path = os.path.join('/cpfs01/user/yangjiazhi/workspace/Ask-Anything/video_chat/youtube_process', 'full_merged.json')
+    # merged_json_path = '/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/custom_data/youtube_json/YouTube_merged.json'
+    dump_json(merged, merged_json_path)
+    print(f'Merged JSON file saved to: {merged_json_path}')
+    print(f'Total counts: {total_cnt}')
 
 # * Following /cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/custom_data/waymo/_deprecated/waymo_val_all.json
 def create_waymo_raw_json(image_folder):
@@ -407,7 +461,10 @@ if __name__ == '__main__':
 
     print("Done!")
 
+    # * Step4 Merge json
+    # merge_json_dir(json_dir='/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/custom_data/waymo/train/splits', merged_json_path='/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/custom_data/waymo/train/waymo_train_traj_cmd_v2.json', end_identifier='.json')
 
-    # * Step4
+
+    # * Step4 Downsample
     # downsample_waymo("/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/custom_data/waymo/v2/waymo_val_traj_cmd_v2.json", n_downsample_per_cmd=375)
     # import pdb; pdb.set_trace()
