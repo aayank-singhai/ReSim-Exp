@@ -246,6 +246,10 @@ class SATVideoDiffusionEngine(nn.Module):
                 if n_frame_per_round == 17:
                     # slice the video, overlap: 1
                     # tmp_chunks = [x_sample[:,:,:17], x_sample[:,:,16:33], x_sample[:,:,32:49]]
+
+                    # TODO: Think twice, will this slice effect training?
+                    # TODO: Bug??
+                    # TODO: Should we also adjust the decoding part?
                     chunk_left_right = [[0, 17], [16, 33], [32, 49]]
                     for ch_ind, (left, right) in enumerate(chunk_left_right):
                         chunk = x_sample[:,:,left:right].contiguous()

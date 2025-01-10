@@ -81,7 +81,7 @@ class VideoDiffusionLoss(StandardDiffusionLoss):
                  contained_aug_t=False,
                  exclude_cond_from_loss=True,
                  loss_weight_short_dcl=False,
-                 loss_weight_multi_dcl=False,
+                 loss_weight_multi_dcl=False,  # * already include short_dcl
                  k_multi_dcl=1,
                  discount_multi_dcl=1,
                 **kwargs):
@@ -268,6 +268,7 @@ class VideoDiffusionLoss(StandardDiffusionLoss):
             return loss
 
         elif type == "multi":
+            loss_multi = dict()
             # * K Dynamics
             k_multi = self.k_multi_dcl
             discount_factor = 1.
@@ -282,18 +283,25 @@ class VideoDiffusionLoss(StandardDiffusionLoss):
 
                 discount_factor = discount_factor * self.discount_multi_dcl
 
-                if i == 1:
-                    loss = k_loss
-                else:
-                    loss += k_loss
-            
-            loss = loss * loss_weight
-                
-            loss = {
-                'loss_multi_dc': loss
-            }
 
-            return loss
+                loss_multi[f'loss_multi_dc_{i}'] = k_loss
+                # if i == 1:
+                #     loss = k_loss
+                # else:
+                #     loss += k_loss
+            
+            # * apply final loss_weight
+            # import pdb; pdb.set_trace()
+            loss_multi = {k: v * loss_weight for k, v in loss_multi.items()}
+
+            # loss = loss * loss_weight
+                
+            # loss = {
+            #     'loss_multi_dc': loss
+            # }
+
+            return loss_multi
+            # return loss
 
 
 def get_3d_position_ids(frame_len, h, w):
