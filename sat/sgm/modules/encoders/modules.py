@@ -75,12 +75,11 @@ class GeneralConditioner(nn.Module):
     # KEY2CATDIM = {"vector": 1, "crossattn": 2, "concat": 1}
     KEY2CATDIM = {"vector": 1, "crossattn": 1, "concat": 1}  # cat text and traj on dim 1
 
-
     # * Custom
     # OUTPUT_DIM2KEYS = {2: "vector", 3: "sequence", 4: "concat", 5: "concat"}
     # KEY2CATDIM = {"vector": 1, "sequence": 1, "concat": 1}
 
-    def __init__(self, emb_models: Union[List, ListConfig], cor_embs=[], cor_p=[]):
+    def __init__(self, emb_models: Union[List, ListConfig]):
         super().__init__()
         embedders = []
         for n, embconfig in enumerate(emb_models):
@@ -107,51 +106,19 @@ class GeneralConditioner(nn.Module):
             else:
                 raise KeyError(f"need either 'input_key' or 'input_keys' for embedder {embedder.__class__.__name__}")
 
-            embedder.legacy_ucg_val = embconfig.get("legacy_ucg_value", None)
-            if embedder.legacy_ucg_val is not None:
-                embedder.ucg_prng = np.random.RandomState()
-
             embedders.append(embedder)
         self.embedders = nn.ModuleList(embedders)
-
-        if len(cor_embs) > 0:
-            assert len(cor_p) == 2 ** len(cor_embs)
-        self.cor_embs = cor_embs
-        self.cor_p = cor_p
-
-    def possibly_get_ucg_val(self, embedder: AbstractEmbModel, batch: Dict) -> Dict:
-        assert embedder.legacy_ucg_val is not None
-        p = embedder.ucg_rate
-        val = embedder.legacy_ucg_val
-        for i in range(len(batch[embedder.input_key])):
-            if embedder.ucg_prng.choice(2, p=[1 - p, p]):
-                batch[embedder.input_key][i] = val
-        return batch
-
-    def surely_get_ucg_val(self, embedder: AbstractEmbModel, batch: Dict, cond_or_not) -> Dict:
-        assert embedder.legacy_ucg_val is not None
-        val = embedder.legacy_ucg_val
-        for i in range(len(batch[embedder.input_key])):
-            if cond_or_not[i]:
-                batch[embedder.input_key][i] = val
-        return batch
 
     def get_single_embedding(
         self,
         embedder,
         batch,
         output,
-        cond_or_not: Optional[np.ndarray] = None,
         force_zero_embeddings: Optional[List] = None,
     ):
         embedding_context = nullcontext if embedder.is_trainable else torch.no_grad
         with embedding_context():
             if hasattr(embedder, "input_key") and (embedder.input_key is not None):
-                if embedder.legacy_ucg_val is not None:
-                    if cond_or_not is None:
-                        batch = self.possibly_get_ucg_val(embedder, batch)
-                    else:
-                        batch = self.surely_get_ucg_val(embedder, batch, cond_or_not)
                 emb_out = embedder(batch[embedder.input_key])
             elif hasattr(embedder, "input_keys"):
                 emb_out = embedder(*[batch[k] for k in embedder.input_keys])
@@ -163,25 +130,17 @@ class GeneralConditioner(nn.Module):
         for emb in emb_out:
             out_key = self.OUTPUT_DIM2KEYS[emb.dim()]
             # emb.shape: [2, 226, 4096]
-            if embedder.ucg_rate > 0.0 and embedder.legacy_ucg_val is None:
-                if cond_or_not is None:
-                    emb = (
-                        expand_dims_like(
-                            torch.bernoulli((1.0 - embedder.ucg_rate) * torch.ones(emb.shape[0], device=emb.device)),
-                            emb,
-                        )
-                        * emb
+            if embedder.ucg_rate > 0.0:
+                emb = (
+                    expand_dims_like(
+                        torch.bernoulli((1.0 - embedder.ucg_rate) * torch.ones(emb.shape[0], device=emb.device)),
+                        emb,
                     )
-                else:
-                    emb = (
-                        expand_dims_like(
-                            torch.tensor(1 - cond_or_not, dtype=emb.dtype, device=emb.device),
-                            emb,
-                        )
-                        * emb
-                    )
+                    * emb
+                )
 
             # * Deal with with_traj for joint training on OpenDV and nuPlan
+            # TODO: Move this into traj_enc?
             with_traj = batch.get('with_traj', None)
             if with_traj is not None and embedder.input_key == 'fut_traj':
                 emb = emb * with_traj.view(-1, 1, 1).float()
@@ -200,26 +159,11 @@ class GeneralConditioner(nn.Module):
         if force_zero_embeddings is None:
             force_zero_embeddings = []
 
-        # * self.cor_embs: []
-
-        if len(self.cor_embs) > 0:
-            # NOT Getting here
-            batch_size = len(batch[list(batch.keys())[0]])
-            rand_idx = np.random.choice(len(self.cor_p), size=(batch_size,), p=self.cor_p)
-            for emb_idx in self.cor_embs:
-                cond_or_not = rand_idx % 2
-                rand_idx //= 2
-                output = self.get_single_embedding(
-                    self.embedders[emb_idx],
-                    batch,
-                    output=output,
-                    cond_or_not=cond_or_not,
-                    force_zero_embeddings=force_zero_embeddings,
-                )
-
+        # * self.embedders[0]
+        # * - FrozenT5Embedder
+        # * self.embedders[1]
+        # * - TrajEncoder
         for i, embedder in enumerate(self.embedders):
-            if i in self.cor_embs:
-                continue
             output = self.get_single_embedding(
                 embedder, batch, output=output, force_zero_embeddings=force_zero_embeddings
             )
@@ -232,18 +176,12 @@ class GeneralConditioner(nn.Module):
         for embedder in self.embedders:
             ucg_rates.append(embedder.ucg_rate)
             embedder.ucg_rate = 0.0
-        cor_embs = self.cor_embs
-        cor_p = self.cor_p
-        self.cor_embs = []
-        self.cor_p = []
 
         c = self(batch_c, force_zero_embeddings=force_c_zero_embeddings)
         uc = self(batch_c if batch_uc is None else batch_uc, force_uc_zero_embeddings)
 
         for embedder, rate in zip(self.embedders, ucg_rates):
             embedder.ucg_rate = rate
-        self.cor_embs = cor_embs
-        self.cor_p = cor_p
 
         return c, uc
 
