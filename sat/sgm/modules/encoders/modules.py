@@ -167,8 +167,10 @@ class GeneralConditioner(nn.Module):
             output = self.get_single_embedding(
                 embedder, batch, output=output, force_zero_embeddings=force_zero_embeddings
             )
+
         return output
 
+    # TODO, Check this, Should I set ucg to 0 in configs during inference?
     def get_unconditional_conditioning(self, batch_c, batch_uc=None, force_uc_zero_embeddings=None, force_c_zero_embeddings=None):
         if force_uc_zero_embeddings is None:
             force_uc_zero_embeddings = []
@@ -234,3 +236,43 @@ class FrozenT5Embedder(AbstractEmbModel):
 
     def encode(self, text):
         return self(text)
+
+
+
+class VideoRegisterEmbedder(AbstractEmbModel):
+    """Uses the T5 transformer encoder for text"""
+
+    def __init__(
+        self,
+        n_register_token=10,
+        dim=512,
+        zero_init=False,  # * no gradient?
+        freeze=False,
+    ):
+        super().__init__()
+        self.n_register_token = n_register_token
+        self.dim = dim
+
+        if zero_init:
+            self.register_tokens = nn.Parameter(
+                torch.zeros(n_register_token, dim)
+            )
+        else:
+            self.register_tokens = nn.Parameter(
+                torch.randn(n_register_token, dim)
+            )  # * Rand-init or zero-init?
+        if freeze:
+            self.freeze()
+
+    def freeze(self):
+        self.register_tokens.requires_grad = False
+
+    def forward(self, video):
+        bs = video.size(0)
+        tokens = repeat(
+            self.register_tokens, 
+            'n d -> b n d', 
+            b=bs
+        )
+
+        return tokens

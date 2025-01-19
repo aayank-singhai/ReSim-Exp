@@ -53,7 +53,9 @@ def get_batch(keys, value_dict, N: Union[List, ListConfig], T=None, device="cuda
         if key == "txt":
             batch["txt"] = np.repeat([value_dict["prompt"]], repeats=math.prod(N)).reshape(N).tolist()
             batch_uc["txt"] = np.repeat([value_dict["negative_prompt"]], repeats=math.prod(N)).reshape(N).tolist()
-        else:
+        # else:
+        #     batch[key] = value_dict[key]
+        elif key in value_dict.keys():
             batch[key] = value_dict[key]
 
     if T is not None:
@@ -287,6 +289,7 @@ def sampling_main(args, model_cls):
             print("start to process", text, ind_batch)
 
             value_dict = {
+                "mp4": batch["mp4"].to(device),
                 "prompt": text,
                 "negative_prompt": "",
                 "num_frames": torch.tensor(T).unsqueeze(0),  # TODO: Check what's the use of num_frames
@@ -312,7 +315,7 @@ def sampling_main(args, model_cls):
                     print(key, [len(l) for l in batch[key]])
                 else:
                     print(key, batch[key])
-            
+
             c, uc = model.conditioner.get_unconditional_conditioning(
                 batch,
                 batch_uc=batch_uc,
