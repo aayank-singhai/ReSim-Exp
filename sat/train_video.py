@@ -125,7 +125,7 @@ def broad_cast_batch(batch):
     if batch["mp4"] is not None:
         shape_keys = ['mp4', 'fps', 'num_frames', 'fut_traj']
         broadcast_shape = {
-            key: batch[key].shape for key in shape_keys
+            key: batch[key].shape for key in shape_keys if key in batch.keys()
         }
     else:
         broadcast_shape = None

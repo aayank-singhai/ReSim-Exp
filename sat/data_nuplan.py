@@ -4,7 +4,6 @@ import sys
 from functools import partial
 import math
 import torchvision.transforms as TT
-from sgm.webds import MetaDistributedWebDataset
 import random
 from fractions import Fraction
 from typing import Union, Optional, Dict, Any, Tuple
@@ -24,8 +23,9 @@ import json
 from PIL import Image
 
 
-def load_json(json_path):
-    print("Loading json: {}".format(json_path))
+def load_json(json_path, verbose=True):
+    if verbose:
+        print("Loading json: {}".format(json_path))
     with open(json_path) as f:
         data = json.load(f)
     return data
@@ -94,7 +94,6 @@ cmd_to_action = {
     2: "Turning_Right",
 }
 
-# TODO: Sample weights according to action
 # TODO: Improve data loading: load clip as a dict, rather than each attributes separately
 class nuPlanDataset(Dataset):
 
@@ -111,7 +110,9 @@ class nuPlanDataset(Dataset):
                 p_drop_action_caption=0,
                 traj_key='traj_fut',
                 n_subset=None,  # 30
-                ind_subset=None,  # 0,...,29
+                ind_subset=None,  # 0,...,2
+                token_json=None,
+                scene_tensor_json_folder=None,
                 **kwargs):
         """
         skip_frms_num: ignore the first and the last xx frames, avoiding transitions.
@@ -138,7 +139,9 @@ class nuPlanDataset(Dataset):
         self.p_mask_out_heading = p_mask_out_heading
         self.p_drop_action_caption = p_drop_action_caption
         self.traj_key = traj_key
-
+        self.token_json = token_json
+        
+        self.scene_tensor_json_folder = scene_tensor_json_folder
         self.load_data_json(data_dir, n_subset=n_subset, ind_subset=ind_subset)
 
     # * Repeat data here
@@ -148,12 +151,20 @@ class nuPlanDataset(Dataset):
         self.data_root = data_root
 
         clip_infos = infos['clips']
+    
+        if self.token_json is not None:
+            token_json = load_json(self.token_json)
+            token_keep = token_json.keys()
+            clip_infos = [clip for clip in clip_infos if clip['lidar_pc_token'] in token_keep]
+
         if n_subset is not None and ind_subset is not None:
             print("Using subset: {}/{}".format(ind_subset, n_subset))
             length_per_subset = math.ceil(len(clip_infos) / n_subset)
             start_ind = ind_subset * length_per_subset
             end_ind = (ind_subset + 1) * length_per_subset
             clip_infos = clip_infos[start_ind:end_ind]
+
+        print("Using {} clips".format(len(clip_infos)))
 
         caption_key = "cmd"
 
@@ -172,7 +183,22 @@ class nuPlanDataset(Dataset):
 
             token_key = 'lidar_pc_token' if 'lidar_pc_token' in clip else 'token'
             lidar_pc_token = clip[token_key]
-            
+
+            if self.scene_tensor_json_folder is not None:
+                scene_tensor_json = os.path.join(self.scene_tensor_json_folder, lidar_pc_token + '.json')
+                scene_tensor_json = load_json(scene_tensor_json, verbose=False)
+                scene_tensor = scene_tensor_json[lidar_pc_token]['tensor']
+                scene_tensor_valid = scene_tensor_json[lidar_pc_token]['validity']
+                scene_tensor = torch.from_numpy(np.array(scene_tensor))  # [129, 21, 8]
+                scene_tensor_valid = torch.from_numpy(np.array(scene_tensor_valid))  # [129, 21]
+                scene_tensor_valid = scene_tensor_valid.unsqueeze(2)  # [129, 21, 1]
+                scene_tensor = torch.cat([scene_tensor, scene_tensor_valid], dim=2)  # [129, 21, 9]
+                scene_tensor = scene_tensor.permute(1, 0, 2)  # [21, 129, 9]   # * First dim is time, second number of agents
+                scene_tensor = scene_tensor.reshape(scene_tensor.shape[0], -1)  # flatten [21, 1161]
+                # !! Use fut_traj as scene_tensor
+                fut_traj = scene_tensor[4: 12]
+                assert fut_traj.shape[0] == self.n_fut_traj_points
+
             sample_caption = raw_caption
 
             sample_caption = sample_caption.replace("_", " ").lower()  # * MINOR FIX: Converting action to lowercase

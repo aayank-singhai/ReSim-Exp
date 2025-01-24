@@ -234,7 +234,7 @@ def sampling_main(args, model_cls):
 
     device = model.device
 
-    out_root = "/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/outputs"
+    out_root = "/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/outputs_hdd"
     if isinstance(args.base, list):
         cfg_path = args.base[0]
     else:
