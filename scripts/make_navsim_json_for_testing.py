@@ -1,6 +1,5 @@
 import json
 import yaml
-from tqdm import tqdm
 import argparse
 import os
 import cv2
@@ -68,7 +67,8 @@ def make_navsim_json_from_folder(output_folder):
     # import pdb; pdb.set_trace()
 
     # save_root = '/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/navsim_eval'
-    save_root = '/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/navsim_eval/debug2'
+    # save_root = '/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/navsim_eval/debug2'
+    save_root = output_folder
 
     folder_name = os.path.basename(output_folder)
     save_name = os.path.join(save_root, folder_name)
@@ -79,12 +79,15 @@ def make_navsim_json_from_folder(output_folder):
 
     n_subfolders = len(os.listdir(output_folder))
     # os.walk: get all files with .mp4 extension
+
+    total_walks = len(list(os.walk(output_folder)))
     N_GEN = 1000
-    for i, (root, dirs, files) in enumerate(os.walk(output_folder)):
-        DEBUG = True
+    for i, (root, dirs, files) in tqdm(enumerate(os.walk(output_folder)), total=total_walks):
+        DEBUG = False  # !!! DEBUG
         if DEBUG:
             if i > N_GEN: break
-        print(f"Processing {i}/{n_subfolders}...")
+        # print(f"Processing {i}/{n_subfolders}...")
+
         for file in files:
             if file.endswith(".mp4") and "Sample" in file:
                 clip = dict()
@@ -108,9 +111,11 @@ def make_navsim_json_from_folder(output_folder):
     dump_json(data, save_name)
 
 if __name__ == "__main__":
-    # parser = argparse.ArgumentParser()
-    # parser.add_argument("--folder_path", type=str, required=True)
-    # args = parser.parse_args()
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--folder_path", type=str, required=True)
+    args = parser.parse_args()
+
+    print(f"Processing folder: {args.folder_path}")
     # json_path = '/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/navsim_eval/debug/infer_nuplan5_lora_not-contained_all_tokens_resume-from-256_not-apply-traj_planning-11-01-14-30.json'
     # json_path = '/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/navsim_eval/infer_nuplan5_lora_not-contained_all_tokens_resume-from-256_not-apply-traj_planning-11-01-14-30.json'
     
@@ -124,7 +129,8 @@ if __name__ == "__main__":
     # import pdb; pdb.set_trace()
 
     # folder_path = '/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/outputs/infer_nuplan5_lora_not-contained_all_tokens_resume-from-256_not-apply-traj_planning-11-01-14-30'
+    
     # folder_path = '/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/outputs/reward_infer_nuplan5_lora_resume-from-256_wm_pred-traj-12-04-11-27'
-    folder_path = '/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/outputs/reward_infer_nuplan5_lora_resume-from-256_wm_gt-traj-12-04-11-23'
+    # folder_path = '/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/outputs/reward_infer_nuplan5_lora_resume-from-256_wm_gt-traj-12-04-11-23'
 
-    make_navsim_json_from_folder(folder_path)
+    make_navsim_json_from_folder(args.folder_path)

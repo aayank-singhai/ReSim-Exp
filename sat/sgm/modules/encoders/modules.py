@@ -253,14 +253,15 @@ class VideoRegisterEmbedder(AbstractEmbModel):
         self.n_register_token = n_register_token
         self.dim = dim
 
-        if zero_init:
-            self.register_tokens = nn.Parameter(
-                torch.zeros(n_register_token, dim)
-            )
-        else:
-            self.register_tokens = nn.Parameter(
-                torch.randn(n_register_token, dim)
-            )  # * Rand-init or zero-init?
+        # if zero_init:
+        #     self.register_tokens = nn.Parameter(
+        #         torch.zeros(n_register_token, dim)
+        #     )
+        # else:
+        assert not zero_init, "Zero-init will lead to all-zero embeddings without receiving gradient"
+        self.register_tokens = nn.Parameter(
+            torch.randn(n_register_token, dim)
+        )  # * Rand-init or zero-init?
         if freeze:
             self.freeze()
 

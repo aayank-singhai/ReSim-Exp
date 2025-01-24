@@ -252,6 +252,8 @@ class VideoDiffusionLoss(StandardDiffusionLoss):
             loss = self.lpips(model_output, target).reshape(-1)
             return loss
     
+
+    # TODO: Normalize by the scale of target dynamics
     def get_dynamics_consistency_loss(self, model_output, target, w, type='short', loss_weight=1.):
         if type == "short":
             # * Dynamics
@@ -274,6 +276,7 @@ class VideoDiffusionLoss(StandardDiffusionLoss):
             discount_factor = 1.
             for i in range(1, k_multi + 1):
                 # * Dynamics
+                # * Normalize?
                 dynamics_model_output = model_output[:, i:] - model_output[:, :-i]
                 dynamics_target = target[:, i:] - target[:, :-i]
                 

@@ -135,7 +135,8 @@ class ViT(nn.Module):
         return self.mlp_head(cls_tokens)
 
 class TrajEncoder(AbstractEmbModel):
-    def __init__(self, *, seq_len, dim, out_dim, depth, mlp_dim, heads=8, channels = 3, dim_head = 64, dropout = 0., emb_dropout = 0., 
+    def __init__(self, *, seq_len, dim, out_dim, depth, mlp_dim, heads=8, dim_head = 64, dropout = 0., emb_dropout = 0.,
+                 channels = 3,
                  pos_emb="learnable",
                  avoid_first_ln=False,
                  use_all_tokens=False,
