@@ -162,7 +162,7 @@ class SATVideoDiffusionEngine(nn.Module):
             if not is_scalar(v):
                 loss[k] = v.mean()  # * mean loss for different losses
 
-        loss_mean = sum(loss.values())
+        loss_mean = sum(loss.values())  # * sum all losses for bp
 
         # return loss_mean, loss_dict
         return loss_mean, loss

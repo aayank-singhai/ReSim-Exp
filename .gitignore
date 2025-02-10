@@ -11,6 +11,7 @@ local_save/
 ckpts/
 tmp*/
 outputs/
+outputs_hdd
 nuscenes/
 nuscenes
 custom_data/

@@ -53,6 +53,75 @@ def load_image(path, scale=1.0):
         img = cv2.resize(img, new_size)
     return img
 
+def merge_json_dir(json_dir, merged_json_path, end_identifier):
+    # json_files = [
+    #     f for f in os.listdir(json_dir) if f.startswith('waymo') and f.endswith(end_identifier)
+    # ]
+
+    json_files = [
+        f for f in os.listdir(json_dir) if 'filtered' in f and f.endswith(end_identifier)
+    ]
+    
+    print("Total number of json files: ", len(json_files))
+
+    def get_ind(filename):
+        ind = filename.split('_')[-1].replace(end_identifier, '')
+        return int(ind)
+    
+    json_files.sort(key=get_ind)
+    print("After sorted, the first 5 files are: ", json_files[:5])
+
+    # Initialize an empty list to store the data from each JSON file
+    total_cnt = 0
+
+    first_json = os.path.join(json_dir, json_files[0])
+    first_json = load_json(first_json)
+    meta = first_json['meta']
+    # info_annos = first_json['info_annos']
+    merged_clips = []
+    
+    # Read each JSON file and append its data to the merged_data list
+    for json_file in tqdm(json_files):
+        json_path = os.path.join(json_dir, json_file)
+        data = load_json(json_path)
+        merged_clips.extend(data["clips"])
+        total_cnt += len(data["clips"])
+
+    # merged = dict()
+    # merged['meta'] = {
+    #     'frame_rate': frame_rate,
+    #     'total_counts': total_cnt
+    # }
+    # merged['annotations'] = merged_data
+
+    merged = dict(
+        meta=meta,
+        # info_annos=info_annos,
+        clips=merged_clips
+    )
+
+    # merged['meta']['num_clips'] = total_cnt
+    merged['meta']['num_clips_filtered'] = total_cnt
+
+    # assert total_cnt == meta['num_clips'], f"{total_cnt} != {meta['num_clips']}"
+
+
+    # merged_json_path = os.path.join('/cpfs01/user/yangjiazhi/workspace/Ask-Anything/video_chat/youtube_process', 'full_merged.json')
+    # merged_json_path = '/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/custom_data/youtube_json/YouTube_merged.json'
+    dump_json(merged, merged_json_path)
+    print(f'Merged JSON file saved to: {merged_json_path}')
+    print(f'Total counts: {total_cnt}')
+
+
+# data = load_json('/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/custom_data/youtube_json/YouTube_svd_clip-len-49_interval-10_5M_flow_round2_filtered.json')
+# import pdb; pdb.set_trace()
+
+# merge_json_dir('/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/custom_data/youtube_json/scene_cut', 
+#                '/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/custom_data/youtube_json/scene_cut/merged.json',
+#                '.json')
+
+# import pdb; pdb.set_trace()
+
 # Use PySceneDetect to detect transition frames in a video clip
 import scenedetect
 from scenedetect import VideoManager, SceneManager
