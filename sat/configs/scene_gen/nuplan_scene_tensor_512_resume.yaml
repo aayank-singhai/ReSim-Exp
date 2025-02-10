@@ -1,40 +1,38 @@
-# TODO: 
-# - Larger bs
-# - Grad Norm Clip
-# - Offset Noise
-# - Video Offset Noise
-
-# * Resumed from main5_joint_stage2_high_small-lr_full 30k steps
+# * Larger LR: 1e-5 -> 1e-4
+# * Action zero-init
+# * Action balance
+# * Bugfix: skip 3 -> skip 7
+# * Condition frames: 0, 3 -> 0, 1, 2, 3
+# * Mask out heading: 0.3
+# * Use all tokens
 
 args:
   checkpoint_activations: True ## using gradient checkpointing
   model_parallel_size: 1
   experiment_name: nus
   mode: finetune
-  # load: "/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/sat/ckpts/main5_joint_stage2_high_small-lr_full-12-14-07-46/30000/mp_rank_00_model_states.pt"
-  load: "/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/sat/tmp_ckpts/main5_joint_stage2_high_small-lr_full_one-frame-focus-01-24-07-28/39000/mp_rank_00_model_states.pt"
-  
+  # load: "/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/sat/ckpts/ckpts0/_important/nuplan5_lora_not-contained_all_token_resume-from-256-10-28-20-48/42000/mp_rank_00_model_states.pt"
+  # load: "/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/sat/ckpts/ckpts0/_important/nuplan5_lora_not-contained_all_token_resume-from-256-10-28-20-48/42000/mp_rank_00_model_states_removed.pt"
+  # load: "/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/sat/ckpts/ckpts0/_important/nuplan5_lora_not-contained_all_token_resume-from-256-10-28-20-48/REMOVED_TRJ_ENC_42000/mp_rank_00_model_states.pt"
+  load: "/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/sat/tmp_ckpts/nuplan_scene_tensor_512-01-22-05-33/6000/mp_rank_00_model_states.pt"
   no_load_rng: True
   # train_iters: 10000
-  train_iters: 300000
+  train_iters: 1000000
   eval_iters: 1
-  eval_interval: 100000  # * Log video every 100 iterations
+  eval_interval: 1000000  # * Log video every 100 iterations
   eval_batch_size: 1
   save: tmp_ckpts
-  save_interval: 1500  # * Save checkpoints
+  save_interval: 2000  # * Save checkpoints
   log_interval: 20   # * Log info
 
   train_data: [
-    "/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/custom_data/youtube_json/YouTube_svd_clip-len-49_interval-10_5M_flow_round2.json",  # * OpenDV
-    "/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/custom_data/navsim/token2info_train_list.json"  # * navsim
+    # "/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/custom_data/navsim/token2info_test_all_list.json"  # ! For faster loading
+    "/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/custom_data/navsim/token2info_train_list.json" # * Previous train-val, now train-only
   ]
   valid_data: [
-   "/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/custom_data/navsim/token2info_test_all_list.json" 
+    # "/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/custom_data/navsim/token2info_test_all_list.json" 
+    "/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/custom_data/navsim/token2info_train_list.json"
   ]
-
-  train_data_weights: [1, 40]
-  # * OpenDV: 1, 5M
-  # * navsim: 40, 40 * 80k = 3.2M
 
   split: 1,0,0
   # num_workers: 0  # !!! DEBUG
@@ -46,35 +44,38 @@ args:
   lr_decay_style: 'constant'  # !!!!!! Using constant LR
 
 data:
-    target: data_multi.MultiSourceDataset
+    # target: data_video_custom.SFTDataset
+    target: data_nuplan.nuPlanDataset
     params:
       # video_size: [480, 720]
 
       video_size: [512, 896]
       fps: 10
       max_num_frames: 49
-      skip_frms_num: 7.
+      skip_frms_num: 7.  # * Skip first 7 frames (past frames saved in json, but not needed.)
       prefix_prompt: "This video depicts a realistic view from the driver's perspective of a car driving on the road."
-      
-      merge_static: True           # merging static to forward
-      exclude_highly_static: True  # exclude highly static
-      
-      p_mask_out_heading: 0.5     # * Inference: 0.
+
+      p_mask_out_heading: 0.    # * Inference: 0.
       p_drop_action_caption: 0.5  # * Inference: 0.
 
       # # navsim train: {'Moving_Forward': 54414, 'Turning_Right': 9128, 'Turning_Left': 21567}
       n_repeat_of_actions:
-        Static: 1
         Moving_Forward: 1
         Turning_Left: 5
         Turning_Right: 5
+      
+      token_json: /cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/custom_data/navsim/scene_gen/scene_gen_token_train.json
+      # token_json: /cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/custom_data/navsim/scene_gen/scene_gen_token_test.json  # ! For faster loading
+      scene_tensor_json_folder: "/cpfs01/shared/opendrivelab/opendrivelab_hdd/yangjiazhi/GenADv3/misc/token2info_train_list_sg"
+      # scene_tensor_json_folder: "/cpfs01/shared/opendrivelab/opendrivelab_hdd/yangjiazhi/GenADv3/misc/token2info_test_all_list_sg"  # ! For faster loading
+      
 
 deepspeed:
   # train_micro_batch_size_per_gpu: 1
-  train_micro_batch_size_per_gpu: 2  # * 4 will lead to error
+  train_micro_batch_size_per_gpu: 2   # * Larger bs
   gradient_accumulation_steps: 1
   steps_per_print: 50
-  gradient_clipping: 0.1  # TODO: smaller grad clip??
+  gradient_clipping: 0.1
   zero_optimization:
     stage: 2
     cpu_offload: false
@@ -99,8 +100,7 @@ deepspeed:
       lr: 0.00001
       betas: [0.9, 0.95]
       eps: 1e-8
-      weight_decay: 1e-4   
-      # ! To avoid nan loss, weight_decay should be larger? cosmos use 0.1 and 0.2
+      weight_decay: 1e-4
   activation_checkpointing:
     partition_activations: false
     contiguous_memory_optimization: false
@@ -145,7 +145,6 @@ model:
       elementwise_affine: True
       num_frames: 49
       time_compressed_rate: 4
-      
       # * For (480, 720), originally supported
       # latent_width: 90
       # latent_height: 60
@@ -219,7 +218,7 @@ model:
         # * traj enc
         - is_trainable: true
           input_key: fut_traj
-          ucg_rate: 0.2    # * Learn more action control
+          ucg_rate: 0.15    # * Small drop rate for scene tensor
           target: sgm.modules.encoders.traj_encoder.TrajEncoder
           
           params:
@@ -232,6 +231,7 @@ model:
             avoid_first_ln: true
             zero_init: true
             use_all_tokens: true  # * 9 tokens
+            channels: 1161  # * input channel
 
   first_stage_config:
     target: vae_modules.autoencoder.VideoAutoencoderInferenceWrapper
@@ -288,9 +288,9 @@ model:
         - [0, 1, 2]
       cond_inds_prob:
         - 0.1
-        - 0.6
         - 0.15
-        - 0.15  # * For [0, 1, 2]
+        - 0.15
+        - 0.6  # * For [0, 1, 2]
 
       apply_cond_aug: &cond_aug V2
       sigma_sampler_config:
@@ -303,7 +303,6 @@ model:
             target: sgm.modules.diffusionmodules.discretizer.ZeroSNRDDPMDiscretization
             params:
               shift_scale: 3.0
-
 
   sampler_config:
     target: sgm.modules.diffusionmodules.sampling.VPSDEDPMPP2MSampler

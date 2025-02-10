@@ -4,24 +4,24 @@
 # - Offset Noise
 # - Video Offset Noise
 
-# * Resumed from main5_joint_stage2_high_small-lr_full 30k steps
+# * Resumed from main5_joint_stage2_high_small-lr-12-08-06-48 (15000 steps)
 
 args:
   checkpoint_activations: True ## using gradient checkpointing
   model_parallel_size: 1
   experiment_name: nus
   mode: finetune
-  # load: "/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/sat/ckpts/main5_joint_stage2_high_small-lr_full-12-14-07-46/30000/mp_rank_00_model_states.pt"
-  load: "/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/sat/tmp_ckpts/main5_joint_stage2_high_small-lr_full_one-frame-focus-01-24-07-28/39000/mp_rank_00_model_states.pt"
+  load: "/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/sat/ckpts/ckpts0/_important/main5_joint_stage2_high-11-29-03-11"
   
   no_load_rng: True
   # train_iters: 10000
   train_iters: 300000
   eval_iters: 1
-  eval_interval: 100000  # * Log video every 100 iterations
+  eval_interval: 10000  # * Log video every 100 iterations
   eval_batch_size: 1
   save: tmp_ckpts
-  save_interval: 1500  # * Save checkpoints
+  # save_interval: 2500  # * Save checkpoints
+  save_interval: 1000
   log_interval: 20   # * Log info
 
   train_data: [
@@ -99,8 +99,7 @@ deepspeed:
       lr: 0.00001
       betas: [0.9, 0.95]
       eps: 1e-8
-      weight_decay: 1e-4   
-      # ! To avoid nan loss, weight_decay should be larger? cosmos use 0.1 and 0.2
+      weight_decay: 1e-4
   activation_checkpointing:
     partition_activations: false
     contiguous_memory_optimization: false
@@ -175,8 +174,9 @@ model:
         pos_embed_config:
           target: dit_video_concat.Basic3DPositionEmbeddingMixin
           params:
-            text_length: 235  # TODO: Need to be adjusted with traj feature length
+            text_length: 245  # TODO: Need to be adjusted with traj feature length
             # * 226 + 9 = 235
+            # * 235 + 10 = 245  # * Video Register
             # height_interpolation: 1.875  # * cur_height // 256
             # width_interpolation: 1.875   # * cur_width  // 384
 
@@ -219,7 +219,7 @@ model:
         # * traj enc
         - is_trainable: true
           input_key: fut_traj
-          ucg_rate: 0.2    # * Learn more action control
+          ucg_rate: 0.5    # * stage1:0.2 -> stage2: 0.5, action (world model) and no-action (planning model)
           target: sgm.modules.encoders.traj_encoder.TrajEncoder
           
           params:
@@ -232,6 +232,16 @@ model:
             avoid_first_ln: true
             zero_init: true
             use_all_tokens: true  # * 9 tokens
+        
+        - is_trainable: true
+          input_key: mp4
+          ucg_rate: 0.  # * Always apply
+          target: sgm.modules.encoders.modules.VideoRegisterEmbedder
+          
+          params:
+            n_register_token: 10
+            dim: 4096
+            zero_init: true
 
   first_stage_config:
     target: vae_modules.autoencoder.VideoAutoencoderInferenceWrapper
@@ -288,9 +298,9 @@ model:
         - [0, 1, 2]
       cond_inds_prob:
         - 0.1
-        - 0.6
         - 0.15
-        - 0.15  # * For [0, 1, 2]
+        - 0.15
+        - 0.6  # * For [0, 1, 2]
 
       apply_cond_aug: &cond_aug V2
       sigma_sampler_config:
@@ -304,6 +314,7 @@ model:
             params:
               shift_scale: 3.0
 
+      loss_weight_short_dcl: 0.1
 
   sampler_config:
     target: sgm.modules.diffusionmodules.sampling.VPSDEDPMPP2MSampler
