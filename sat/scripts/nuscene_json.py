@@ -191,7 +191,15 @@ for index, sample_dict in tqdm(zip(new_sample_indices, new_samples)):
     clip_ind += 1
 
 
-print(len(new_samples))
+infos = dict()
+infos['meta'] = {
+    'data_root': data_root,
+    'clip_length': horizon,
+    'fps_clip': 12,  # * nusc frame rate
+    'num_clips': len(new_samples),
+}
+infos['clips'] = new_samples
+
 new_anno_file = "nuScenes.json"
 with open(new_anno_file, "w") as new_anno_json:
-    json.dump(new_samples, new_anno_json, indent=4)
+    json.dump(infos, new_anno_json, indent=4)
