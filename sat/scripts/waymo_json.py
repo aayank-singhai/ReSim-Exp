@@ -312,9 +312,12 @@ def create_waymo_traj_and_cmd(json_path, is_debug=False, n_past=9, fut_horizon=8
         first_frame_name, ext_str = clip["first_frame"].split(".")[0], clip["first_frame"].split(".")[1]
         len_name = len(first_frame_name)
         first_frame_ind = int(first_frame_name)
-        cur_frame_ind = first_frame_ind + n_past - 1
+        cur_frame_ind = first_frame_ind + n_past - 1   # !! BUG? No need to -1, if n_past=1, then start with index 1
+        # TODO: cur_frame_ind = first_frame_ind + n_past
+
         current_index_txt = str(cur_frame_ind).zfill(len_name)
 
+        # !! Is the pose folder 10hz ???
         current_pose_file = f"{meta_path}/pose/{current_index_txt}.txt"
         current_global_pose = np.zeros((4, 4), np.float64)
         for i, line in enumerate(open(current_pose_file)):
@@ -362,6 +365,7 @@ def create_waymo_traj_and_cmd(json_path, is_debug=False, n_past=9, fut_horizon=8
         else:  # go straight
             clip.update({"cmd_vista": 3})
 
+        # TODO: Check this?
         # * Waymo Cmds
         if origin[1] >= 2:  # turn left
             clip.update({"cmd": "Turning_Left"})
