@@ -53,6 +53,28 @@ class cmd_FVD(Metric):
         embs_gen = [i3d_process_img_paths(cmd_gen, self.i3d, self.freq, max_sample=max_sample, batch_size=batch_size, device=self.device, shuffle=shuffle) \
                 for cmd_gen in cmd_gens]
 
+        embs_gen_total = []
+        for cmd in range(self.total_cmds):
+            # embs_gen_total.extend(embs_gen[cmd])
+            embs_gen_total.append(embs_gen[cmd])
+        embs_gen_total = torch.cat(embs_gen_total, dim=0)
+        # embs_gen_total.shape torch.Size([90400])
+
+
+        emb_gt_total = []
+
+        # self.embs_gt[0].shape [12, 400]
+        # self.embs_gt[1].shape [31, 400]
+        # ...
+        for cmd in range(self.total_cmds):
+            # emb_gt_total.extend(self.embs_gt[cmd])
+            emb_gt_total.append(self.embs_gt[cmd])
+        emb_gt_total = torch.cat(emb_gt_total, dim=0)
+        # emb_gt_total.shape
+        # torch.Size([90400])
+
+        # import pdb; pdb.set_trace()
+
         fvd_list = [[] for _ in range(self.total_cmds)]
         fvd_means = [0 for _ in range(self.total_cmds)]
         for cmd in range(self.total_cmds):
@@ -67,6 +89,11 @@ class cmd_FVD(Metric):
             fvd_mean = np.mean(fvd_list[cmd]).item()
             print('FVD: {}'.format(fvd_mean))
             fvd_means[cmd] = fvd_mean
+
+        print("\n==========================================================")
+        print("[Total]")
+        fvd_total = frechet_distance(embs_gen_total, emb_gt_total)
+        print(f'FVD_total: {fvd_total.item():.4f}')
 
         return fvd_means
 
@@ -88,12 +115,8 @@ class cmd_FVD(Metric):
         tmp["source"] = []
         cmd_gts = [ copy.deepcopy(tmp) for _ in range(total_cmds) ]
         for clip in source:
-            try:
-                # clip_index = gt_paths.get_index(clip[0])
-                token = gt_paths.get_index(clip[0])
-            except:
-                import pdb; pdb.set_trace()
-            # assert clip_index == supp[clip_index]['token']
+            
+            token = gt_paths.get_index(clip[0])
             
             clip_index = self.token_to_index[token]
 

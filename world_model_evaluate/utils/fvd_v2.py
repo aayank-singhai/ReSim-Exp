@@ -36,17 +36,22 @@ def i3d_process_img_paths(paths, i3d, freq, max_sample=-1, batch_size=8, device=
             if "paired_subset" in paths.keys():
                 frame = frame.replace(SUBSET_FLAG, paths["paired_subset"])
             
-            # img = np.asarray(open_and_resize(os.path.join(root, frame)))     # (h, w, c)
-            img = np.asarray(open_and_resize(frame))
-            # try:
-            #     img = np.asarray(open_and_resize(os.path.join(root, frame)))     # (h, w, c)
-            # except:
-            #     img = np.asarray(open_and_resize(os.path.join(paths["backup_root"], frame)))
 
-            # TODO: Downsampling?
-            # for _ in range(math.ceil(freq / paths["freq"])):
-            #     videos.append(img)
-            videos.append(img)
+            # * TODO? Check this
+            # !!!!! DEBUG Next line 应该缩进? 不然会重复加入 frame.
+            # img = np.asarray(open_and_resize(os.path.join(root, frame)))     # (h, w, c)
+                
+                # !!! DEBUG, Try this???
+                img = np.asarray(open_and_resize(frame))
+                # try:
+                #     img = np.asarray(open_and_resize(os.path.join(root, frame)))     # (h, w, c)
+                # except:
+                #     img = np.asarray(open_and_resize(os.path.join(paths["backup_root"], frame)))
+
+                # TODO: Downsampling?
+                # for _ in range(math.ceil(freq / paths["freq"])):
+                #     videos.append(img)
+                videos.append(img)
 
         # print(len(videos))
         # for _ in range(len(videos), MIN_I3D_TIME):
@@ -63,10 +68,11 @@ def i3d_process_img_paths(paths, i3d, freq, max_sample=-1, batch_size=8, device=
             #         PRINT_WARNING = True
             
         # import pdb; pdb.set_trace()
-        videos = np.expand_dims(np.stack(videos, axis=0), 0)            # (1, t, h, w, c)
+        videos = np.expand_dims(np.stack(videos, axis=0), 0)            # (1, t, h, w, c)  [1, 24, 256, 448, 3]
         # print(idx, ": ", videos.shape, end=" -> ")
-        emb = get_fvd_logits(videos, i3d=i3d, device=device, batch_size=batch_size)
+        emb = get_fvd_logits(videos, i3d=i3d, device=device, batch_size=batch_size)  # [1, 400]
         # print(emb.shape)
+        # import pdb; pdb.set_trace()
         embs.append(emb)
 
     embs = torch.cat(embs, 0)

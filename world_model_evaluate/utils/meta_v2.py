@@ -64,8 +64,6 @@ class CustomizedPairedDataSourceV2(EasyDict):
     SUBSET_FLAG = PAIRED_DATASET_SUBSET_FLAG
     DEFAULT = {
         "format": "mp4",
-        # "gt_key": "real",
-        # "gen_key": "virtual",
         "gt_key": "GT",
         "gen_key": "Sample",
         "rec_key": "Rec",
@@ -74,7 +72,7 @@ class CustomizedPairedDataSourceV2(EasyDict):
         "supp": None
     }
 
-    def __init__(self, initial, mode=None):
+    def __init__(self, initial, mode=None, enforce_prepare=True):
         assert isinstance(initial, dict)
         tmp = EasyDict(self.DEFAULT)
         tmp.update(initial)
@@ -97,6 +95,9 @@ class CustomizedPairedDataSourceV2(EasyDict):
         assert "max_frameid" in initial, "You must set the number of frames per clip as `max_frameid` in your dataset."
         assert "gen_startid" in initial, "You need to specify the start id of all clips as `gen_startid` for your generated data."
         
+        self.enforce_prepare = enforce_prepare  # !! flag to enforce re-prepare the dataset
+        # ! Set to False for main
+
         self.update(initial)
         self.pop("path")
         
@@ -113,7 +114,6 @@ class CustomizedPairedDataSourceV2(EasyDict):
         if self.supp is not None:
             print("GT supplement is loaded from [{}]".format(self.supp))
         
-
     def _sweep_for_all(self, has_backup=False):
         all_clips = []
 
@@ -129,17 +129,24 @@ class CustomizedPairedDataSourceV2(EasyDict):
 
         print(f"Evaluating roots: {roots}")
 
+        DEBUG = False # !!! DEBUG
+        if DEBUG:
+            roots = roots[:1]
+
         for root in roots:
-            
             print(f"Evaluating Root: {root}")
 
+            folders = os.listdir(root)
+            if DEBUG:
+                # folders = folders[:100]  # * For fvd
+                folders = folders[:2]  # * For fid
+            
 
-            for folder in tqdm(os.listdir(root)):
+            for folder in tqdm(folders):
                 print(f"Folder: {folder}")
 
-
                 collect_path = os.path.join(root, folder)
-                # collect_path: folder 0, 1, 2, 3, ...
+                # collect_path: root/folder 0, 1, 2, 3, ...
 
                 if os.path.isfile(collect_path):
                     continue
@@ -164,12 +171,17 @@ class CustomizedPairedDataSourceV2(EasyDict):
 
                 gt_images = gt_path.replace(".mp4", "")
                 gen_images = gen_path.replace(".mp4", "")
-                
-                if not os.path.exists(gt_images):
+
+                if self.enforce_prepare:
                     video_to_images(gt_path)
-                    
-                if not os.path.exists(gen_images):
                     video_to_images(gen_path)
+                
+                else:
+                    if not os.path.exists(gt_images):
+                        video_to_images(gt_path)
+                        
+                    if not os.path.exists(gen_images):
+                        video_to_images(gen_path)
 
                 try:
                     assert len(os.listdir(gt_images)) == len(os.listdir(gen_images)) and len(os.listdir(gt_images)) > 0, \
@@ -201,6 +213,9 @@ class CustomizedPairedDataSourceV2(EasyDict):
 
                 # import pdb; pdb.set_trace()
                 all_clips.append(clip)
+
+            if DEBUG:
+                break
 
         self.source = all_clips
 

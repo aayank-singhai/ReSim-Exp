@@ -38,7 +38,8 @@ if __name__ == '__main__':
         from utils.fvd_v2 import FVD_KVD
         metric = FVD_KVD(device=device)
     elif (configs.metric.lower() == "fid"):
-        from utils.fid import FID
+        # from utils.fid import FID
+        from utils.fid_v2 import FID
         metric = FID(device=device)
     elif (configs.metric.lower() == "clipsim"):
         from utils.clip_sim import CLIPSIM
@@ -51,10 +52,12 @@ if __name__ == '__main__':
         from utils.cmd_fvd_v2 import cmd_FVD
 
         metric = cmd_FVD(device=device)
+    
+    enforce_prepare = configs.get("enforce_prepare", True)
 
     print('\ncollect dataset...')
     # paired_dataset = CustomizedPairedDataSource(configs.paired_dataset, mode)
-    paired_dataset = CustomizedPairedDataSourceV2(configs.paired_dataset, mode)
+    paired_dataset = CustomizedPairedDataSourceV2(configs.paired_dataset, mode, enforce_prepare=enforce_prepare)
 
     # real GT
     paired_dataset.gt()
