@@ -6,6 +6,8 @@
 
 # * Resumed from main5_joint_stage2_high_small-lr-12-08-06-48 (15000 steps)
 
+# * 5 Nodes
+
 args:
   checkpoint_activations: True ## using gradient checkpointing
   model_parallel_size: 1

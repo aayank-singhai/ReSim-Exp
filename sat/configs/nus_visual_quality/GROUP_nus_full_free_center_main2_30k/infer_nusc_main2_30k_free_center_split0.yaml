@@ -28,7 +28,7 @@ args:
   concat_gt_for_demo: True
 
 data:
-    target: data_waymo.WaymoDataset
+    target: data_nus.nuScenesDataset
     params:
       # video_size: [480, 720]
       video_size: [512, 896]
