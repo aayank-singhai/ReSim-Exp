@@ -3,8 +3,7 @@
 args:
   latent_channels: 16
   mode: inference
-  # load: "/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/sat/tmp_ckpts/nuplan_scene_tensor_512_resume-02-05-17-57/14000/mp_rank_00_model_states.pt"  # * Black frames
-  load: "/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/sat/tmp_ckpts/nuplan_scene_tensor_512_resume-02-05-17-57/10000/mp_rank_00_model_states.pt"
+  load: "/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/sat/ckpts/main5_joint_stage2_high_small-lr_full-12-14-07-46/30000/mp_rank_00_model_states.pt"
 
   batch_size: 1
   input_type: dataset
@@ -23,7 +22,7 @@ args:
 
   sampling_video_size: [512, 896]
   n_prediction_round: 1
-  apply_traj: True
+  apply_traj: False
   
   save_gt: True
   concat_gt_for_demo: True
@@ -38,10 +37,9 @@ data:
       max_num_frames: 49
       skip_frms_num: 7.
       prefix_prompt: "This video depicts a realistic view from the driver's perspective of a car driving on the road."
-      # token_json: "/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/navsim_eval/infer_nuplan5_lora_not-contained_all_tokens_resume-from-256_not-apply-traj_planning-11-01-14-30.json"
-      token_json: "/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/custom_data/navsim/scene_gen/scene_gen_token_test.json"
-      scene_tensor_json_folder: "/cpfs01/shared/opendrivelab/opendrivelab_hdd/yangjiazhi/GenADv3/misc/token2info_test_all_list_sg"
-      p_drop_action_caption: 1.  # * Inference: 0.
+
+      n_subset: 30
+      ind_subset: 27
 
 model:
   scale_factor: 1.15258426
@@ -166,7 +164,6 @@ model:
             avoid_first_ln: true
             zero_init: true
             use_all_tokens: true  # * 9 tokens
-            channels: 1161  # * input channel
 
   first_stage_config:
     target: vae_modules.autoencoder.VideoAutoencoderInferenceWrapper

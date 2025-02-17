@@ -4,38 +4,36 @@
 # - Offset Noise
 # - Video Offset Noise
 
-# * Resumed from main5_joint_stage2_high_small-lr-12-08-06-48 (15000 steps)
+# * Resumed from main5_joint_stage2_high_small-lr_full 30k steps
 
 args:
   checkpoint_activations: True ## using gradient checkpointing
   model_parallel_size: 1
   experiment_name: nus
   mode: finetune
-  load: "/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/sat/ckpts/main5_joint_stage2_high_small-lr-12-08-06-48"
+  load: "/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/sat/ckpts/main5_joint_stage2_high_small-lr_full-12-14-07-46/30000/mp_rank_00_model_states.pt"
   
   no_load_rng: True
   # train_iters: 10000
   train_iters: 300000
   eval_iters: 1
-  eval_interval: 10000  # * Log video every 100 iterations
+  eval_interval: 100000  # * Log video every 100 iterations
   eval_batch_size: 1
-  save: ckpts
-  save_interval: 5000  # * Save checkpoints
+  save: tmp_ckpts
+  save_interval: 6000  # * Save checkpoints
   log_interval: 20   # * Log info
 
   train_data: [
-    "/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/custom_data/youtube_json/YouTube_svd_clip-len-49_interval-10_5M_flow_round2_filtered.json",  # * OpenDV, filtered 
-    "/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/custom_data/navsim/token2info_train_list.json"  # * navsim
+    "/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/custom_data/youtube_json/YouTube_svd_val_1080p_clip-len-49_interval-10_77k_flow.json",  # !!!! Val
+    # "/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/custom_data/navsim/token2info_train_list.json"  # * navsim
   ]
   valid_data: [
-   "/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/custom_data/navsim/token2info_test_all_list.json" 
+    "/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/custom_data/youtube_json/YouTube_svd_val_1080p_clip-len-49_interval-10_77k_flow.json",  # !!!! Val
   ]
 
-  train_data_weights: [1, 20]    # * Is this bug???
+  # train_data_weights: [1, 40]
   # * OpenDV: 1, 5M
-  # * navsim: 40, 40 * 80k = 3.2M  (Too high? Overfit?)
-  # * Avoid overfitting to navsim
-  # * navsim: 20, 20 * 80k = 1.6M
+  # * navsim: 40, 40 * 80k = 3.2M
 
   split: 1,0,0
   # num_workers: 0  # !!! DEBUG
@@ -69,13 +67,15 @@ data:
         Moving_Forward: 1
         Turning_Left: 5
         Turning_Right: 5
+      
+      multiprocess_img: False
 
 deepspeed:
   # train_micro_batch_size_per_gpu: 1
   train_micro_batch_size_per_gpu: 2  # * 4 will lead to error
-  gradient_accumulation_steps: 2  # * grad accu -> 2
+  gradient_accumulation_steps: 1
   steps_per_print: 50
-  gradient_clipping: 0.1
+  gradient_clipping: 0.1  # TODO: smaller grad clip??
   zero_optimization:
     stage: 2
     cpu_offload: false
@@ -100,7 +100,7 @@ deepspeed:
       lr: 0.00001
       betas: [0.9, 0.95]
       eps: 1e-8
-      weight_decay: 0.01  # * mid
+      weight_decay: 0.2  # * Cosmos
   activation_checkpointing:
     partition_activations: false
     contiguous_memory_optimization: false
@@ -288,9 +288,9 @@ model:
         - [0, 1, 2]
       cond_inds_prob:
         - 0.1
+        - 0.6
         - 0.15
-        - 0.15
-        - 0.6  # * For [0, 1, 2]
+        - 0.15  # * For [0, 1, 2]
 
       apply_cond_aug: &cond_aug V2
       sigma_sampler_config:
@@ -304,7 +304,6 @@ model:
             params:
               shift_scale: 3.0
 
-      loss_weight_short_dcl: 0.1
 
   sampler_config:
     target: sgm.modules.diffusionmodules.sampling.VPSDEDPMPP2MSampler

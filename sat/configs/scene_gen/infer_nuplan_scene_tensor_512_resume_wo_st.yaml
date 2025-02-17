@@ -23,7 +23,7 @@ args:
 
   sampling_video_size: [512, 896]
   n_prediction_round: 1
-  apply_traj: True
+  apply_traj: False
   
   save_gt: True
   concat_gt_for_demo: True

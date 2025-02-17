@@ -1,52 +1,116 @@
-# Latest checkpoint with more iterations
+# TODO: 
+# - Larger bs
+# - Grad Norm Clip
+# - Offset Noise
+# - Video Offset Noise
+
+# * Resumed from main5_joint_stage2_high_small-lr_full 30k steps
 
 args:
-  latent_channels: 16
-  mode: inference
-  # load: "/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/sat/tmp_ckpts/nuplan_scene_tensor_512_resume-02-05-17-57/14000/mp_rank_00_model_states.pt"  # * Black frames
-  load: "/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/sat/tmp_ckpts/nuplan_scene_tensor_512_resume-02-05-17-57/10000/mp_rank_00_model_states.pt"
-
-  batch_size: 1
-  input_type: dataset
-
-  # * Num of Latent frames
-  sampling_num_frames: 13  # Must be 13, 11 or 9
-
-  sampling_fps: &fps 10  # * For youtube
-
-  fp16: True
-  force_inference: True
-
-  epochs: 1
-
-  valid_data: ["/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/custom_data/navsim/token2info_test_all_list.json"]
-
-  sampling_video_size: [512, 896]
-  n_prediction_round: 1
-  apply_traj: True
+  checkpoint_activations: True ## using gradient checkpointing
+  model_parallel_size: 1
+  experiment_name: nus
+  mode: finetune
+  load: "/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/sat/ckpts/main5_joint_stage2_high_small-lr_full-12-14-07-46/30000/mp_rank_00_model_states.pt"
   
-  save_gt: True
-  concat_gt_for_demo: True
+  no_load_rng: True
+  # train_iters: 10000
+  train_iters: 300000
+  eval_iters: 1
+  eval_interval: 100000  # * Log video every 100 iterations
+  eval_batch_size: 1
+  save: tmp_ckpts
+  save_interval: 6000  # * Save checkpoints
+  log_interval: 20   # * Log info
+
+  train_data: [
+    "/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/custom_data/youtube_json/YouTube_svd_val_1080p_clip-len-49_interval-10_77k_flow.json",  # !!!! Val
+    # "/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/custom_data/navsim/token2info_train_list.json"  # * navsim
+  ]
+  valid_data: [
+    "/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/custom_data/youtube_json/YouTube_svd_val_1080p_clip-len-49_interval-10_77k_flow.json",  # !!!! Val
+  ]
+
+  # train_data_weights: [1, 40]
+  # * OpenDV: 1, 5M
+  # * navsim: 40, 40 * 80k = 3.2M
+
+  split: 1,0,0
+  # num_workers: 0  # !!! DEBUG
+  num_workers: 8
+  force_train: True
+  # only_log_video_latents: True
+  only_log_video_latents: False
+
+  lr_decay_style: 'constant'  # !!!!!! Using constant LR
 
 data:
-    # target: data_video_custom.SFTDataset
-    target: data_nuplan.nuPlanDataset
+    target: data_multi.MultiSourceDataset
     params:
       # video_size: [480, 720]
+
       video_size: [512, 896]
-      fps: *fps  # TODO: Change to 10
+      fps: 10
       max_num_frames: 49
       skip_frms_num: 7.
       prefix_prompt: "This video depicts a realistic view from the driver's perspective of a car driving on the road."
-      # token_json: "/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/navsim_eval/infer_nuplan5_lora_not-contained_all_tokens_resume-from-256_not-apply-traj_planning-11-01-14-30.json"
-      token_json: "/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/custom_data/navsim/scene_gen/scene_gen_token_test.json"
-      scene_tensor_json_folder: "/cpfs01/shared/opendrivelab/opendrivelab_hdd/yangjiazhi/GenADv3/misc/token2info_test_all_list_sg"
-      p_drop_action_caption: 1.  # * Inference: 0.
+      
+      merge_static: True           # merging static to forward
+      exclude_highly_static: True  # exclude highly static
+      
+      p_mask_out_heading: 0.5     # * Inference: 0.
+      p_drop_action_caption: 0.5  # * Inference: 0.
+
+      # # navsim train: {'Moving_Forward': 54414, 'Turning_Right': 9128, 'Turning_Left': 21567}
+      n_repeat_of_actions:
+        Static: 1
+        Moving_Forward: 1
+        Turning_Left: 5
+        Turning_Right: 5
+      
+      multiprocess_img: True
+
+deepspeed:
+  # train_micro_batch_size_per_gpu: 1
+  train_micro_batch_size_per_gpu: 2  # * 4 will lead to error
+  gradient_accumulation_steps: 1
+  steps_per_print: 50
+  gradient_clipping: 0.1  # TODO: smaller grad clip??
+  zero_optimization:
+    stage: 2
+    cpu_offload: false
+    contiguous_gradients: false
+    overlap_comm: true
+    reduce_scatter: true
+    reduce_bucket_size: 1000000000
+    allgather_bucket_size: 1000000000
+    load_from_fp32_weights: false
+  zero_allow_untested_optimizer: true
+  bf16:
+    enabled: False
+  fp16:
+    enabled: True
+    loss_scale: 0
+    loss_scale_window: 400
+    hysteresis: 2
+    min_loss_scale: 1
+  optimizer:
+    type: sat.ops.FusedEmaAdam
+    params:
+      lr: 0.00001
+      betas: [0.9, 0.95]
+      eps: 1e-8
+      weight_decay: 0.2  # * Cosmos
+  activation_checkpointing:
+    partition_activations: false
+    contiguous_memory_optimization: false
+  wall_clock_breakdown: false
+
 
 model:
   scale_factor: 1.15258426
   disable_first_stage_autocast: true
-  not_trainable_prefixes: ['model'] ## Using Lora, conditioners are trainable
+  # not_trainable_prefixes: ['model'] ## Using Lora, conditioners are trainable
   # [model.diffusion_model.xxx]
   # [conditioner.xxx]
 
@@ -54,8 +118,9 @@ model:
     - txt
 
   en_and_decode_n_samples_a_time: 1  # * split samples
-  # en_and_decode_n_frames_a_time: 17  # * split frames
-  # truncate_n_frames_decode: 8
+  en_and_decode_n_frames_a_time: 17  # * split frames
+  truncate_n_frames_decode: 8
+
   cond_inds_sampling: &cond_inds_sampling [0, 1, 2]  # * For log videos
   
   denoiser_config:
@@ -98,6 +163,7 @@ model:
       num_attention_heads: 30
 
       transformer_args:
+        checkpoint_activations: True ## using gradient checkpointing
         vocab_size: 1
         max_sequence_length: 64
         layernorm_order: pre
@@ -144,7 +210,7 @@ model:
         # * text enc
         - is_trainable: false
           input_key: txt
-          ucg_rate: 0.1
+          ucg_rate: 0.2  # * Higher dropout rate, to encourage learning from fut_traj
           target: sgm.modules.encoders.modules.FrozenT5Embedder
           params:
             model_dir: "/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/ckpts/CogVideoX-2b-sat/t5-v1_1-xxl"
@@ -153,10 +219,10 @@ model:
         # * traj enc
         - is_trainable: true
           input_key: fut_traj
-          ucg_rate: 0.5    # * action (world model) and no-action (planning model)
+          ucg_rate: 0.2    # * Learn more action control
           target: sgm.modules.encoders.traj_encoder.TrajEncoder
+          
           params:
-            # TODO: setup here
             seq_len: 8
             dim: 1024
             out_dim: 4096
@@ -166,7 +232,6 @@ model:
             avoid_first_ln: true
             zero_init: true
             use_all_tokens: true  # * 9 tokens
-            channels: 1161  # * input channel
 
   first_stage_config:
     target: vae_modules.autoencoder.VideoAutoencoderInferenceWrapper
@@ -212,7 +277,7 @@ model:
           gather_norm: false
 
   loss_fn_config:
-    target: sgm.modules.diffusionmodules.loss.VideoDiffusionLoss
+    target: sgm.modules.diffusionmodules.loss.VideoDiffusionLoss  # TODO: Dynamics Enhancement Loss + Per-sample Dynamics Weight (According to flow value?)
     params:
       offset_noise_level: 0
 
@@ -223,9 +288,9 @@ model:
         - [0, 1, 2]
       cond_inds_prob:
         - 0.1
+        - 0.6
         - 0.15
-        - 0.15
-        - 0.6  # * For [0, 1, 2]
+        - 0.15  # * For [0, 1, 2]
 
       apply_cond_aug: &cond_aug V2
       sigma_sampler_config:
@@ -239,10 +304,11 @@ model:
             params:
               shift_scale: 3.0
 
+
   sampler_config:
     target: sgm.modules.diffusionmodules.sampling.VPSDEDPMPP2MSampler
     params:
-      num_steps: &num_steps 50
+      num_steps: 50  # TODO: Can we use less steps to speed up?? (GameNGen only uses 4)
       verbose: True
       fixed_frames: 3  # [0, 1, 2]
       cond_inds_sampling: *cond_inds_sampling  # [0, 1, 2]
@@ -259,4 +325,4 @@ model:
         params:
           scale: 6
           exp: 5
-          num_steps: *num_steps
+          num_steps: 50

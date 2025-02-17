@@ -24,7 +24,8 @@ args:
   log_interval: 20   # * Log info
 
   train_data: [
-    "/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/custom_data/youtube_json/YouTube_svd_clip-len-49_interval-10_5M_flow_round2.json",  # * OpenDV
+    # "/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/custom_data/youtube_json/YouTube_svd_clip-len-49_interval-10_5M_flow_round2.json",  # * OpenDV
+    "/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/custom_data/youtube_json/YouTube_svd_val_1080p_clip-len-49_interval-10_77k_flow.json",  # !!!! Val
     "/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/custom_data/navsim/token2info_train_list.json"  # * navsim
   ]
   valid_data: [
