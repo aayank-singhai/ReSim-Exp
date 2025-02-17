@@ -3,7 +3,6 @@ import math
 import random
 import numpy as np
 import torch
-from torchvision.transforms.functional import center_crop, resize
 from torch.utils.data import Dataset
 from tqdm import tqdm
 from PIL import Image

@@ -7,6 +7,8 @@ from torchvision.transforms.functional import center_crop, resize
 from torchvision.transforms import InterpolationMode
 import imageio
 import json
+from PIL import Image
+import concurrent.futures
 
 cmd_to_action = {
     0: "Turning_Left",
@@ -93,3 +95,26 @@ def pad_last_frame(tensor, num_frames):
         return padded_tensor
     else:
         return tensor[:num_frames]
+
+def load_image_to_tensor(image_path):
+    if not os.path.exists(image_path):
+        print("Image not found: {}".format(image_path))
+    image = Image.open(image_path)
+    if not image.mode == "RGB":
+        image = image.convert("RGB")
+    image = np.array(image)  # H, W, C
+    image = torch.from_numpy(image)
+    return image
+
+# * multiprocess is not helpful for speeding up in training
+# def load_image_list(img_path_list, multiprocess=False, num_workers=4):
+#     if multiprocess:
+#         with concurrent.futures.ThreadPoolExecutor(max_workers=num_workers) as executor:
+#             images = list(executor.map(load_image_to_tensor, img_path_list))
+#     else:
+#         images = [load_image_to_tensor(img_path) for img_path in img_path_list]
+#     return images
+
+def load_image_list(img_path_list, num_workers=4):
+    images = [load_image_to_tensor(img_path) for img_path in img_path_list]
+    return images

@@ -25,6 +25,7 @@ class YouTubeDataset(Dataset):
                 p_drop_action_caption=0,
                 n_subset=None,  # 30
                 ind_subset=None,  # 0,...,29
+                multiprocess_img=False,
                 **kwargs):
         """
         skip_frms_num: ignore the first and the last xx frames, avoiding transitions.
@@ -48,6 +49,7 @@ class YouTubeDataset(Dataset):
 
         self.length = len(self.captions_list)
         self.p_drop_action_caption = p_drop_action_caption
+        self.multiprocess_img = multiprocess_img
 
         self.load_data_json(data_dir, n_subset=n_subset, ind_subset=ind_subset)
 
@@ -97,18 +99,25 @@ class YouTubeDataset(Dataset):
         video_size, fps, max_num_frames, skip_frms_num = \
             self.video_size, self.fps, self.max_num_frames, self.skip_frms_num
 
-        tensor_frms = []
-        for img_path in img_path_list:
-            if not os.path.exists(img_path):
-                print("Image not found: {}".format(img_path))
-                # raise FileNotFoundError, "Image not found: {}".format(img_path)
-            image = Image.open(img_path)
-            if not image.mode == "RGB":
-                image = image.convert("RGB")
-            image = np.array(image)  # H, W, C
-            image = torch.from_numpy(image)
-            tensor_frms.append(image)
-            # image = torch.from_numpy(image).permute(2, 0, 1) # [C, H, W]
+        # tensor_frms = []
+        # for img_path in img_path_list:
+        #     if not os.path.exists(img_path):
+        #         print("Image not found: {}".format(img_path))
+        #         # raise FileNotFoundError, "Image not found: {}".format(img_path)
+        #     image = Image.open(img_path)
+        #     if not image.mode == "RGB":
+        #         image = image.convert("RGB")
+        #     image = np.array(image)  # H, W, C
+        #     image = torch.from_numpy(image)
+
+        #     # print(image.device)  # * cpu
+            
+        #     tensor_frms.append(image)
+        #     # image = torch.from_numpy(image).permute(2, 0, 1) # [C, H, W]
+
+        tensor_frms = load_image_list(img_path_list, multiprocess=self.multiprocess_img)
+
+        
         tensor_frms = torch.stack(tensor_frms, dim=0)  # T, H, W, C
         
         tensor_frms = pad_last_frame(

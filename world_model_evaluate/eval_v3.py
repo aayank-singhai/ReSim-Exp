@@ -58,16 +58,18 @@ if __name__ == '__main__':
     print('\ncollect dataset...')
     # paired_dataset = CustomizedPairedDataSource(configs.paired_dataset, mode)
     paired_dataset = CustomizedPairedDataSourceV2(configs.paired_dataset, mode, enforce_prepare=enforce_prepare)
+    print("\ncollecting dataset finished.")
 
-    # real GT
-    paired_dataset.gt()
-    print("\nuploading ground truth...")
-    metric.update_gt(paired_dataset, **configs)
+    if not enforce_prepare:
+        # real GT
+        paired_dataset.gt()
+        print("\nuploading ground truth...")
+        metric.update_gt(paired_dataset, **configs)
 
-    # generated data
-    paired_dataset.gen()
-    print("\nevaluating...")
-    metric(paired_dataset, **configs)  # * averaged over all data
+        # generated data
+        paired_dataset.gen()
+        print("\nevaluating...")
+        metric(paired_dataset, **configs)  # * averaged over all data
 
-    print("\n\n==========================================================")
-    print("[TIMESTAMP] {}".format(time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())))
+        print("\n\n==========================================================")
+        print("[TIMESTAMP] {}".format(time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())))
