@@ -8,8 +8,6 @@ from tqdm import tqdm
 from PIL import Image
 from data_utils import *
 
-
-
 # TODO: Improve data loading: load clip as a dict, rather than each attributes separately
 class CarlaDataset(Dataset):
 
@@ -113,7 +111,7 @@ class CarlaDataset(Dataset):
         
         tensor_frms = []
 
-        img_path_list = img_path_list[skip_frms_num:]   # skip some frames
+        # img_path_list = img_path_list[skip_frms_num:]   # skip some frames
 
         for img_path in img_path_list:
             if not os.path.exists(img_path):

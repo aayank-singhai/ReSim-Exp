@@ -25,7 +25,6 @@ class YouTubeDataset(Dataset):
                 p_drop_action_caption=0,
                 n_subset=None,  # 30
                 ind_subset=None,  # 0,...,29
-                multiprocess_img=False,
                 **kwargs):
         """
         skip_frms_num: ignore the first and the last xx frames, avoiding transitions.
@@ -49,7 +48,6 @@ class YouTubeDataset(Dataset):
 
         self.length = len(self.captions_list)
         self.p_drop_action_caption = p_drop_action_caption
-        self.multiprocess_img = multiprocess_img
 
         self.load_data_json(data_dir, n_subset=n_subset, ind_subset=ind_subset)
 
@@ -115,7 +113,7 @@ class YouTubeDataset(Dataset):
         #     tensor_frms.append(image)
         #     # image = torch.from_numpy(image).permute(2, 0, 1) # [C, H, W]
 
-        tensor_frms = load_image_list(img_path_list, multiprocess=self.multiprocess_img)
+        tensor_frms = load_image_list(img_path_list)
 
         
         tensor_frms = torch.stack(tensor_frms, dim=0)  # T, H, W, C

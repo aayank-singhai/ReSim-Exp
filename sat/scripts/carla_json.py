@@ -201,14 +201,14 @@ def replace_navsim_traj_with_cala(navsim_json, carla_json):
     navsim_clips = navsim_data['clips']
 
     # * Select top 200
-    N = 200
+    N = 1000
     carla_clips = carla_clips[: N] 
     navsim_clips = navsim_clips[: N]
 
     new_navsim_clips = []
     for carla_clip, navsim_clip in zip(carla_clips, navsim_clips):
         if carla_clip['score_penalty'] < 0.8:
-            navsim_clip['traj_fut'] = carla_clip['traj_fut']
+            navsim_clip['carla_traj_fut'] = carla_clip['traj_fut']
             
             navsim_clip['score_penalty'] = carla_clip['score_penalty']
 
@@ -219,16 +219,17 @@ def replace_navsim_traj_with_cala(navsim_json, carla_json):
     out_navsim_json = navsim_json.replace('.json', '_carla-traj.json')
     dump_json(navsim_data, out_navsim_json)
 
+# add_token_to_clips("/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/custom_data/carla/carla_train_0217_35k.json")
 
 navsim_json = '/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/custom_data/carla/navsim_test.json'
-carla_json = '/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/custom_data/carla/demo_0213_correct_v2.json'
+carla_json = '/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/custom_data/carla/carla_demo_0213_correct_v2.json'
 replace_navsim_traj_with_cala(navsim_json, carla_json)
 import pdb; pdb.set_trace()
-
-# detect_broken_images("/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/custom_data/carla/demo_0213_correct_v2.json")
-detect_broken_images_multiprocess("/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/custom_data/carla/demo_0213_correct_v2.json")
-# add_token_to_clips("/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/custom_data/carla/demo_0213_correct_v2.json")
-import pdb; pdb.set_trace()
+# 
+# # detect_broken_images("/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/custom_data/carla/demo_0213_correct_v2.json")
+# detect_broken_images_multiprocess("/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/custom_data/carla/demo_0213_correct_v2.json")
+# # add_token_to_clips("/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/custom_data/carla/demo_0213_correct_v2.json")
+# import pdb; pdb.set_trace()
 
 
 # Use PySceneDetect to detect transition frames in a video clip
