@@ -80,10 +80,11 @@ class VideoDiffusionLoss(StandardDiffusionLoss):
                  max_aug_t=700,  # * For V2
                  contained_aug_t=False,
                  exclude_cond_from_loss=True,
-                 loss_weight_short_dcl=False,
+                 loss_weight_short_dcl=False,  # * Not supported
                  loss_weight_multi_dcl=False,  # * already include short_dcl
                  k_multi_dcl=1,
                  discount_multi_dcl=1,
+                 normalize_dcl=False,
                 **kwargs):
         self.fixed_frames = fixed_frames  # TODO: Remove this?
         self.block_scale = block_scale
@@ -102,10 +103,14 @@ class VideoDiffusionLoss(StandardDiffusionLoss):
         self.max_aug_t = max_aug_t  # * For V2
         self.contained_aug_t = contained_aug_t  # contain the aug_t to be no greater than t (on prediction frames)
         self.exclude_cond_from_loss = exclude_cond_from_loss
-        self.loss_weight_short_dcl = loss_weight_short_dcl
+        
+        if loss_weight_short_dcl is not False:
+            raise NotImplementedError("loss_weight_short_dcl is not supported.")
+        
         self.loss_weight_multi_dcl = loss_weight_multi_dcl
         self.k_multi_dcl = k_multi_dcl
         self.discount_multi_dcl = discount_multi_dcl
+        self.normalize_dcl = normalize_dcl
 
     def __call__(self, network, denoiser, conditioner, input, batch):
         cond = conditioner(batch)
@@ -231,12 +236,8 @@ class VideoDiffusionLoss(StandardDiffusionLoss):
             'loss': loss
         }
         
-        if self.loss_weight_short_dcl > 0.:
-            dcl_loss = self.get_dynamics_consistency_loss(model_output, input, w, type='short', loss_weight=self.loss_weight_short_dcl)
-            loss.update(dcl_loss)
-
         if self.loss_weight_multi_dcl > 0.:
-            dcl_loss = self.get_dynamics_consistency_loss(model_output, input, w, type='multi', loss_weight=self.loss_weight_multi_dcl)
+            dcl_loss = self.get_dynamics_consistency_loss(model_output, input, w, loss_weight=self.loss_weight_multi_dcl)
             loss.update(dcl_loss)
 
         return loss
@@ -253,58 +254,37 @@ class VideoDiffusionLoss(StandardDiffusionLoss):
             return loss
     
 
-    # TODO: Normalize by the scale of target dynamics
-    def get_dynamics_consistency_loss(self, model_output, target, w, type='short', loss_weight=1.):
-        if type == "short":
+    def get_dynamics_consistency_loss(self, model_output, target, w, loss_weight=1.):
+        loss_multi = dict()
+        # * K Dynamics
+        k_multi = self.k_multi_dcl
+        discount_factor = 1.
+        for i in range(1, k_multi + 1):
             # * Dynamics
-            dynamics_model_output = model_output[:, 1:] - model_output[:, :-1]
-            dynamics_target = target[:, 1:] - target[:, :-1]
+            dynamics_model_output = model_output[:, i:] - model_output[:, :-i]   # * torch.Size([2, 9, 16, 64, 112])  b, t, c, h, w
+            dynamics_target = target[:, i:] - target[:, :-i]     # * torch.Size([2, 9, 16, 64, 112])
 
             # * Consistency
-            loss = torch.mean((w * (dynamics_model_output - dynamics_target) ** 2).reshape(target.shape[0], -1), 1)  # * Reshape to [bs]
-            loss = loss * loss_weight
-            loss = {
-                'loss_short_dc': loss
-            }
+            k_loss = torch.mean((w * (dynamics_model_output - dynamics_target) ** 2).reshape(target.shape[0], -1), 1)  # * Reshape to [bs]
+            # k_loss_copy = k_loss.clone()
 
-            return loss
+            if self.normalize_dcl:
+                # * Normalize by the scale of target dynamics
+                # L1 norm
+                magnitude = dynamics_target.abs().mean(dim=(1, 2, 3, 4))
+                k_loss = k_loss / (magnitude + 1.)
+                # import pdb; pdb.set_trace()
 
-        elif type == "multi":
-            loss_multi = dict()
-            # * K Dynamics
-            k_multi = self.k_multi_dcl
-            discount_factor = 1.
-            for i in range(1, k_multi + 1):
-                # * Dynamics
-                # * Normalize?
-                dynamics_model_output = model_output[:, i:] - model_output[:, :-i]
-                dynamics_target = target[:, i:] - target[:, :-i]
-                
-                # * Consistency
-                k_loss = torch.mean((w * (dynamics_model_output - dynamics_target) ** 2).reshape(target.shape[0], -1), 1)  # * Reshape to [bs]
-                k_loss = k_loss * discount_factor
+            k_loss = k_loss * discount_factor
 
-                discount_factor = discount_factor * self.discount_multi_dcl
+            discount_factor = discount_factor * self.discount_multi_dcl
 
+            loss_multi[f'loss_multi_dc_{i}'] = k_loss
+        
+        # * apply final loss_weight
+        loss_multi = {k: v * loss_weight for k, v in loss_multi.items()}
 
-                loss_multi[f'loss_multi_dc_{i}'] = k_loss
-                # if i == 1:
-                #     loss = k_loss
-                # else:
-                #     loss += k_loss
-            
-            # * apply final loss_weight
-            # import pdb; pdb.set_trace()
-            loss_multi = {k: v * loss_weight for k, v in loss_multi.items()}
-
-            # loss = loss * loss_weight
-                
-            # loss = {
-            #     'loss_multi_dc': loss
-            # }
-
-            return loss_multi
-            # return loss
+        return loss_multi
 
 
 def get_3d_position_ids(frame_len, h, w):
