@@ -10,14 +10,14 @@ from data_utils import *
 
 
 # * TODO: Improve loading samples, per video clip, not per attribute
-class ShareDataset(Dataset):
+class SharedDataset(Dataset):
 
     def __init__(self, 
                 data_dir, 
                 video_size, 
                 fps, 
                 max_num_frames, 
-                skip_frms_num=0,   # TODO: Set to 7 for nuplan, 0 for waymo
+                skip_frms_num=0,   # TODO: Set to 7 for nuplan, 0 for others
                 prefix_prompt="",
                 n_repeat_of_actions=None,
                 n_fut_traj_points=8,
@@ -27,11 +27,15 @@ class ShareDataset(Dataset):
                 reshape_mode='center',
                 n_subset=None,  # 30
                 ind_subset=None,  # 0,...,29
+
+                # * For nuplan only
+                token_json=None,
+                scene_tensor_json_folder=None,
                 **kwargs):
         """
         skip_frms_num: ignore the first and the last xx frames, avoiding transitions.
         """
-        super(ShareDataset, self).__init__()
+        super(SharedDataset, self).__init__()
 
         self.video_list = []
         self.captions_list = []
@@ -55,6 +59,10 @@ class ShareDataset(Dataset):
         self.traj_key = traj_key
         self.reshape_mode = reshape_mode
 
+        # * For nuplan only
+        self.token_json = token_json
+        self.scene_tensor_json_folder = scene_tensor_json_folder
+
         self.load_data_json(data_dir, n_subset=n_subset, ind_subset=ind_subset)
 
         self.length = len(self.captions_list)  # * Should be after loading data
@@ -66,6 +74,11 @@ class ShareDataset(Dataset):
         self.data_root = data_root
 
         clip_infos = infos['clips']
+        if self.token_json is not None:
+            token_json = load_json(self.token_json)
+            token_keep = token_json.keys()
+            clip_infos = [clip for clip in clip_infos if clip['lidar_pc_token'] in token_keep]
+
         if n_subset is not None and ind_subset is not None:
             print("Using subset: {}/{}".format(ind_subset, n_subset))
             length_per_subset = math.ceil(len(clip_infos) / n_subset)
@@ -79,7 +92,12 @@ class ShareDataset(Dataset):
 
         for clip in tqdm(clip_infos):
             
-            sample_seq = clip['img_seq']
+            # sample_seq = clip['img_seq']
+            if 'img_seq' in clip:
+                sample_seq = clip['img_seq']
+            else:
+                sample_seq = clip['img_seq_his'] + clip['img_seq_fut']
+            
             raw_caption = clip.get(caption_key, "")  # include static and highly static
             if isinstance(raw_caption, int):
                 raw_caption = cmd_to_action[raw_caption]
@@ -89,6 +107,22 @@ class ShareDataset(Dataset):
             lidar_pc_token = clip[token_key]
             if not isinstance(lidar_pc_token, str):
                 lidar_pc_token = str(lidar_pc_token)
+
+            if self.scene_tensor_json_folder is not None:
+                scene_tensor_json = os.path.join(self.scene_tensor_json_folder, lidar_pc_token + '.json')
+                scene_tensor_json = load_json(scene_tensor_json, verbose=False)
+                scene_tensor = scene_tensor_json[lidar_pc_token]['tensor']
+                scene_tensor_valid = scene_tensor_json[lidar_pc_token]['validity']
+                scene_tensor = torch.from_numpy(np.array(scene_tensor))  # [129, 21, 8]
+                scene_tensor_valid = torch.from_numpy(np.array(scene_tensor_valid))  # [129, 21]
+                scene_tensor_valid = scene_tensor_valid.unsqueeze(2)  # [129, 21, 1]
+                scene_tensor = torch.cat([scene_tensor, scene_tensor_valid], dim=2)  # [129, 21, 9]
+                scene_tensor = scene_tensor.permute(1, 0, 2)  # [21, 129, 9]   # * First dim is time, second number of agents
+                scene_tensor = scene_tensor.reshape(scene_tensor.shape[0], -1)  # flatten [21, 1161]
+                # !! Use fut_traj as scene_tensor
+                fut_traj = scene_tensor[4: 12]
+                assert fut_traj.shape[0] == self.n_fut_traj_points
+
             
             sample_caption = raw_caption
 
@@ -119,21 +153,6 @@ class ShareDataset(Dataset):
         
         img_path_list = img_path_list[skip_frms_num:]   # skip some frames
         
-        # tensor_frms = []
-
-        # img_path_list = img_path_list[skip_frms_num:]   # skip some frames
-
-        # for img_path in img_path_list:
-        #     if not os.path.exists(img_path):
-        #         print("Image not found: {}".format(img_path))
-        #         # raise FileNotFoundError, "Image not found: {}".format(img_path)
-        #     image = Image.open(img_path)
-        #     if not image.mode == "RGB":
-        #         image = image.convert("RGB")
-        #     image = np.array(image)  # H, W, C
-        #     image = torch.from_numpy(image)
-        #     tensor_frms.append(image)
-            # image = torch.from_numpy(image).permute(2, 0, 1) # [C, H, W]
         tensor_frms = load_image_list_to_tensors(img_path_list)
         tensor_frms = torch.stack(tensor_frms, dim=0)  # T, H, W, C
         

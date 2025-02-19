@@ -7,49 +7,24 @@ from torch.utils.data import Dataset
 from tqdm import tqdm
 from PIL import Image
 from data_utils import *
-
+from data_share import SharedDataset
 
 # * TODO: Improve loading samples, per video clip, not per attribute
-class YouTubeDataset(Dataset):
+class YouTubeDataset(SharedDataset):
 
     def __init__(self, 
-                data_dir,
-                video_size, 
-                fps, 
-                max_num_frames, 
-                skip_frms_num=3, 
-                prefix_prompt="", 
-                n_repeat_of_actions=None, 
                 merge_static=False,
                 exclude_highly_static=False,
-                p_drop_action_caption=0,
-                n_subset=None,  # 30
-                ind_subset=None,  # 0,...,29
                 **kwargs):
         """
         skip_frms_num: ignore the first and the last xx frames, avoiding transitions.
         """
-        super(YouTubeDataset, self).__init__()
-
-        self.video_list = []
-        self.captions_list = []
-        self.num_frames_list = []
-        self.fps_list = []
         
-        self.video_size = video_size
-        self.fps = fps
-        self.max_num_frames = max_num_frames
-        self.skip_frms_num = skip_frms_num
-        self.prefix_prompt = prefix_prompt
-
-        self.n_repeat_of_actions = n_repeat_of_actions
         self.merge_static = merge_static
         self.exclude_highly_static = exclude_highly_static
+        super(YouTubeDataset, self).__init__(**kwargs)
 
-        self.length = len(self.captions_list)
-        self.p_drop_action_caption = p_drop_action_caption
 
-        self.load_data_json(data_dir, n_subset=n_subset, ind_subset=ind_subset)
 
     # * Repeat data here
     def load_data_json(self, data_json, n_subset=None, ind_subset=None):
@@ -93,39 +68,6 @@ class YouTubeDataset(Dataset):
             self.captions_list.extend(sample_caption)
 
 
-    def read_img_list(self, img_path_list):
-        video_size, fps, max_num_frames, skip_frms_num = \
-            self.video_size, self.fps, self.max_num_frames, self.skip_frms_num
-
-        # tensor_frms = []
-        # for img_path in img_path_list:
-        #     if not os.path.exists(img_path):
-        #         print("Image not found: {}".format(img_path))
-        #         # raise FileNotFoundError, "Image not found: {}".format(img_path)
-        #     image = Image.open(img_path)
-        #     if not image.mode == "RGB":
-        #         image = image.convert("RGB")
-        #     image = np.array(image)  # H, W, C
-        #     image = torch.from_numpy(image)
-
-        #     # print(image.device)  # * cpu
-            
-        #     tensor_frms.append(image)
-        #     # image = torch.from_numpy(image).permute(2, 0, 1) # [C, H, W]
-
-        tensor_frms = load_image_list_to_tensors(img_path_list)
-
-        
-        tensor_frms = torch.stack(tensor_frms, dim=0)  # T, H, W, C
-        
-        tensor_frms = pad_last_frame(
-            tensor_frms, max_num_frames
-        )  # the len of indices may be less than num_frames, due to round error\
-        tensor_frms = tensor_frms.permute(0, 3, 1, 2)  # [T, H, W, C] -> [T, C, H, W]
-        tensor_frms = resize_for_rectangle_crop(tensor_frms, video_size, reshape_mode="center")
-        tensor_frms = (tensor_frms - 127.5) / 127.5
-        return max_num_frames, tensor_frms
-
     def __getitem__(self, index):
         while True:
             video_path = self.video_list[index]
@@ -168,10 +110,3 @@ class YouTubeDataset(Dataset):
             "lidar_pc_token": str(index),  # * Placeholder to align with nuplan dataset
         }
         return item
-
-    def __len__(self):
-        return len(self.captions_list)
-
-    @classmethod
-    def create_dataset_function(cls, path, args, **kwargs):
-        return cls(data_dir=path, **kwargs)
