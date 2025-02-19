@@ -113,7 +113,7 @@ class YouTubeDataset(Dataset):
         #     tensor_frms.append(image)
         #     # image = torch.from_numpy(image).permute(2, 0, 1) # [C, H, W]
 
-        tensor_frms = load_image_list(img_path_list)
+        tensor_frms = load_image_list_to_tensors(img_path_list)
 
         
         tensor_frms = torch.stack(tensor_frms, dim=0)  # T, H, W, C

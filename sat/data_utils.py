@@ -106,15 +106,6 @@ def load_image_to_tensor(image_path):
     image = torch.from_numpy(image)
     return image
 
-# * multiprocess is not helpful for speeding up in training
-# def load_image_list(img_path_list, multiprocess=False, num_workers=4):
-#     if multiprocess:
-#         with concurrent.futures.ThreadPoolExecutor(max_workers=num_workers) as executor:
-#             images = list(executor.map(load_image_to_tensor, img_path_list))
-#     else:
-#         images = [load_image_to_tensor(img_path) for img_path in img_path_list]
-#     return images
-
-def load_image_list(img_path_list, num_workers=4):
+def load_image_list_to_tensors(img_path_list):
     images = [load_image_to_tensor(img_path) for img_path in img_path_list]
     return images

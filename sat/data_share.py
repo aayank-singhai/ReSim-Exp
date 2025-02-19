@@ -8,28 +8,30 @@ from tqdm import tqdm
 from PIL import Image
 from data_utils import *
 
-# TODO: Improve data loading: load clip as a dict, rather than each attributes separately
-class CarlaDataset(Dataset):
+
+# * TODO: Improve loading samples, per video clip, not per attribute
+class ShareDataset(Dataset):
 
     def __init__(self, 
                 data_dir, 
                 video_size, 
                 fps, 
                 max_num_frames, 
-                skip_frms_num=0,   # TODO: Set to 7
+                skip_frms_num=0,   # TODO: Set to 7 for nuplan, 0 for waymo
                 prefix_prompt="",
                 n_repeat_of_actions=None,
                 n_fut_traj_points=8,
                 p_mask_out_heading=0,
                 p_drop_action_caption=0,
                 traj_key='traj_fut',
+                reshape_mode='center',
                 n_subset=None,  # 30
-                ind_subset=None,  # 0,...,2
+                ind_subset=None,  # 0,...,29
                 **kwargs):
         """
         skip_frms_num: ignore the first and the last xx frames, avoiding transitions.
         """
-        super(CarlaDataset, self).__init__()
+        super(ShareDataset, self).__init__()
 
         self.video_list = []
         self.captions_list = []
@@ -51,6 +53,8 @@ class CarlaDataset(Dataset):
         self.p_mask_out_heading = p_mask_out_heading
         self.p_drop_action_caption = p_drop_action_caption
         self.traj_key = traj_key
+        self.reshape_mode = reshape_mode
+
         self.load_data_json(data_dir, n_subset=n_subset, ind_subset=ind_subset)
 
         self.length = len(self.captions_list)  # * Should be after loading data
@@ -62,7 +66,6 @@ class CarlaDataset(Dataset):
         self.data_root = data_root
 
         clip_infos = infos['clips']
-
         if n_subset is not None and ind_subset is not None:
             print("Using subset: {}/{}".format(ind_subset, n_subset))
             length_per_subset = math.ceil(len(clip_infos) / n_subset)
@@ -78,6 +81,8 @@ class CarlaDataset(Dataset):
             
             sample_seq = clip['img_seq']
             raw_caption = clip.get(caption_key, "")  # include static and highly static
+            if isinstance(raw_caption, int):
+                raw_caption = cmd_to_action[raw_caption]
             fut_traj = clip[self.traj_key][:self.n_fut_traj_points]
 
             token_key = 'lidar_pc_token' if 'lidar_pc_token' in clip else 'token'
@@ -112,28 +117,31 @@ class CarlaDataset(Dataset):
         video_size, fps, max_num_frames, skip_frms_num = \
             self.video_size, self.fps, self.max_num_frames, self.skip_frms_num
         
-        tensor_frms = []
+        img_path_list = img_path_list[skip_frms_num:]   # skip some frames
+        
+        # tensor_frms = []
 
         # img_path_list = img_path_list[skip_frms_num:]   # skip some frames
 
-        for img_path in img_path_list:
-            if not os.path.exists(img_path):
-                print("Image not found: {}".format(img_path))
-                # raise FileNotFoundError, "Image not found: {}".format(img_path)
-            image = Image.open(img_path)
-            if not image.mode == "RGB":
-                image = image.convert("RGB")
-            image = np.array(image)  # H, W, C
-            image = torch.from_numpy(image)
-            tensor_frms.append(image)
+        # for img_path in img_path_list:
+        #     if not os.path.exists(img_path):
+        #         print("Image not found: {}".format(img_path))
+        #         # raise FileNotFoundError, "Image not found: {}".format(img_path)
+        #     image = Image.open(img_path)
+        #     if not image.mode == "RGB":
+        #         image = image.convert("RGB")
+        #     image = np.array(image)  # H, W, C
+        #     image = torch.from_numpy(image)
+        #     tensor_frms.append(image)
             # image = torch.from_numpy(image).permute(2, 0, 1) # [C, H, W]
+        tensor_frms = load_image_list_to_tensors(img_path_list)
         tensor_frms = torch.stack(tensor_frms, dim=0)  # T, H, W, C
         
         tensor_frms = pad_last_frame(
             tensor_frms, max_num_frames
         )  # the len of indices may be less than num_frames, due to round error\
         tensor_frms = tensor_frms.permute(0, 3, 1, 2)  # [T, H, W, C] -> [T, C, H, W]
-        tensor_frms = resize_for_rectangle_crop(tensor_frms, video_size, reshape_mode="center")
+        tensor_frms = resize_for_rectangle_crop(tensor_frms, video_size, reshape_mode=self.reshape_mode)
         tensor_frms = (tensor_frms - 127.5) / 127.5
         return max_num_frames, tensor_frms
 
@@ -146,8 +154,7 @@ class CarlaDataset(Dataset):
             try:
                 num_frames, video_clip = self.read_img_list(img_list)
                 break
-            # except Exception as e:
-            except:
+            except Exception as e:
                 print("Broken data, skipping: {}".format(video_paths[-1]))
                 index = random.randint(0, self.length - 1)
                 continue
@@ -171,7 +178,6 @@ class CarlaDataset(Dataset):
         fut_traj = torch.tensor(fut_traj, dtype=torch.float32)  # [8, 3]
         if self.p_mask_out_heading > 0 and random.random() < self.p_mask_out_heading:
             fut_traj[:, -1] = 0  # mask out the heading
-
         # Lidar pc token
         lidar_pc_token = self.lidar_pc_token_list[index]
 
@@ -182,7 +188,7 @@ class CarlaDataset(Dataset):
             "num_frames": num_frames,
             "fps": self.fps,  # ? What's the use of fps?
             "fut_traj": fut_traj,
-            "lidar_pc_token": lidar_pc_token,
+            "lidar_pc_token": lidar_pc_token
         }
         return item
 
