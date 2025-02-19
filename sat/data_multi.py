@@ -5,12 +5,16 @@ from data_carla import CarlaDataset
 
 
 class MultiSourceDataset(Dataset):
-    def __init__(self, data_dir, skip_frms_num=0, token_json=None, scene_tensor_json_folder=None, **kwargs):
+    def __init__(self, data_dir, skip_frms_num=0, 
+                 token_json=None, scene_tensor_json_folder=None,
+                 with_human_drive_token=False,  # * True for nuPlan and YouTube, False for Carla
+                 **kwargs):
         # Initialize the appropriate dataset based on `data_dir` or other conditions
         if "youtube" in data_dir.lower():
             print("!!!Initializing YouTubeDataset!!!")
             self.dataset = YouTubeDataset(
                 data_dir=data_dir,
+                with_human_drive_token=with_human_drive_token,
                 **kwargs
             )
         elif "navsim" in data_dir.lower():
@@ -18,11 +22,12 @@ class MultiSourceDataset(Dataset):
             self.dataset = nuPlanDataset(
                 data_dir=data_dir,
 
+
                 # * Only nuplan uses them.
                 skip_frms_num=skip_frms_num,   
                 token_json=token_json,
                 scene_tensor_json_folder=scene_tensor_json_folder,
-
+                with_human_drive_token=with_human_drive_token,
 
                 **kwargs
             )
@@ -30,6 +35,9 @@ class MultiSourceDataset(Dataset):
             print("!!!Initializing CarlaDataset!!!")
             self.dataset = CarlaDataset(
                 data_dir=data_dir,
+
+
+                with_human_drive_token=False,  # * Always False for Carla
                 **kwargs
             )
         

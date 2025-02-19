@@ -170,7 +170,6 @@ class GeneralConditioner(nn.Module):
 
         return output
 
-    # TODO, Check this, Should I set ucg to 0 in configs during inference?
     def get_unconditional_conditioning(self, batch_c, batch_uc=None, force_uc_zero_embeddings=None, force_c_zero_embeddings=None):
         if force_uc_zero_embeddings is None:
             force_uc_zero_embeddings = []
@@ -246,22 +245,14 @@ class VideoRegisterEmbedder(AbstractEmbModel):
         self,
         n_register_token=10,
         dim=512,
-        zero_init=False,  # * no gradient?
         freeze=False,
     ):
         super().__init__()
         self.n_register_token = n_register_token
         self.dim = dim
-
-        # if zero_init:
-        #     self.register_tokens = nn.Parameter(
-        #         torch.zeros(n_register_token, dim)
-        #     )
-        # else:
-        assert not zero_init, "Zero-init will lead to all-zero embeddings without receiving gradient"
         self.register_tokens = nn.Parameter(
             torch.randn(n_register_token, dim)
-        )  # * Rand-init or zero-init?
+        )
         if freeze:
             self.freeze()
 
@@ -275,5 +266,42 @@ class VideoRegisterEmbedder(AbstractEmbModel):
             'n d -> b n d', 
             b=bs
         )
+
+        return tokens
+
+
+
+class HumanDriveTokenEmbedder(AbstractEmbModel):
+    """Uses the T5 transformer encoder for text"""
+
+    def __init__(
+        self,
+        n_register_token=10,
+        dim=512,
+        freeze=False,
+    ):
+        super().__init__()
+        self.n_register_token = n_register_token
+        self.dim = dim
+        self.register_tokens = nn.Parameter(
+            torch.randn(n_register_token, dim)
+        )
+        if freeze:
+            self.freeze()
+
+    def freeze(self):
+        self.register_tokens.requires_grad = False
+
+    def forward(self, with_tokens):
+        # import pdb; pdb.set_trace()
+        # * with_tokens: shape [bs]
+
+        bs = with_tokens.size(0)
+        tokens = repeat(
+            self.register_tokens, 
+            'n d -> b n d', 
+            b=bs
+        )
+        tokens = tokens * with_tokens.view(-1, 1, 1).float()
 
         return tokens

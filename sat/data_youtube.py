@@ -101,7 +101,8 @@ class YouTubeDataset(SharedDataset):
 
 
         item = {
-            "with_traj": False,   # TODO: Use with_traj to maskout pseudo-traj of OpenDV in training
+            "with_traj": False,
+            "with_human_drive_token": self.with_human_drive_token,
             "mp4": video_clip,
             "txt": caption,
             "num_frames": num_frames,

@@ -22,7 +22,11 @@ class SharedDataset(Dataset):
                 n_repeat_of_actions=None,
                 n_fut_traj_points=8,
                 p_mask_out_heading=0,
+                
                 p_drop_action_caption=0,
+                p_drop_traj=0,
+
+
                 traj_key='traj_fut',
                 reshape_mode='center',
                 n_subset=None,  # 30
@@ -31,6 +35,11 @@ class SharedDataset(Dataset):
                 # * For nuplan only
                 token_json=None,
                 scene_tensor_json_folder=None,
+                
+                # * Human Drive Token for YouTube and nuplan
+                # * - True for nuPlan and YouTube
+                # * - False for Carla
+                with_human_drive_token=False,
                 **kwargs):
         """
         skip_frms_num: ignore the first and the last xx frames, avoiding transitions.
@@ -55,13 +64,18 @@ class SharedDataset(Dataset):
         self.n_fut_traj_points = n_fut_traj_points
         # self.length = len(self.captions_list)
         self.p_mask_out_heading = p_mask_out_heading
+        
         self.p_drop_action_caption = p_drop_action_caption
+        self.p_drop_traj = p_drop_traj
+
         self.traj_key = traj_key
         self.reshape_mode = reshape_mode
 
         # * For nuplan only
         self.token_json = token_json
         self.scene_tensor_json_folder = scene_tensor_json_folder
+
+        self.with_human_drive_token = with_human_drive_token
 
         self.load_data_json(data_dir, n_subset=n_subset, ind_subset=ind_subset)
 
@@ -197,11 +211,21 @@ class SharedDataset(Dataset):
         fut_traj = torch.tensor(fut_traj, dtype=torch.float32)  # [8, 3]
         if self.p_mask_out_heading > 0 and random.random() < self.p_mask_out_heading:
             fut_traj[:, -1] = 0  # mask out the heading
+
+        if self.p_drop_traj > 0 and random.random() < self.p_drop_traj: # * drop the traj
+            fut_traj = torch.zeros_like(fut_traj)
+
         # Lidar pc token
         lidar_pc_token = self.lidar_pc_token_list[index]
 
+        # * For YouTube, human_drive_token can always apply
+        # * But for nuplan, it's only applied when fut_traj is dropped as zeros (free drive)
+        is_empty_traj = torch.all(fut_traj == 0).item()
+        with_human_drive_token = self.with_human_drive_token and is_empty_traj
+
         item = {
             "with_traj": True,
+            "with_human_drive_token": with_human_drive_token,
             "mp4": video_clip,
             "txt": caption,
             "num_frames": num_frames,

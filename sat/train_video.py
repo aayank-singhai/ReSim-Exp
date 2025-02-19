@@ -130,7 +130,9 @@ def broad_cast_batch(batch):
     else:
         broadcast_shape = None
 
-    obj_keys = ['txt', 'with_traj']
+    # obj_keys = ['txt', 'with_traj']
+    obj_keys = ['txt', 'with_traj', 'with_human_drive_token']
+    
     broadcast_obj = [{key: batch[key] for key in obj_keys}]
     broadcast_obj.append(broadcast_shape)
 
