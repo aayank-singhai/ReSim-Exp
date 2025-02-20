@@ -293,7 +293,6 @@ class HumanDriveTokenEmbedder(AbstractEmbModel):
         self.register_tokens.requires_grad = False
 
     def forward(self, with_tokens):
-        # import pdb; pdb.set_trace()
         # * with_tokens: shape [bs]
 
         bs = with_tokens.size(0)

@@ -134,6 +134,8 @@ class ViT(nn.Module):
 
         return self.mlp_head(cls_tokens)
 
+
+# If traj is all zeros, return all zeros, as we might drop the traj in getitem stage.
 class TrajEncoder(AbstractEmbModel):
     def __init__(self, *, seq_len, dim, out_dim, depth, mlp_dim, heads=8, dim_head = 64, dropout = 0., emb_dropout = 0.,
                  channels = 3,
@@ -186,6 +188,11 @@ class TrajEncoder(AbstractEmbModel):
 
     def forward(self, series):
         series = series.to(torch.float16)
+
+        is_empty_traj = torch.all(series == 0, dim=-1).all(dim=-1)
+        assert is_empty_traj.shape[0] == series.shape[0]
+        with_traj = ~is_empty_traj
+
         x = self.to_patch_embedding(series)  # [2, 8, 3]  b, t, c
         b, n, _ = x.shape
 
@@ -206,6 +213,8 @@ class TrajEncoder(AbstractEmbModel):
             cls_tokens, _ = unpack(x, ps, 'b * d')
             out = self.mlp_head(cls_tokens)
             out = out.unsqueeze(1)  # [2, 1, 1024]
+
+        out = out * with_traj.view(-1, 1, 1).float()
 
         return out
 
