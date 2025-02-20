@@ -39,7 +39,7 @@ data:
       prefix_prompt: "This video depicts a realistic view from the driver's perspective of a car driving on the road."
 
       p_drop_action_caption: 1.  # * Inference: 0.
-      traj_key: "carla_traj_fut"
+      traj_key: "traj_fut"
 
 model:
   scale_factor: 1.15258426

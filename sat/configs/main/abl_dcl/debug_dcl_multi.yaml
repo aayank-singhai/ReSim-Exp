@@ -11,7 +11,8 @@ args:
   model_parallel_size: 1
   experiment_name: nus
   mode: finetune
-  load: "/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/sat/ckpts0/main5_joint_stage2_high_small-lr-12-08-06-48"
+  # load: "/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/sat/ckpts/ckpts0/_important/main5_joint_stage2_high-11-29-03-11"
+  load: "/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/sat/ckpts/_important/main5_joint_stage2_high-11-29-03-11"
   
   no_load_rng: True
   # train_iters: 10000
@@ -19,13 +20,13 @@ args:
   eval_iters: 1
   eval_interval: 10000  # * Log video every 100 iterations
   eval_batch_size: 1
-  save: ckpts
-  save_interval: 2500  # * Save checkpoints
+  save: tmp_ckpts
+  # save_interval: 2500  # * Save checkpoints
+  save_interval: 1000
   log_interval: 20   # * Log info
 
   train_data: [
-    # "/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/custom_data/youtube_json/YouTube_svd_clip-len-49_interval-10_5M_flow_round2.json",  # * OpenDV
-    "/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/custom_data/youtube_json/YouTube_svd_val_1080p_clip-len-49_interval-10_77k_flow.json",  # * Debug
+    "/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/custom_data/youtube_json/YouTube_svd_clip-len-49_interval-10_5M_flow_round2.json",  # * OpenDV
     "/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/custom_data/navsim/token2info_train_list.json"  # * navsim
   ]
   valid_data: [
@@ -303,7 +304,10 @@ model:
             params:
               shift_scale: 3.0
 
-      loss_weight_short_dcl: 0.1
+      loss_weight_multi_dcl: 0.1
+      k_multi_dcl: 4
+      discount_multi_dcl: 0.9  # TODO: 0.9 -> 0.6? Higher uncertainty?
+      normalize_dcl: True
 
   sampler_config:
     target: sgm.modules.diffusionmodules.sampling.VPSDEDPMPP2MSampler

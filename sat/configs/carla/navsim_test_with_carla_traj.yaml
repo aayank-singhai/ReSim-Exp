@@ -37,9 +37,10 @@ data:
       max_num_frames: 49
       skip_frms_num: 7.
       prefix_prompt: "This video depicts a realistic view from the driver's perspective of a car driving on the road."
+      token_json: "/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/navsim_eval/infer_nuplan5_lora_not-contained_all_tokens_resume-from-256_not-apply-traj_planning-11-01-14-30.json"
 
       p_drop_action_caption: 1.  # * Inference: 0.
-      traj_key: "carla_traj_fut"
+      traj_key: 'carla_traj_fut'
 
 model:
   scale_factor: 1.15258426

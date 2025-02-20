@@ -1,34 +1,44 @@
-# * Larger LR: 1e-5 -> 1e-4
-# * Action zero-init
-# * Action balance
-# * Bugfix: skip 3 -> skip 7
-# * Condition frames: 0, 3 -> 0, 1, 2, 3
-# * Mask out heading: 0.3
-# * Use all tokens
+# TODO: 
+# - Larger bs
+# - Grad Norm Clip
+# - Offset Noise
+# - Video Offset Noise
+
+# * Resumed from main5_joint_stage2_high_small-lr-12-08-06-48 (15000 steps)
+
+# * 5 Nodes
 
 args:
   checkpoint_activations: True ## using gradient checkpointing
   model_parallel_size: 1
   experiment_name: nus
   mode: finetune
-  load: "/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/sat/ckpts0/main5_joint_stage2_high_small-lr-12-08-06-48"
+  load: "/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/sat/ckpts/main5_joint_stage2_high_small-lr-12-08-06-48"
   
   no_load_rng: True
   # train_iters: 10000
-  train_iters: 1000000
+  train_iters: 300000
   eval_iters: 1
   eval_interval: 10000  # * Log video every 100 iterations
   eval_batch_size: 1
   save: ckpts
-  save_interval: 2000  # * Save checkpoints
+  save_interval: 1000  # * Save checkpoints
   log_interval: 20   # * Log info
 
   train_data: [
-    "/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/custom_data/navsim/token2info_train_list.json" # * Previous train-val, now train-only
+    "/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/custom_data/youtube_json/YouTube_svd_clip-len-49_interval-10_5M_flow_round2_filtered.json",  # * OpenDV, filtered 
+    "/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/custom_data/navsim/token2info_train_list.json",  # * navsim
+    "/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/custom_data/carla/carla_0218_35k_new.json" # * carla
   ]
   valid_data: [
    "/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/custom_data/navsim/token2info_test_all_list.json" 
   ]
+
+  train_data_weights: [1, 20, 10]
+  # * OpenDV: 1, 5M
+  # * navsim: 40, 40 * 80k = 3.2M  (Too high? Overfit?)
+  # * Avoid overfitting to navsim
+  # * navsim: 20, 20 * 80k = 1.6M
 
   split: 1,0,0
   # num_workers: 0  # !!! DEBUG
@@ -40,29 +50,32 @@ args:
   lr_decay_style: 'constant'  # !!!!!! Using constant LR
 
 data:
-    # target: data_video_custom.SFTDataset
-    target: data_nuplan.nuPlanDataset
+    target: data_multi.MultiSourceDataset
     params:
       # video_size: [480, 720]
 
       video_size: [512, 896]
       fps: 10
       max_num_frames: 49
-      skip_frms_num: 7.  # * Skip first 7 frames (past frames saved in json, but not needed.)
+      skip_frms_num: 7.
       prefix_prompt: "This video depicts a realistic view from the driver's perspective of a car driving on the road."
-
+      
+      merge_static: True           # merging static to forward
+      exclude_highly_static: True  # exclude highly static
+      
       p_mask_out_heading: 0.5     # * Inference: 0.
       p_drop_action_caption: 0.5  # * Inference: 0.
 
       # # navsim train: {'Moving_Forward': 54414, 'Turning_Right': 9128, 'Turning_Left': 21567}
       n_repeat_of_actions:
+        Static: 1
         Moving_Forward: 1
-        Turning_Left: 2
+        Turning_Left: 5
         Turning_Right: 5
 
 deepspeed:
   # train_micro_batch_size_per_gpu: 1
-  train_micro_batch_size_per_gpu: 2   # * Larger bs
+  train_micro_batch_size_per_gpu: 2  # * 4 will lead to error
   gradient_accumulation_steps: 1
   steps_per_print: 50
   gradient_clipping: 0.1
@@ -87,10 +100,10 @@ deepspeed:
   optimizer:
     type: sat.ops.FusedEmaAdam
     params:
-      lr: 0.0001
+      lr: 0.00001
       betas: [0.9, 0.95]
       eps: 1e-8
-      weight_decay: 1e-4
+      weight_decay: 0.01  # * mid
   activation_checkpointing:
     partition_activations: false
     contiguous_memory_optimization: false
@@ -135,6 +148,7 @@ model:
       elementwise_affine: True
       num_frames: 49
       time_compressed_rate: 4
+      
       # * For (480, 720), originally supported
       # latent_width: 90
       # latent_height: 60
@@ -208,7 +222,7 @@ model:
         # * traj enc
         - is_trainable: true
           input_key: fut_traj
-          ucg_rate: 0.5    # * action (world model) and no-action (planning model)
+          ucg_rate: 0.2    # * Learn more action control
           target: sgm.modules.encoders.traj_encoder.TrajEncoder
           
           params:
@@ -292,6 +306,8 @@ model:
             target: sgm.modules.diffusionmodules.discretizer.ZeroSNRDDPMDiscretization
             params:
               shift_scale: 3.0
+
+      # loss_weight_short_dcl: 0.1
 
   sampler_config:
     target: sgm.modules.diffusionmodules.sampling.VPSDEDPMPP2MSampler
