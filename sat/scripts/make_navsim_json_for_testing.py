@@ -4,12 +4,13 @@ import argparse
 import os
 import cv2
 from tqdm import tqdm
-
+import math
 
 def load_json(json_path):
     print("Loading json: {}".format(json_path))
     with open(json_path) as f:
         data = json.load(f)
+    print("Successfully loaded json: {}".format(json_path))
     return data
 
 
@@ -47,10 +48,6 @@ def video_to_images(video_path):
         if not ret:
             break
 
-        # if frame_ind not in total_indices:
-        #     frame_ind += 1
-        #     continue
-
         # Save frame as image
         image_path = os.path.join(output_folder, f"frame_{frame_ind:04d}.png")
         cv2.imwrite(image_path, frame)
@@ -64,10 +61,7 @@ def video_to_images(video_path):
 
 def make_navsim_json_from_folder(output_folder):
     token2info = load_json('/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/custom_data/navsim/dict_token2info_test_all.json')
-    # import pdb; pdb.set_trace()
 
-    # save_root = '/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/navsim_eval'
-    # save_root = '/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/navsim_eval/debug2'
     save_root = output_folder
 
     folder_name = os.path.basename(output_folder)
@@ -77,16 +71,18 @@ def make_navsim_json_from_folder(output_folder):
     data = {}
     clips = []
 
-    n_subfolders = len(os.listdir(output_folder))
+    # n_samples_rough = 13000 
+
     # os.walk: get all files with .mp4 extension
 
     total_walks = len(list(os.walk(output_folder)))
-    N_GEN = 1000
+    ind_sample = 0
+
     for i, (root, dirs, files) in tqdm(enumerate(os.walk(output_folder)), total=total_walks):
         DEBUG = False  # !!! DEBUG
         if DEBUG:
+            N_GEN = 1000
             if i > N_GEN: break
-        # print(f"Processing {i}/{n_subfolders}...")
 
         for file in files:
             if file.endswith(".mp4") and "Sample" in file:
@@ -106,9 +102,64 @@ def make_navsim_json_from_folder(output_folder):
                 clip['gt_traj_fut'] = token2info[token_name]['traj_fut']
                 clips.append(clip)
 
+                ind_sample += 1
+                
+                # print(f"Processing {ind_sample}/{n_samples_rough}...")
+
     data['meta'] = dict(data_root="/cpfs01/shared/opendrivelab/opendrivelab_hdd/nuplan/dataset/nuplan-v1.1/sensor_blobs")
     data['clips'] = clips
     dump_json(data, save_name)
+
+
+def merge_group_jsons(group_folder):
+    # group_folder:
+    # e.g.: GROUP_navsim_full_main2_plan_30k_steps
+
+    json_paths = []
+    # for root, dirs, files in os.walk(group_folder):
+    #     for file in files:
+    #         if file.startswith("GROUP") and file.endswith(".json"):
+    #             json_paths.append(os.path.join(root, file))
+
+    for split_folder in os.listdir(group_folder):
+        split_folder_basename = os.path.basename(split_folder)
+        split_folder_json = os.path.join(group_folder, split_folder, f"{split_folder_basename}.json")
+        json_paths.append(split_folder_json)
+    
+    data = {}
+    data['meta'] = load_json(json_paths[0])['meta']
+    clips = []
+    for json_path in json_paths:
+        data_i = load_json(json_path)
+        clips += data_i['clips']
+    data['clips'] = clips
+    print("Merged clips: ", len(clips))
+    group_folder_name = os.path.basename(group_folder)
+    save_path = os.path.join(group_folder, f"{group_folder_name}.json")
+    dump_json(data, save_path)
+
+
+def split_json(json_path):
+    data = load_json(json_path)
+    clips = data['clips']
+    n_clips = len(clips)
+    n_splits = 10
+    # n_clips_per_split = n_clips // n_splits
+    n_clips_per_split = math.ceil(n_clips / n_splits)
+    sum_clips = 0
+    for i in range(n_splits):
+        split_clips = clips[i*n_clips_per_split:(i+1)*n_clips_per_split]
+        sum_clips += len(split_clips)
+        split_data = dict(meta=data['meta'], clips=split_clips)
+        split_save_path = json_path.replace(".json", f"_split_{i}.json")
+        dump_json(split_data, split_save_path)
+    print("Sum clips: ", sum_clips)
+    assert sum_clips == n_clips
+
+
+# merge_group_jsons("/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/outputs_hdd/GROUP_navsim_full_main2_plan_30k_steps")
+split_json("/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/outputs_hdd/GROUP_navsim_full_main2_plan_30k_steps/GROUP_navsim_full_main2_plan_30k_steps.json")
+import pdb; pdb.set_trace()
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -116,21 +167,5 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     print(f"Processing folder: {args.folder_path}")
-    # json_path = '/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/navsim_eval/debug/infer_nuplan5_lora_not-contained_all_tokens_resume-from-256_not-apply-traj_planning-11-01-14-30.json'
-    # json_path = '/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/navsim_eval/infer_nuplan5_lora_not-contained_all_tokens_resume-from-256_not-apply-traj_planning-11-01-14-30.json'
     
-    # json_path = '/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/custom_data/navsim/dict_token2info_test_all.json'
-    # json_path = '/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/custom_data/navsim/token2info_test_all_list.json'
-    # json_path = '/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/custom_data/waymo/waymo_val_traj_cmd.json'
-
-    # json_path = '/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/navsim_eval/debug2/infer_nuplan5_lora_not-contained_all_tokens_resume-from-256_not-apply-traj_planning-11-01-14-30_out_traj_eval_video_idm_planner_trans.json'
-
-    # data = load_json(json_path)
-    # import pdb; pdb.set_trace()
-
-    # folder_path = '/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/outputs/infer_nuplan5_lora_not-contained_all_tokens_resume-from-256_not-apply-traj_planning-11-01-14-30'
-    
-    # folder_path = '/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/outputs/reward_infer_nuplan5_lora_resume-from-256_wm_pred-traj-12-04-11-27'
-    # folder_path = '/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/outputs/reward_infer_nuplan5_lora_resume-from-256_wm_gt-traj-12-04-11-23'
-
     make_navsim_json_from_folder(args.folder_path)

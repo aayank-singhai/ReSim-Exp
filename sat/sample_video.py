@@ -53,8 +53,6 @@ def get_batch(keys, value_dict, N: Union[List, ListConfig], T=None, device="cuda
         if key == "txt":
             batch["txt"] = np.repeat([value_dict["prompt"]], repeats=math.prod(N)).reshape(N).tolist()
             batch_uc["txt"] = np.repeat([value_dict["negative_prompt"]], repeats=math.prod(N)).reshape(N).tolist()
-        # else:
-        #     batch[key] = value_dict[key]
         elif key in value_dict.keys():
             batch[key] = value_dict[key]
 
@@ -381,7 +379,6 @@ def sampling_main(args, model_cls):
                     z = samples_z.permute(0, 2, 1, 3, 4).contiguous()
 
                 if mpu.get_model_parallel_rank() == 0:
-
 
                     assert not SAVE_RECON and not CONCAT_RECON_FOR_DEMO, "save memory, do not save recon or concat_recon_for_demo"
                     if SAVE_RECON:

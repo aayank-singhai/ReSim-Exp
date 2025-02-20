@@ -219,7 +219,9 @@ def replace_navsim_traj_with_cala(navsim_json, carla_json):
     out_navsim_json = navsim_json.replace('.json', '_carla-traj.json')
     dump_json(navsim_data, out_navsim_json)
 
-# add_token_to_clips("/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/custom_data/carla/carla_train_0217_35k.json")
+add_token_to_clips("/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/custom_data/carla/carla_0218_35k_new.json")
+import pdb; pdb.set_trace()
+
 
 navsim_json = '/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/custom_data/carla/navsim_test.json'
 carla_json = '/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/custom_data/carla/carla_demo_0213_correct_v2.json'
