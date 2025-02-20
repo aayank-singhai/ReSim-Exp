@@ -40,6 +40,7 @@ class SharedDataset(Dataset):
                 # * - True for nuPlan and YouTube
                 # * - False for Carla
                 with_human_drive_token=False,
+                always_apply_human_drive_token=False,  # * Apply human_drive_token when traj is valid
                 **kwargs):
         """
         skip_frms_num: ignore the first and the last xx frames, avoiding transitions.
@@ -76,6 +77,7 @@ class SharedDataset(Dataset):
         self.scene_tensor_json_folder = scene_tensor_json_folder
 
         self.with_human_drive_token = with_human_drive_token
+        self.always_apply_human_drive_token = always_apply_human_drive_token
 
         self.load_data_json(data_dir, n_subset=n_subset, ind_subset=ind_subset)
 
@@ -220,8 +222,11 @@ class SharedDataset(Dataset):
 
         # * For YouTube, human_drive_token can always apply
         # * But for nuplan, it's only applied when fut_traj is dropped as zeros (free drive)
-        is_empty_traj = torch.all(fut_traj == 0).item()
-        with_human_drive_token = self.with_human_drive_token and is_empty_traj
+
+        with_human_drive_token = self.with_human_drive_token
+        if not self.always_apply_human_drive_token:
+            is_empty_traj = torch.all(fut_traj == 0).item()
+            with_human_drive_token = self.with_human_drive_token and is_empty_traj
 
         item = {
             "with_traj": True,
