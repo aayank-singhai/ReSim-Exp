@@ -61,9 +61,11 @@ def dump_json(data, json_path):
 def remove_keys_from_ckpt(ckpt_path, keys_to_remove):
     print("Loading ckpt: {}".format(ckpt_path))
     ckpt = torch.load(ckpt_path, map_location='cpu')
+
+    print("Successfully loaded ckpt")
     
     model = ckpt['module']
-    import pdb; pdb.set_trace()
+    # import pdb; pdb.set_trace()
     # for key in keys_to_remove:
     #     if key in model:
     #         del model[key]
@@ -76,13 +78,17 @@ def remove_keys_from_ckpt(ckpt_path, keys_to_remove):
     
     ckpt['module'] = model
 
-    ext = ckpt_path.split('.')[-1]
-    out_path = ckpt_path.replace(ext, '_removed.' + ext)
+    ckpt_name = os.path.basename(ckpt_path)
+    out_ckpt_name = ckpt_name.replace('.pt', '_removed.pt')
+    out_ckpt_path = os.path.join(os.path.dirname(ckpt_path), out_ckpt_name)
+    print("Saving to: {}".format(out_ckpt_path))
     import pdb; pdb.set_trace()
-    torch.save(ckpt, out_path)
+    torch.save(ckpt, out_ckpt_path)
     print(f"Removed keys: {keys_to_remove} from {ckpt_path}")
 
-ckpt_path = '/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/sat/ckpts/ckpts0/_important/nuplan5_lora_not-contained_all_token_resume-from-256-10-28-20-48/42000/mp_rank_00_model_states.pt'
+# ckpt_path = '/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/sat/ckpts/ckpts0/_important/nuplan5_lora_not-contained_all_token_resume-from-256-10-28-20-48/42000/mp_rank_00_model_states.pt'
+# ckpt_path = '/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/sat/ckpts/main5_joint_stage2_high_small-lr-12-08-06-48/15000/mp_rank_00_model_states.pt'
+ckpt_path = '/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/sat/ckpts/main5_joint_stage2_high_small-lr_full-12-14-07-46/10000/mp_rank_00_model_states.pt'
 remove_keys_from_ckpt(ckpt_path, 'conditioner.embedders.1')
 import pdb; pdb.set_trace()
 
