@@ -10,8 +10,7 @@ logs/
 local_save/
 ckpts/
 tmp*/
-outputs/
-outputs_hdd
+outputs*
 nuscenes/
 nuscenes
 custom_data/

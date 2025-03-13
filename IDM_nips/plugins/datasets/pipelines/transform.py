@@ -88,6 +88,39 @@ class CenterCropResizeMultiViewImage(object):
 
 
 @PIPELINES.register_module()
+class MedianBlurMultiViewImage(object):
+    def __init__(self, blur_limit=7, p=0.5):
+        self.blur_limit = blur_limit
+        self.p = p
+
+    def __call__(self, results):
+        transform = albumentations.MedianBlur(blur_limit=self.blur_limit, p=self.p)
+        imgs = results['img']
+        new_imgs = []
+        for img in imgs:
+            new_imgs.append(transform(image=img)['image'])
+        results['img'] = new_imgs
+        return results
+
+
+@PIPELINES.register_module()
+class MotionBlurMultiViewImage(object):
+    def __init__(self, blur_limit=7, p=0.5, allow_shifted=False):
+        self.blur_limit = blur_limit
+        self.p = p
+        self.allow_shifted = allow_shifted
+
+    def __call__(self, results):
+        transform = albumentations.MotionBlur(blur_limit=self.blur_limit, p=self.p, allow_shifted=self.allow_shifted)
+        imgs = results['img']
+        new_imgs = []
+        for img in imgs:
+            new_imgs.append(transform(image=img)['image'])
+        results['img'] = new_imgs
+        return results
+
+
+@PIPELINES.register_module()
 class NormalizeMultiviewImage(object):
     """Normalize the image.
     Added key is "img_norm_cfg".

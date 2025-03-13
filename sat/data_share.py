@@ -31,6 +31,7 @@ class SharedDataset(Dataset):
                 reshape_mode='center',
                 n_subset=None,  # 30
                 ind_subset=None,  # 0,...,29
+                manual_total_length=None,
 
                 # * For nuplan only
                 token_json=None,
@@ -79,6 +80,8 @@ class SharedDataset(Dataset):
         self.with_human_drive_token = with_human_drive_token
         self.always_apply_human_drive_token = always_apply_human_drive_token
 
+        self.manual_total_length = manual_total_length
+
         self.load_data_json(data_dir, n_subset=n_subset, ind_subset=ind_subset)
 
         self.length = len(self.captions_list)  # * Should be after loading data
@@ -94,6 +97,24 @@ class SharedDataset(Dataset):
             token_json = load_json(self.token_json)
             token_keep = token_json.keys()
             clip_infos = [clip for clip in clip_infos if clip['lidar_pc_token'] in token_keep]
+
+        if self.manual_total_length is not None:
+            clip_infos = clip_infos[:self.manual_total_length]
+
+        if self.scene_tensor_json_folder is not None:
+            scene_tensor_tokens = os.listdir(self.scene_tensor_json_folder)
+            scene_tensor_tokens = [token.split('.')[0] for token in scene_tensor_tokens]
+            scene_tensor_tokens_ind = 0
+
+            # token_keep = [token.split('.')[0] for token in scene_tensor_tokens]
+            token_keep = [token.split('_')[0] for token in scene_tensor_tokens]
+            # clip_infos = [clip for clip in clip_infos if clip['lidar_pc_token'] in token_keep]
+
+            # token2scene_tensor_token = {token: scene_tensor_token for token, scene_tensor_token in zip(token_keep, scene_tensor_tokens)}
+
+            token_to_infos = {clip['lidar_pc_token']: clip for clip in clip_infos}
+
+            clip_infos = [token_to_infos[token] for token in token_keep]
 
         if n_subset is not None and ind_subset is not None:
             print("Using subset: {}/{}".format(ind_subset, n_subset))
@@ -125,7 +146,8 @@ class SharedDataset(Dataset):
                 lidar_pc_token = str(lidar_pc_token)
 
             if self.scene_tensor_json_folder is not None:
-                scene_tensor_json = os.path.join(self.scene_tensor_json_folder, lidar_pc_token + '.json')
+                scene_tensor_token = scene_tensor_tokens[scene_tensor_tokens_ind]
+                scene_tensor_json = os.path.join(self.scene_tensor_json_folder, scene_tensor_token + '.json')
                 scene_tensor_json = load_json(scene_tensor_json, verbose=False)
                 scene_tensor = scene_tensor_json[lidar_pc_token]['tensor']
                 scene_tensor_valid = scene_tensor_json[lidar_pc_token]['validity']
@@ -138,6 +160,7 @@ class SharedDataset(Dataset):
                 # !! Use fut_traj as scene_tensor
                 fut_traj = scene_tensor[4: 12]
                 assert fut_traj.shape[0] == self.n_fut_traj_points
+                scene_tensor_tokens_ind += 1
 
             
             sample_caption = raw_caption

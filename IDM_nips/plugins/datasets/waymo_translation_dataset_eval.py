@@ -36,7 +36,7 @@ class WaymoTranslationDatasetEval(NuScenesTranslationDataset):
         roots = gen_image_root
         if "GROUP" in roots.split('/')[-1]:
             roots = [
-                os.path.join(roots, split) for split in os.listdir(roots)
+                os.path.join(roots, split) for split in os.listdir(roots) if not split.endswith(".json")
             ]
 
         if not isinstance(roots, list):

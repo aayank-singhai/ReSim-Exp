@@ -29,8 +29,8 @@ import shutil
 
 # TODO: Visualize Same intermediate results for each timestep
 # * Optimize Sampling Quality for Short-term Sequence
-# TODO: 1. For each video clip, optimize the timestep scheduler for denoising
-# TODO: 2. For each video clip, optimize the conditioning scheduler for denosing
+# Finished -  TODO: 1. For each video clip, optimize the timestep scheduler for denoising
+# Finished - TODO: 2. For each video clip, optimize the conditioning scheduler for denosing
 # TODO: 3. For each video clip, optimize the conditioning augmentation scheduler for denoising
 
 # * Optimize Sampling Quality for long-term Rollouts
@@ -188,7 +188,21 @@ def get_cond_inds(n_cond, n_round=0):
         return list(range(-n_cond, 0))
 
 
+def set_seed(seed: int):
+    """Set the manual seed for reproducibility in PyTorch."""
+    torch.manual_seed(seed)
+    torch.cuda.manual_seed_all(seed)
+    torch.backends.cudnn.deterministic = True
+    torch.backends.cudnn.benchmark = False
+    
+    print("!!!!!Setted seed to!!!!!!!", seed)
+
 def sampling_main(args, model_cls):
+
+    # seed = 42   # * Specify your seed value here
+    # set_seed(seed)
+    # set_seed(args.seed)
+
     if isinstance(model_cls, type):
         model = get_model(args, model_cls)
     else:
@@ -221,7 +235,10 @@ def sampling_main(args, model_cls):
 
     T, H, W, C, F = args.sampling_num_frames, image_size[0], image_size[1], args.latent_channels, 8
     num_samples = [1]
-    force_uc_zero_embeddings = ["txt", "fut_traj"]
+    
+    force_uc_zero_embeddings = ["txt", "fut_traj", "with_human_drive_token"]
+
+
     APPLY_TRAJ = args.apply_traj  # * Default False
     SAVE_RECON = args.save_recon  # * Default True, Turn to false to speed up sampling
     SAVE_GT = args.save_gt
@@ -245,7 +262,9 @@ def sampling_main(args, model_cls):
 
     # cfg_name = os.path.basename(cfg_path).replace(".yaml", "")
     out_dir = os.path.join(out_root, cfg_name)
-    out_dir = out_dir + '-' +datetime.now().strftime("%m-%d-%H-%M")
+
+    if "GROUP" not in cfg_path:
+        out_dir = out_dir + '-' +datetime.now().strftime("%m-%d-%H-%M")
     os.makedirs(out_dir, exist_ok=True)
 
     # write iteration to file
@@ -272,6 +291,9 @@ def sampling_main(args, model_cls):
                 x = x.permute(0, 2, 1, 3, 4).contiguous()
 
                 # * Might be slow
+                # import pdb; pdb.set_trace()
+
+
                 z = model.encode_first_stage(x, batch)
                 z_origin = z.clone()  # * For logging
                 # torch.Size([1, 16, 13, 64, 112])
@@ -296,6 +318,9 @@ def sampling_main(args, model_cls):
             if "fut_traj" in batch:
                 value_dict["fut_traj"] = batch["fut_traj"].to(device)
 
+            if "with_human_drive_token" in batch:
+                value_dict["with_human_drive_token"] = batch["with_human_drive_token"].to(device)
+
             if "lidar_pc_token" in batch:
                 lidar_pc_tokens = batch["lidar_pc_token"]
             else:
@@ -305,6 +330,9 @@ def sampling_main(args, model_cls):
             batch, batch_uc = get_batch(
                 get_unique_embedder_keys_from_conditioner(model.conditioner), value_dict, num_samples
             )
+
+            # import pdb; pdb.set_trace()
+
 
             for key in batch:
                 if isinstance(batch[key], torch.Tensor):
