@@ -35,13 +35,14 @@ class SharedDataset(Dataset):
 
                 # * For nuplan only
                 token_json=None,
-                scene_tensor_json_folder=None,
                 
                 # * Human Drive Token for YouTube and nuplan
                 # * - True for nuPlan and YouTube
                 # * - False for Carla
                 with_human_drive_token=False,
                 always_apply_human_drive_token=False,  # * Apply human_drive_token when traj is valid
+
+                shuffle_traj_as_non_experts=False,
                 **kwargs):
         """
         skip_frms_num: ignore the first and the last xx frames, avoiding transitions.
@@ -75,12 +76,13 @@ class SharedDataset(Dataset):
 
         # * For nuplan only
         self.token_json = token_json
-        self.scene_tensor_json_folder = scene_tensor_json_folder
 
         self.with_human_drive_token = with_human_drive_token
         self.always_apply_human_drive_token = always_apply_human_drive_token
 
         self.manual_total_length = manual_total_length
+        
+        self.shuffle_traj_as_non_experts = shuffle_traj_as_non_experts
 
         self.load_data_json(data_dir, n_subset=n_subset, ind_subset=ind_subset)
 
@@ -101,20 +103,6 @@ class SharedDataset(Dataset):
         if self.manual_total_length is not None:
             clip_infos = clip_infos[:self.manual_total_length]
 
-        if self.scene_tensor_json_folder is not None:
-            scene_tensor_tokens = os.listdir(self.scene_tensor_json_folder)
-            scene_tensor_tokens = [token.split('.')[0] for token in scene_tensor_tokens]
-            scene_tensor_tokens_ind = 0
-
-            # token_keep = [token.split('.')[0] for token in scene_tensor_tokens]
-            token_keep = [token.split('_')[0] for token in scene_tensor_tokens]
-            # clip_infos = [clip for clip in clip_infos if clip['lidar_pc_token'] in token_keep]
-
-            # token2scene_tensor_token = {token: scene_tensor_token for token, scene_tensor_token in zip(token_keep, scene_tensor_tokens)}
-
-            token_to_infos = {clip['lidar_pc_token']: clip for clip in clip_infos}
-
-            clip_infos = [token_to_infos[token] for token in token_keep]
 
         if n_subset is not None and ind_subset is not None:
             print("Using subset: {}/{}".format(ind_subset, n_subset))
@@ -145,24 +133,6 @@ class SharedDataset(Dataset):
             if not isinstance(lidar_pc_token, str):
                 lidar_pc_token = str(lidar_pc_token)
 
-            if self.scene_tensor_json_folder is not None:
-                scene_tensor_token = scene_tensor_tokens[scene_tensor_tokens_ind]
-                scene_tensor_json = os.path.join(self.scene_tensor_json_folder, scene_tensor_token + '.json')
-                scene_tensor_json = load_json(scene_tensor_json, verbose=False)
-                scene_tensor = scene_tensor_json[lidar_pc_token]['tensor']
-                scene_tensor_valid = scene_tensor_json[lidar_pc_token]['validity']
-                scene_tensor = torch.from_numpy(np.array(scene_tensor))  # [129, 21, 8]
-                scene_tensor_valid = torch.from_numpy(np.array(scene_tensor_valid))  # [129, 21]
-                scene_tensor_valid = scene_tensor_valid.unsqueeze(2)  # [129, 21, 1]
-                scene_tensor = torch.cat([scene_tensor, scene_tensor_valid], dim=2)  # [129, 21, 9]
-                scene_tensor = scene_tensor.permute(1, 0, 2)  # [21, 129, 9]   # * First dim is time, second number of agents
-                scene_tensor = scene_tensor.reshape(scene_tensor.shape[0], -1)  # flatten [21, 1161]
-                # !! Use fut_traj as scene_tensor
-                fut_traj = scene_tensor[4: 12]
-                assert fut_traj.shape[0] == self.n_fut_traj_points
-                scene_tensor_tokens_ind += 1
-
-            
             sample_caption = raw_caption
 
             sample_caption = sample_caption.replace("_", " ").lower()  # * MINOR FIX: Converting action to lowercase
@@ -185,6 +155,9 @@ class SharedDataset(Dataset):
             self.captions_list.extend(sample_caption)
             self.fut_traj_list.extend(sample_traj)
             self.lidar_pc_token_list.extend(sample_token)
+
+        if self.shuffle_traj_as_non_experts:
+            random.shuffle(self.fut_traj_list)
 
     def read_img_list(self, img_path_list):
         video_size, fps, max_num_frames, skip_frms_num = \

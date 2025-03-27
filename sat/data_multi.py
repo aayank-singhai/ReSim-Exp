@@ -8,6 +8,8 @@ class MultiSourceDataset(Dataset):
     def __init__(self, data_dir, 
                  skip_frms_num=0, 
                  token_json=None, 
+                 p_drop_traj=0.0,
+                 p_drop_traj_carla=None,
                  prefix_prompt="",
                  prefix_prompt_carla=None,
                  scene_tensor_json_folder=None,
@@ -19,6 +21,9 @@ class MultiSourceDataset(Dataset):
             self.dataset = YouTubeDataset(
                 data_dir=data_dir,
                 prefix_prompt=prefix_prompt,
+
+                p_drop_traj=p_drop_traj,
+
                 with_human_drive_token=with_human_drive_token,
                 **kwargs
             )
@@ -27,6 +32,8 @@ class MultiSourceDataset(Dataset):
             self.dataset = nuPlanDataset(
                 data_dir=data_dir,
                 prefix_prompt=prefix_prompt,
+
+                p_drop_traj=p_drop_traj,
 
                 # * Only nuplan uses them.
                 skip_frms_num=skip_frms_num,   
@@ -41,6 +48,9 @@ class MultiSourceDataset(Dataset):
             self.dataset = CarlaDataset(
                 data_dir=data_dir,
                 prefix_prompt=prefix_prompt_carla or prefix_prompt,
+
+
+                p_drop_traj=p_drop_traj_carla or p_drop_traj,
 
 
                 with_human_drive_token=False,  # * Always False for Carla

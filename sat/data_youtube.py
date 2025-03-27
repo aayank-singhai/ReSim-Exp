@@ -15,6 +15,7 @@ class YouTubeDataset(SharedDataset):
     def __init__(self, 
                 merge_static=False,
                 exclude_highly_static=False,
+                use_psuedo_traj=False,
                 **kwargs):
         """
         skip_frms_num: ignore the first and the last xx frames, avoiding transitions.
@@ -22,6 +23,7 @@ class YouTubeDataset(SharedDataset):
         
         self.merge_static = merge_static
         self.exclude_highly_static = exclude_highly_static
+        self.use_psuedo_traj = use_psuedo_traj
         super(YouTubeDataset, self).__init__(**kwargs)
 
 
@@ -42,6 +44,11 @@ class YouTubeDataset(SharedDataset):
             
             sample_path_tuple = (data_root, clip['folder_name'], clip['first_frame'], clip['end_frame'])
             raw_caption = clip.get("flow_direction", "")  # include static and highly static
+
+            if self.use_psuedo_traj:
+                fut_traj = clip[self.traj_key][:self.n_fut_traj_points]
+            else:
+                fut_traj = torch.zeros((8, 3))
             
             if self.exclude_highly_static and "Highly_Static" in raw_caption:
                 continue
@@ -63,10 +70,11 @@ class YouTubeDataset(SharedDataset):
             # * Repeat to achieve data weighting
             sample_path_tuple = [sample_path_tuple] * n_repeat
             sample_caption = [sample_caption] * n_repeat
+            sample_traj = [fut_traj] * n_repeat
 
             self.video_list.extend(sample_path_tuple)
             self.captions_list.extend(sample_caption)
-
+            self.fut_traj_list.extend(sample_traj)
 
     def __getitem__(self, index):
         while True:
@@ -99,15 +107,18 @@ class YouTubeDataset(SharedDataset):
             else:
                 caption = prefix_prompt + " " + caption
 
+        # Traj
+        fut_traj = self.fut_traj_list[index]
+        fut_traj = torch.tensor(fut_traj, dtype=torch.float32)  # [8, 3]
 
         item = {
-            "with_traj": False,
+            "with_traj": self.use_psuedo_traj,
             "with_human_drive_token": self.with_human_drive_token,
             "mp4": video_clip,
             "txt": caption,
             "num_frames": num_frames,
             "fps": self.fps,  # ? What's the use of fps?
-            "fut_traj": torch.zeros((8, 3)),  # * Placeholder, not used, no traj actually,
+            "fut_traj": fut_traj,  # * Placeholder, not used, no traj actually,
             "lidar_pc_token": str(index),  # * Placeholder to align with nuplan dataset
         }
         return item
