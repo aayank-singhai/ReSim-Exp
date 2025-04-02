@@ -4,19 +4,15 @@ import subprocess
 
 # EXP_NAME = "GROUP_base_planner_cmd_on_trainset"
 # EXP_NAME = "GROUP_ltf_on_trainset_round2"
+
 # EXP_NAME = "GROUP_ltf_init_on_testset"
 # EXP_NAME = "GROUP_add_carla_data_act"
 # EXP_NAME = "GROUP_add_carla_data_free"
 # EXP_NAME = "GROUP_add_carla_data_free2_early_carla"
-# EXP_NAME = "GROUP_transfuser_init_on_testset_no_carla_sim"
-# EXP_NAME = "GROUP_add_carla_data_act_merge"
-# EXP_NAME = "GROUP_main_long_horizon"
-# EXP_NAME = "GROUP_merge_long_horizon"
-# EXP_NAME = "GROUP_navsim_full_with_carla_data_with_no_token"
-# EXP_NAME = "GROUP_abl_with_carla_data_no-token_free"
+# EXP_NAME = "GROUP_add_carla_data_act"
+# EXP_NAME = "GROUP_abl_with_carla_data_no-token_act"
 
-# EXP_NAME = "GROUP_abl_with_carla_data_no-token_prompt_gpu32_act"
-EXP_NAME =   "GROUP_abl_with_carla_data_no-token_no_prompt_gpu32_act"
+EXP_NAME = "GROUP_abl_with_carla_data_act"
 
 # CONFIG = "/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/sat/configs/navsim_offline_rl/GROUP_ltf_init_on_trainset/ltf_init_on_trainset"
 # CONFIG = "/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/sat/configs/navsim_offline_rl/GROUP_ltf_init_on_testset/ltf_init_on_testset"
@@ -25,17 +21,14 @@ EXP_NAME =   "GROUP_abl_with_carla_data_no-token_no_prompt_gpu32_act"
 # CONFIG = "/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/sat/configs/navsim_offline_rl/GROUP_ltf_on_trainset_round2/ltf_on_trainset"
 # CONFIG = "/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/sat/configs/waymo_action_control/GROUP_add_carla_data_act/infer_waymo_with_carla_data_action_center_split"
 # CONFIG = "/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/sat/configs/waymo_action_control/GROUP_add_carla_data_free/infer_waymo_with_carla_data_free_center_split"
-# CONFIG = "/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/sat/configs/waymo_action_control/GROUP_add_carla_data_act_merge/infer_waymo_with_carla_data_action_merge_center_split"
-# CONFIG = "/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/sat/configs/navsim_visual_planning/GROUP_navsim_full_with_carla_data_with_no_token/GROUP_navsim_full_main2_plan_30k_steps_split"
+# CONFIG = "/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/sat/configs/waymo_action_control/GROUP_add_carla_data_free2_early_carla/infer_waymo_with_carla_data_free2_center_split"
+# CONFIG = "/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/world_model_evaluate/configs/GROUP_add_carla_data_act/action_center_add_carla_data"
+# CONFIG = "/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/world_model_evaluate/configs/GROUP_add_carla_data_act2/action_center_add_carla_data2_early"
 
+# CONFIG = "/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/world_model_evaluate/configs/GROUP_abl_with_carla_data_no-token_act/action_center_abl_with_carla_data_no-token"
+CONFIG = "/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/world_model_evaluate/configs/GROUP_abl_with_carla_data_act/action_center_abl_with_carla_data"
 
-# CONFIG = "/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/sat/configs/visualization/GROUP_merge_long_horizon/infer_merge_30k_full_round1_no-text_split"
-# CONFIG = "/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/sat/configs/waymo_action_control/GROUP_abl_with_carla_data_no-token_prompt_gpu32_act/abl_with_carla_data_no_token_action_center_split"
-CONFIG =   "/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/sat/configs/waymo_action_control/GROUP_abl_with_carla_data_no-token_no_prompt_gpu32_act/abl_with_carla_data_no_token_action_center_split"
-
-# CONFIG = "/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/sat/configs/visualization/GROUP_main_long_horizon/infer_main2_30k_full_round1_no-text_split"
-
-# CONFIG = "/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/sat/configs/waymo_action_control/GROUP_abl_with_carla_data_no-token_free/abl_with_carla_data_no_token_free_center_split"
+# CONFIG = "/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/outputs_hdd/GROUP_abl_no_carla_data_act/abl_no_carla_data_action_center_split_0"
 
 N_TOTAL = 20
 
@@ -44,13 +37,13 @@ TEMPLATE = f"""./dlc submit pytorchjob \
     --name={EXP_NAME}_<ID> \
     --command='bash <<-EOF
 source /cpfs01/user/yangjiazhi/.bashrc
-conda activate /cpfs01/user/yangjiazhi/my_envs/cogvid2
-cd /cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/sat
-./inference_custom.sh {CONFIG}_<ID>.yaml
+conda activate /cpfs01/user/yangjiazhi/my_envs/cogvid
+cd /cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/world_model_evaluate
+./eval.sh {CONFIG}_<ID>.yaml
 EOF' \
-    --data_sources=d-ceg1efkflyg23vzhev,d-k8tu6brdfsyi2wj470,d-x135sr0ge79zzka647,d-fhse5rx2daxjz7k2t7 \
-    --resource_id=quota6grhfqhj13o \
-    --workspace_id=28250 \
+    --data_sources=d-dcbhw3bc7cixdnl4yu,d-3ysnral3r6911qmkqb,d-xu3mowvrld979aj9kl,d-3jltg36rwabtkilukp \
+    --resource_id=quotanur5zmaur63 \
+    --workspace_id=86989 \
     --priority=5 \
     --worker_image=pjlab-wulan-acr-registry-vpc.cn-wulanchabu.cr.aliyuncs.com/pjlab-eflops/yangjiazhi:yangjiazhi2 \
     --workers=1 \
@@ -59,7 +52,7 @@ EOF' \
     --worker_shared_memory=200Gi \
     --worker_gpu=1
 """
-INTERVAL = 10
+INTERVAL = 5
 
 for exp_id in range(N_TOTAL):
 
