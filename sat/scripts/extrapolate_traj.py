@@ -263,51 +263,6 @@ def extrapolate_trajectory(traj, distance_threshold=0.1, min_static_points=3):
     
     return new_traj, True
 
-# def interpolate_trajectory(traj, distance_threshold=0.1, min_static_points=3):
-#     """
-#     Given a trajectory (list of [x, y, heading]) that may include a near-static region at the end,
-#     detect the static part and generate an interpolated trajectory (using cubic spline interpolation)
-#     that extends the dynamics of the initial dynamic waypoints.
-    
-#     The number of output waypoints will match the original trajectory.
-    
-#     Interpolation is performed only if a static region is detected.
-#     """
-#     N = len(traj)
-#     # Detect start of static region using the threshold
-#     static_start_idx = detect_static_region(traj, distance_threshold, min_static_points)
-    
-#     # If no static region is detected, return the original trajectory
-#     if static_start_idx is None:
-#         return traj
-    
-#     # Use waypoints up to static_start_idx as the dynamic portion for fitting.
-#     dynamic_traj = traj[:static_start_idx]
-    
-#     # If there are not enough points to fit a spline, return the original trajectory.
-#     if len(dynamic_traj) < 3:
-#         return traj
-    
-#     # Parameterize the dynamic trajectory using their indices.
-#     t_dynamic = np.arange(len(dynamic_traj))
-#     x_dynamic = np.array([pt[0] for pt in dynamic_traj])
-#     y_dynamic = np.array([pt[1] for pt in dynamic_traj])
-    
-#     # Fit cubic splines to the x and y coordinates.
-#     cs_x = CubicSpline(t_dynamic, x_dynamic, extrapolate=True)
-#     cs_y = CubicSpline(t_dynamic, y_dynamic, extrapolate=True)
-    
-#     # Create new parameter values for the entire trajectory length.
-#     t_new = np.linspace(0, t_dynamic[-1], N)
-    
-#     # Evaluate the spline at the new parameter values.
-#     x_new = cs_x(t_new)
-#     y_new = cs_y(t_new)
-    
-#     # For heading, since it's always 0 in this scenario, we keep it constant.
-#     interpolated_traj = [[float(x_new[i]), float(y_new[i]), 0.0] for i in range(N)]
-    
-#     return interpolated_traj
 
 def extrapolate_traj_for_dataset(json_path):
 
@@ -345,4 +300,3 @@ def extrapolate_traj_for_dataset(json_path):
 data_json = '/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/custom_data/carla/v2_reward/carla_0227_24k_append_reward_v2_train.json'
 
 extrapolate_traj_for_dataset(data_json)
-# video_to_images('/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/tmp/OOD.mp4', frame_rate=10)
