@@ -19,7 +19,9 @@ nuplan-devkit/
 navsim_eval/
 sat/info_logs
 **/ckpts*
-**/vis*
 **.tar.gz
 **/work_dirs
 **/correlation_package
+
+**/vis/
+**/nav_recon
