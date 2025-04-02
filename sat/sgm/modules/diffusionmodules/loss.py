@@ -85,6 +85,8 @@ class VideoDiffusionLoss(StandardDiffusionLoss):
                  k_multi_dcl=1,
                  discount_multi_dcl=1,
                  normalize_dcl=False,
+                 detach_dcl_prev=False,
+                 detach_dcl_post=False,
                 **kwargs):
         self.fixed_frames = fixed_frames  # TODO: Remove this?
         self.block_scale = block_scale
@@ -112,6 +114,10 @@ class VideoDiffusionLoss(StandardDiffusionLoss):
         self.discount_multi_dcl = discount_multi_dcl
         self.normalize_dcl = normalize_dcl
 
+        self.detach_dcl_prev = detach_dcl_prev
+        self.detach_dcl_post = detach_dcl_post
+        assert not (self.detach_dcl_prev and self.detach_dcl_post), "Only one detach option can be enabled."
+
     def __call__(self, network, denoiser, conditioner, input, batch):
         cond = conditioner(batch)
         additional_model_inputs = {key: batch[key] for key in self.batch2model_keys.intersection(batch)}
@@ -127,10 +133,16 @@ class VideoDiffusionLoss(StandardDiffusionLoss):
 
         cond_inds = self.cond_inds
         if cond_inds is not None:
+
             cond_inds = random.choices(cond_inds, weights=self.cond_inds_prob, k=1)[0]  # randomly choose a conditioning scheme
             cond_inds = list(cond_inds)  # convert from omegaconf to normal list
             cond_mask = torch.zeros(input.shape).to(input.device) # [1, 13, 16, 64, 112]
             cond_mask[:, cond_inds] = 1
+
+            # TODO: cond_inds is the same for the batch, which might be inoptimal.
+            #  cond_mask[:,:,0,0,0]
+            #  tensor([[1., 1., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0.],
+            #         [1., 1., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0.]], device='cuda:0')
 
         noise = torch.randn_like(input)
 
@@ -261,7 +273,20 @@ class VideoDiffusionLoss(StandardDiffusionLoss):
         discount_factor = 1.
         for i in range(1, k_multi + 1):
             # * Dynamics
-            dynamics_model_output = model_output[:, i:] - model_output[:, :-i]   # * torch.Size([2, 9, 16, 64, 112])  b, t, c, h, w
+
+            prev_frames = model_output[:, :-i].clone()  # * torch.Size([2, 9, 16, 64, 112])
+            post_frames = model_output[:, i:].clone()  # * torch.Size([2, 9, 16, 64, 112])
+
+            if self.detach_dcl_prev:
+                prev_frames = prev_frames.detach()
+            if self.detach_dcl_post:
+                post_frames = post_frames.detach()
+
+            # import pdb; pdb.set_trace()
+
+            # dynamics_model_output = model_output[:, i:] - model_output[:, :-i]   # * torch.Size([2, 9, 16, 64, 112])  b, t, c, h, w
+            dynamics_model_output = post_frames - prev_frames
+
             dynamics_target = target[:, i:] - target[:, :-i]     # * torch.Size([2, 9, 16, 64, 112])
 
             # * Consistency
