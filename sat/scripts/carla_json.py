@@ -190,6 +190,8 @@ def add_token_to_clips(json_path):
     clips = data['clips']
     for ind, clip in enumerate(clips):
         clip['token'] = ind
+
+    print("Total clips: ", len(clips))
     dump_json(data, json_path.replace('.json', f'_token.json'))
 
 def replace_navsim_traj_with_cala(navsim_json, carla_json):
@@ -200,33 +202,134 @@ def replace_navsim_traj_with_cala(navsim_json, carla_json):
     carla_clips = carla_data['clips']
     navsim_clips = navsim_data['clips']
 
-    # * Select top 200
-    N = 1000
+    # N = 1000
+    N = min(len(carla_clips), len(navsim_clips))
     carla_clips = carla_clips[: N] 
     navsim_clips = navsim_clips[: N]
 
     new_navsim_clips = []
     for carla_clip, navsim_clip in zip(carla_clips, navsim_clips):
-        if carla_clip['score_penalty'] < 0.8:
-            navsim_clip['carla_traj_fut'] = carla_clip['traj_fut']
-            
-            navsim_clip['score_penalty'] = carla_clip['score_penalty']
+        # if carla_clip['score_penalty'] < 0.8:
+        navsim_clip['carla_traj_fut'] = carla_clip['traj_fut']
+        
+        navsim_clip['score_penalty'] = carla_clip['score_penalty']
 
-            new_navsim_clips.append(navsim_clip)
+        new_navsim_clips.append(navsim_clip)
 
     navsim_data['clips'] = new_navsim_clips
 
     out_navsim_json = navsim_json.replace('.json', '_carla-traj.json')
     dump_json(navsim_data, out_navsim_json)
 
-add_token_to_clips("/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/custom_data/carla/carla_0218_35k_new.json")
+
+def add_traj_to_dataset(data_json, traj_json, traj_prefix=""):
+
+    data = load_json(data_json)
+    traj_data = load_json(traj_json)
+
+    data_clips = data['clips']
+    traj_clips = traj_data['clips']
+
+    # N = 1000
+    N = min(len(data_clips), len(traj_clips))
+    data_clips = data_clips[: N]
+    traj_clips = traj_clips[: N]
+
+    new_data_clips = []
+    for data_clip, traj_clip in zip(data_clips, traj_clips):
+        data_clip[f'{traj_prefix}_traj_fut'] = traj_clip['traj_fut']
+        new_data_clips.append(data_clip)
+
+
+    data['clips'] = new_data_clips
+    out_data_json = data_json.replace('.json', f'_with_{traj_prefix}_traj.json')
+    dump_json(data, out_data_json)
+
+    # carla_data = load_json(carla_json)
+    # navsim_data =  load_json(navsim_json)
+
+    # carla_clips = carla_data['clips']
+    # navsim_clips = navsim_data['clips']
+
+    # # N = 1000
+    # N = min(len(carla_clips), len(navsim_clips))
+    # carla_clips = carla_clips[: N] 
+    # navsim_clips = navsim_clips[: N]
+
+    # new_navsim_clips = []
+    # for carla_clip, navsim_clip in zip(carla_clips, navsim_clips):
+    #     # if carla_clip['score_penalty'] < 0.8:
+    #     navsim_clip['carla_traj_fut'] = carla_clip['traj_fut']
+        
+    #     navsim_clip['score_penalty'] = carla_clip['score_penalty']
+
+    #     new_navsim_clips.append(navsim_clip)
+
+    # navsim_data['clips'] = new_navsim_clips
+
+    # out_navsim_json = navsim_json.replace('.json', '_carla-traj.json')
+    # dump_json(navsim_data, out_navsim_json)
+
+def merge_two_json(json1, json2, out_json):
+    data1 = load_json(json1)
+    data2 = load_json(json2)
+
+    clips1 = data1['clips']
+    clips2 = data2['clips']
+
+    new_clips = clips1 + clips2
+    data1['clips'] = new_clips
+    dump_json(data1, out_json)
+
+
+# add_token_json = '/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/custom_data/carla/v2_reward/carla_0227_append_reward_v2.json'
+# add_token_to_clips(add_token_json)
+# # add_token_to_clips("/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/custom_data/carla/carla_val_0213_2k_new.json")
+# import pdb; pdb.set_trace()
+
+
+# navsim_json = '/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/custom_data/carla/navsim_test.json'
+# carla_json = '/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/custom_data/carla/carla_demo_0213_correct_v2.json'
+# replace_navsim_traj_with_cala(navsim_json, carla_json)
+# import pdb; pdb.set_trace()
+
+
+# * Use carla traj to all datasets
+carla_traj_json = '/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/custom_data/carla/v2_reward/val_carla_0227_24k_append_reward_v2.json'
+youtube_json = '/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/custom_data/youtube_json/YouTube_svd_val_1080p_clip-len-49_interval-10_77k_flow.json'
+add_traj_to_dataset(youtube_json, carla_traj_json, traj_prefix="carla")
+
+navsim_json = '/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/custom_data/navsim/token2info_test_all_list.json'
+add_traj_to_dataset(navsim_json, carla_traj_json, traj_prefix="carla")
+
+nus_json = '/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/custom_data/nusc/nus_val_4k.json'
+add_traj_to_dataset(nus_json, carla_traj_json, traj_prefix="carla")
+
+waymo_json = '/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/custom_data/waymo/v2/waymo_val_traj_cmd_v2_sub.json'
+add_traj_to_dataset(waymo_json, carla_traj_json, traj_prefix="carla")
+
+
+import pdb; pdb.set_trace()
+
+# * Use navsim traj to all datasets
+navsim_json = '/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/custom_data/navsim/token2info_test_all_list.json'
+youtube_json = '/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/custom_data/youtube_json/YouTube_svd_val_1080p_clip-len-49_interval-10_77k_flow.json'
+add_traj_to_dataset(youtube_json, navsim_json, traj_prefix="navsim")
+
+
+carla_json = '/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/custom_data/carla/carla_val_0213_2k_new.json'
+add_traj_to_dataset(carla_json, navsim_json, traj_prefix="navsim")
+
+nus_json = '/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/custom_data/nusc/nus_val_4k.json'
+add_traj_to_dataset(nus_json, navsim_json, traj_prefix="navsim")
+
+waymo_json = '/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/custom_data/waymo/v2/waymo_val_traj_cmd_v2_sub.json'
+add_traj_to_dataset(waymo_json, navsim_json, traj_prefix="navsim")
+
 import pdb; pdb.set_trace()
 
 
-navsim_json = '/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/custom_data/carla/navsim_test.json'
-carla_json = '/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/custom_data/carla/carla_demo_0213_correct_v2.json'
-replace_navsim_traj_with_cala(navsim_json, carla_json)
-import pdb; pdb.set_trace()
+
 # 
 # # detect_broken_images("/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/custom_data/carla/demo_0213_correct_v2.json")
 # detect_broken_images_multiprocess("/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/custom_data/carla/demo_0213_correct_v2.json")

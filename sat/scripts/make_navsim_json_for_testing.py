@@ -157,9 +157,9 @@ def split_json(json_path):
     assert sum_clips == n_clips
 
 
-# merge_group_jsons("/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/outputs_hdd/GROUP_navsim_full_main2_plan_30k_steps")
-split_json("/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/outputs_hdd/GROUP_navsim_full_main2_plan_30k_steps/GROUP_navsim_full_main2_plan_30k_steps.json")
-import pdb; pdb.set_trace()
+# # merge_group_jsons("/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/outputs_hdd/GROUP_navsim_full_main2_plan_30k_steps")
+# split_json("/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/outputs_hdd/GROUP_navsim_full_main2_plan_30k_steps/GROUP_navsim_full_main2_plan_30k_steps.json")
+# import pdb; pdb.set_trace()
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()

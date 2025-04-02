@@ -1,17 +1,20 @@
 import matplotlib.pyplot as plt
 import numpy as np
 import ast
-import matplotlib.pyplot as plt
-import numpy as np
-import ast
 import matplotlib.cm as cm
 
-def visualize_trajectory_bev(filepath):
-    with open(filepath, 'r') as f:
-        lines = f.readlines()
+def visualize_trajectory_bev(traj, out_path='bev.png'):
 
-    # Parse only x and y (ignore heading)
-    trajectory = [ast.literal_eval(line.strip())[:2] for line in lines[1:] if line.strip().startswith('[')]
+    if isinstance(traj, str):
+        filepath = traj
+        with open(filepath, 'r') as f:
+            lines = f.readlines()
+
+        # Parse only x and y (ignore heading)
+        trajectory = [ast.literal_eval(line.strip())[:2] for line in lines[1:] if line.strip().startswith('[')]
+    
+    elif isinstance(traj, list):
+        trajectory = traj
 
     trajectory = [[0, 0, 0]] + trajectory
 
@@ -63,7 +66,9 @@ def visualize_trajectory_bev(filepath):
     # plt.legend()
     # plt.show()
     # plt.savefig('trajectory2.png')
-    out_path = filepath.replace('text.txt', 'bev.png')
+    # out_path = filepath.replace('text.txt', 'bev.png')
+
+
     plt.savefig(out_path)
 
 
