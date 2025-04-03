@@ -43,6 +43,9 @@ class SharedDataset(Dataset):
                 always_apply_human_drive_token=False,  # * Apply human_drive_token when traj is valid
 
                 shuffle_traj_as_non_experts=False,
+
+                p_use_extrapolate_traj=0.,
+
                 **kwargs):
         """
         skip_frms_num: ignore the first and the last xx frames, avoiding transitions.
@@ -83,6 +86,8 @@ class SharedDataset(Dataset):
         self.manual_total_length = manual_total_length
         
         self.shuffle_traj_as_non_experts = shuffle_traj_as_non_experts
+
+        self.p_use_extrapolate_traj = p_use_extrapolate_traj
 
         self.load_data_json(data_dir, n_subset=n_subset, ind_subset=ind_subset)
 
@@ -126,7 +131,14 @@ class SharedDataset(Dataset):
             raw_caption = clip.get(caption_key, "")  # include static and highly static
             if isinstance(raw_caption, int):
                 raw_caption = cmd_to_action[raw_caption]
+            
+            
             fut_traj = clip[self.traj_key][:self.n_fut_traj_points]
+
+            if self.p_use_extrapolate_traj > 0:
+                if 'extrapolated_traj_fut' in clip and random.random() < self.p_use_extrapolate_traj:
+                    fut_traj = clip['extrapolated_traj_fut'][:self.n_fut_traj_points]
+
 
             token_key = 'lidar_pc_token' if 'lidar_pc_token' in clip else 'token'
             lidar_pc_token = clip[token_key]
