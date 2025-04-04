@@ -122,7 +122,6 @@ class SharedDataset(Dataset):
 
         for clip in tqdm(clip_infos):
             
-            # sample_seq = clip['img_seq']
             if 'img_seq' in clip:
                 sample_seq = clip['img_seq']
             else:

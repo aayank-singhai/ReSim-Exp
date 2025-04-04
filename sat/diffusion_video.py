@@ -299,10 +299,8 @@ class SATVideoDiffusionEngine(nn.Module):
             self.model, input, sigma, c, concat_images=concat_images, **addtional_model_inputs
         )
 
-        if self.cond_inds is not None:
-            fixed_frames = len(self.cond_inds)
-        else:
-            fixed_frames = None
+
+        fixed_frames = prefix.shape[1] if prefix is not None else None
 
         samples = self.sampler(denoiser, randn, cond, uc=uc, scale=scale, scale_emb=scale_emb,
                                 fixed_frames=fixed_frames,

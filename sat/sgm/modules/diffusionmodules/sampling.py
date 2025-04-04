@@ -483,7 +483,7 @@ class VideoDDIMSampler(BaseDiffusionSampler):
                  directly_use_idx_as_timestep = False, # sampling_timestep for guider wrt. t: [25, 24, ...., 0]
                  **kwargs):
         super().__init__(**kwargs)
-        self.fixed_frames = fixed_frames
+        # self.fixed_frames = fixed_frames  # * Legacy
         self.sdedit = sdedit
         self.cond_inds = cond_inds_sampling
         self.apply_cond_aug = apply_cond_aug
@@ -560,9 +560,9 @@ class VideoDDIMSampler(BaseDiffusionSampler):
 
         additional_model_inputs["is_sampling"] = True  # * Used to indicate sampling
 
-        if self.cond_inds is not None:
+        if 'cond_inds' not in additional_model_inputs and self.cond_inds is not None:
             additional_model_inputs['cond_inds'] = self.cond_inds
-        
+
         aug_t_chunk_sampling = additional_model_inputs.get('aug_t_chunk', 0)
         # import pdb; pdb.set_trace()
         # * scale: None
@@ -780,20 +780,19 @@ class VPSDEDPMPP2MSampler(VideoDDIMSampler):
                 s_in * (1 - alpha_cumprod_sqrt[i] ** 2) ** 0.5, len(prefix_frames.shape)
             )
 
-        x = torch.cat([noised_prefix_frames, x[:, self.fixed_frames :]], dim=1)
+        # x = torch.cat([noised_prefix_frames, x[:, self.fixed_frames :]], dim=1) # * BUG FIXED: NOT Using self.fixed_frames
+        x = torch.cat([noised_prefix_frames, x[:, noised_prefix_frames.shape[1] :]], dim=1)
         return x, int(aug_t_chunk)
 
     def __call__(self, denoiser, x, cond, uc=None, num_steps=None, scale=None, scale_emb=None, fixed_frames=None,
                  **additional_model_inputs):
-
-        fixed_frames = fixed_frames or self.fixed_frames
 
         x, s_in, alpha_cumprod_sqrt, num_sigmas, cond, uc, timesteps = self.prepare_sampling_loop(
             x, cond, uc, num_steps
         )
 
         if fixed_frames is not None:
-            prefix_frames = x[:, :fixed_frames]  # ! Dimension index not right?
+            prefix_frames = x[:, :fixed_frames]
         old_denoised = None
 
         # TODO: Check here!

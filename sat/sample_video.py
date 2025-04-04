@@ -185,7 +185,7 @@ def get_cond_inds(n_cond, n_round=0):
     if n_round == 0:
         return list(range(n_cond))
     else:
-        return list(range(-n_cond, 0))
+        return [-3, -2, -1]
 
 
 def set_seed(seed: int):
@@ -290,10 +290,6 @@ def sampling_main(args, model_cls):
 
                 x = x.permute(0, 2, 1, 3, 4).contiguous()
 
-                # * Might be slow
-                # import pdb; pdb.set_trace()
-
-
                 z = model.encode_first_stage(x, batch)
                 z_origin = z.clone()  # * For logging
                 # torch.Size([1, 16, 13, 64, 112])
@@ -331,9 +327,6 @@ def sampling_main(args, model_cls):
                 get_unique_embedder_keys_from_conditioner(model.conditioner), value_dict, num_samples
             )
 
-            # import pdb; pdb.set_trace()
-
-
             for key in batch:
                 if isinstance(batch[key], torch.Tensor):
                     print(key, batch[key].shape)
@@ -364,7 +357,9 @@ def sampling_main(args, model_cls):
                     if args.input_type == "dataset":
                         cond_inds = get_cond_inds(N_COND_FRAMES, ind_round)
                         sampling_kwargs['prefix'] = z[:, cond_inds]
-
+                        
+                        sampling_kwargs['cond_inds'] = cond_inds if ind_round == 0 else [0, 1, 2]  # ! DEBUG, delete later
+                        
                     # reload model on GPUp
                     model.to(device)
 
@@ -374,7 +369,7 @@ def sampling_main(args, model_cls):
                         batch_size=1,
                         shape=(T, C, H // F, W // F),
                         **sampling_kwargs,
-                    )
+                    )  # * Go to SATVideoDiffusionEngine sample func
                     samples_z = samples_z.permute(0, 2, 1, 3, 4).contiguous()
                     # samples_z: torch.Size([1, 16, 13, 64, 112])
 

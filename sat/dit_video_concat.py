@@ -1063,9 +1063,6 @@ class DiffusionTransformer(BaseModel):
                                      len(kwargs['cond_inds']) > 0 and \
                                      aug_timesteps is not None
 
-        # TODO: append traj feature to the context
-        # kwargs['fut_traj'].shape            torch.Size([2, 8, 3])
-
         kwargs["encoder_outputs"] = context  # torch.Size([2, 226, 4096])
         kwargs["encoder_outputs"] = context  # torch.Size([2, 226, 4096])
         kwargs["text_length"] = context.shape[1]  # 226
