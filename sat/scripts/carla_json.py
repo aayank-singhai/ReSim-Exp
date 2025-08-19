@@ -194,6 +194,13 @@ def add_token_to_clips(json_path):
     print("Total clips: ", len(clips))
     dump_json(data, json_path.replace('.json', f'_token.json'))
 
+
+# json_path = '/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/custom_data/youtube_json/YouTube_svd_val_1080p_clip-len-49_interval-10_77k_flow.json'
+# add_token_to_clips(json_path)
+# import pdb; pdb.set_trace()
+
+
+
 def replace_navsim_traj_with_cala(navsim_json, carla_json):
 
     carla_data = load_json(carla_json)
@@ -281,6 +288,84 @@ def merge_two_json(json1, json2, out_json):
     data1['clips'] = new_clips
     dump_json(data1, out_json)
 
+import random
+def select_samples(json_path, ratio=1):
+    data = load_json(json_path)
+    clips = data['clips']
+
+    non_extra_clips = []
+    extra_clips = []
+
+    for clip in clips:
+        if "extrapolated_traj_fut" in clip:
+            extra_clips.append(clip)
+        else:
+            non_extra_clips.append(clip)
+
+    N_non_extra_clips = int(len(extra_clips) * ratio)
+
+    # random sample non_extra_clips
+    selected_non_extra_clips = random.sample(non_extra_clips, N_non_extra_clips)
+
+    # merge two lists
+    new_clips = selected_non_extra_clips + extra_clips
+
+    data['meta']['num_clips'] = len(new_clips)
+    data['clips'] = new_clips
+
+    out_json = json_path.replace('.json', '_selected.json')
+    dump_json(data, out_json)
+
+def select_no_crash_samples(json_path):
+    data = load_json(json_path)
+    clips = data['clips']
+    new_clips = []
+    for clip in clips:
+        if clip["score_penalty"] == 1.0:
+            new_clips.append(clip)
+
+    print("Total clips: ", len(clips))
+
+    data['meta']['num_clips'] = len(new_clips)
+    data['clips'] = new_clips
+
+    out_json = json_path.replace('.json', '_no_crash.json')
+    dump_json(data, out_json)
+
+def select_crash_samples(json_path):
+    data = load_json(json_path)
+    clips = data['clips']
+    new_clips = []
+    for clip in clips:
+        if clip["score_penalty_v2"] == 0.0:
+            new_clips.append(clip)
+
+    print("Total clips: ", len(clips))
+
+    data['meta']['num_clips'] = len(new_clips)
+    data['clips'] = new_clips
+
+    out_json = json_path.replace('.json', '_crash.json')
+    dump_json(data, out_json)
+
+select_crash_samples('/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/custom_data/carla/v2_reward/val_carla_0227_24k_append_reward_v2.json')
+# select_no_crash_samples('/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/custom_data/carla/v2_reward/val_carla_0227_24k_append_reward_v2.json')
+
+import pdb; pdb.set_trace()
+
+# carla_json = '/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/custom_data/carla/v2_reward/carla_0218_30k_new_reward_v2_extrapolate_traj.json'
+# select_samples(carla_json)
+
+# carla_json = '/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/custom_data/carla/v2_reward/carla_0220_19k_append_reward_v2_extrapolate_traj.json'
+# select_samples(carla_json)
+
+# carla_json = '/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/custom_data/carla/v2_reward/carla_0224_39k_append_reward_v2_extrapolate_traj.json'
+# select_samples(carla_json)
+
+# carla_json = '/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/custom_data/carla/v2_reward/carla_0227_24k_append_reward_v2_train_extrapolate_traj.json'
+# select_samples(carla_json)
+
+# import pdb; pdb.set_trace()
 
 # add_token_json = '/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/custom_data/carla/v2_reward/carla_0227_append_reward_v2.json'
 # add_token_to_clips(add_token_json)

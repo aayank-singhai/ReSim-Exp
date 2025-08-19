@@ -130,7 +130,6 @@ class TriangleCFG(VanillaCFG):
         if isinstance(step_index, torch.Tensor):
             step_index = step_index.item()
         scale_value = self.scale_schedule(sigma, step_index)
-        # import pdb; pdb.set_trace()
         x_pred = self.dyn_thresh(x_u, x_c, scale_value)
         return x_pred
 

@@ -17,7 +17,7 @@ class VideoTranslatorFlow(BaseDetector):
                  feedforward_channels=512,
                  **kwargs):
         super(VideoTranslatorFlow, self).__init__()
-        hard_code_queue_length = 25
+        hard_code_queue_length = 25  # TODO: Check here
         self.xvo = VOModelEncoder()
         self.downsample = nn.Sequential(
             nn.Linear(20480, 64),

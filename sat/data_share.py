@@ -32,6 +32,7 @@ class SharedDataset(Dataset):
                 n_subset=None,  # 30
                 ind_subset=None,  # 0,...,29
                 manual_total_length=None,
+                manual_total_length_mode='sequential',
 
                 # * For nuplan only
                 token_json=None,
@@ -84,6 +85,7 @@ class SharedDataset(Dataset):
         self.always_apply_human_drive_token = always_apply_human_drive_token
 
         self.manual_total_length = manual_total_length
+        self.manual_total_length_mode = manual_total_length_mode
         
         self.shuffle_traj_as_non_experts = shuffle_traj_as_non_experts
 
@@ -106,7 +108,12 @@ class SharedDataset(Dataset):
             clip_infos = [clip for clip in clip_infos if clip['lidar_pc_token'] in token_keep]
 
         if self.manual_total_length is not None:
-            clip_infos = clip_infos[:self.manual_total_length]
+            if self.manual_total_length_mode == 'sequential':
+                clip_infos = clip_infos[:self.manual_total_length]
+            elif self.manual_total_length_mode == 'random':
+                clip_infos = random.sample(clip_infos, self.manual_total_length)
+            else:
+                raise ValueError("manual_total_length_mode should be either 'sequential' or 'random'")
 
 
         if n_subset is not None and ind_subset is not None:
@@ -115,6 +122,8 @@ class SharedDataset(Dataset):
             start_ind = ind_subset * length_per_subset
             end_ind = (ind_subset + 1) * length_per_subset
             clip_infos = clip_infos[start_ind:end_ind]
+
+        # TODO: We can derive PDMs here.
 
         print("Using {} clips".format(len(clip_infos)))
 
@@ -137,6 +146,8 @@ class SharedDataset(Dataset):
             if self.p_use_extrapolate_traj > 0:
                 if 'extrapolated_traj_fut' in clip and random.random() < self.p_use_extrapolate_traj:
                     fut_traj = clip['extrapolated_traj_fut'][:self.n_fut_traj_points]
+
+                    # import pdb; pdb.set_trace()
 
 
             token_key = 'lidar_pc_token' if 'lidar_pc_token' in clip else 'token'

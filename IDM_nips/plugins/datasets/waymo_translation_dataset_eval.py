@@ -24,6 +24,7 @@ class WaymoTranslationDatasetEval(NuScenesTranslationDataset):
                  condition_frames=2,
                  test_mode=False,
                  sample_key="Sample",
+                 final_cond_index=8,
                  **kwargs):
         self.load_interval = load_interval
         self.queue_length = queue_length
@@ -31,6 +32,7 @@ class WaymoTranslationDatasetEval(NuScenesTranslationDataset):
         self.gen_image_root = gen_image_root
 
         self.sample_key = sample_key
+        self.final_cond_index = final_cond_index  # * index of final conditional frame in the generation sequence
         self.index_to_gen_folder = dict()
 
         roots = gen_image_root
@@ -85,6 +87,10 @@ class WaymoTranslationDatasetEval(NuScenesTranslationDataset):
             token = cur_info['token']
             cmd_vista = cur_info['cmd_vista']
 
+            if token not in self.index_to_gen_folder:
+                print(f"Token {token} not found in generated folders, skipping...")
+                continue
+
             gen_folder = self.index_to_gen_folder[token]
             gen_image_paths = os.listdir(gen_folder)
             gen_image_paths = [
@@ -94,14 +100,8 @@ class WaymoTranslationDatasetEval(NuScenesTranslationDataset):
                 gen_image_paths, key=lambda x: int(x.split("_")[-1].split(".")[0])
             )
 
-            # * HARD Code, aligned with Vista
-            # TODO: Remove Hard Code
-            gen_image_paths = gen_image_paths[8: 33]
-
-            # _tmp = [os.path.basename(p) for p in gen_image_paths]
-            # print("25 frames", _tmp)
-
-            # import pdb; pdb.set_trace()
+            # TODO: Something is wrong with the idm, only see the future frames ???? How to estimate the position of first frame?
+            gen_image_paths = gen_image_paths[self.final_cond_index: self.final_cond_index + 25]
 
             assert len(gen_image_paths) == 25
 
@@ -120,5 +120,7 @@ class WaymoTranslationDatasetEval(NuScenesTranslationDataset):
                 cmd_vista=cmd_vista,
             )
             planning_infos.append(planning_info)
+
+        print("Total planning infos:", len(planning_infos))
 
         return planning_infos

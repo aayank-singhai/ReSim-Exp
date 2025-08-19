@@ -59,27 +59,6 @@ class CustomLoadMultiViewImageFromFiles(object):
         img = [mmcv.imread(name, channel_order=self.color_type, backend='pillow') for name in filename]  # * Check color_type
 
 
-        # !!! DEBUG ONLY - video order is not correct
-        # !! Checked, it's due to the multiple workers.
-        # NOTE: Folder 42, 58? Why random
-
-        # write img
-        # print(filename)
-        # _tmp = [os.path.basename(p) for p in filename]
-        # print("25 frames", _tmp)
-
-        # _out_paths = []
-        # for i, img_ in enumerate(img):
-        #     im = Image.fromarray(img_)
-        #     out_path = f'/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/tmp/check_/img_{i}.png'
-        #     im.save(out_path)
-        #     _out_paths.append(out_path)
-        
-        # img_path_list_to_video(_out_paths, out_path='/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/tmp/check_/test.mp4', fps=10)
-
-        # import pdb; pdb.set_trace()
-        # !!! DEBUG ONLY
-
         if self.to_float32:
             img = [_.astype(np.float32) for _ in img]
         results['filename'] = filename

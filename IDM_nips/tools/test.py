@@ -267,6 +267,8 @@ def main():
                 eval_kwargs.pop(key, None)
             eval_kwargs.update(dict(metric=args.eval, show=args.show, out_dir=args.work_dir, **kwargs))
             metric = dataset.evaluate(outputs, **eval_kwargs)
+
+            print("\n!!! Final Results!!!")
             print(metric)
             metric_dict = dict(config=args.config, metric=metric)
             if args.work_dir is not None and rank == 0:

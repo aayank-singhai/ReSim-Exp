@@ -1,0 +1,261 @@
+# Latest checkpoint with more iterations
+
+args:
+  latent_channels: 16
+  mode: inference
+  load: "/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/sat/ckpts/main6_joint_stage2_high_NO_carla-02-20-06-41/20000/mp_rank_00_model_states.pt"
+
+  batch_size: 1
+  input_type: dataset
+
+  # * Num of Latent frames
+  sampling_num_frames: 13  # Must be 13, 11 or 9
+
+  sampling_fps: &fps 10  # * For youtube
+
+  fp16: True
+  force_inference: True
+
+  epochs: 1
+
+  valid_data: ["/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/custom_data/waymo/v2/waymo_val_traj_cmd_v2_sub.json"]
+
+  sampling_video_size: [512, 896]
+  n_prediction_round: 1
+  apply_traj: True
+  
+  save_gt: True
+  concat_gt_for_demo: True
+
+data:
+    target: data_waymo.WaymoDataset
+    params:
+      # video_size: [480, 720]
+      video_size: [512, 896]
+
+      fps: *fps  # TODO: Change to 10
+      max_num_frames: 49
+      skip_frms_num: 0.
+      prefix_prompt: "This video depicts a realistic view from the driver's perspective of a car driving on the road."
+
+      p_drop_action_caption: 1.  # * Inference: 0.
+      # reshape_mode: 'lower'
+
+      n_subset: 20
+      ind_subset: 16
+
+model:
+  scale_factor: 1.15258426
+  disable_first_stage_autocast: true
+  not_trainable_prefixes: ['model'] ## Using Lora, conditioners are trainable
+  # [model.diffusion_model.xxx]
+  # [conditioner.xxx]
+
+  log_keys:
+    - txt
+
+  en_and_decode_n_samples_a_time: 1  # * split samples
+  # en_and_decode_n_frames_a_time: 17  # * split frames
+  # truncate_n_frames_decode: 8
+  cond_inds_sampling: &cond_inds_sampling [0, 1, 2]  # * For log videos
+  
+  denoiser_config:
+    target: sgm.modules.diffusionmodules.denoiser.DiscreteDenoiser
+    params:
+      num_idx: 1000
+      quantize_c_noise: False
+
+      weighting_config:
+        target: sgm.modules.diffusionmodules.denoiser_weighting.EpsWeighting
+      scaling_config:
+        target: sgm.modules.diffusionmodules.denoiser_scaling.VideoScaling
+      discretization_config:
+        target: sgm.modules.diffusionmodules.discretizer.ZeroSNRDDPMDiscretization
+        params:
+          shift_scale: 3.0
+
+  network_config:
+    target: dit_video_concat.DiffusionTransformer
+    params:
+      time_embed_dim: &t_emb_dim 512
+      elementwise_affine: True
+      num_frames: 49
+      time_compressed_rate: 4
+      
+      # * For (480, 720), originally supported
+      # latent_width: 90
+      # latent_height: 60
+
+      # !!! DEBUG: For (512, 896)
+      latent_width: 112
+      latent_height: 64
+
+      num_layers: 30
+      patch_size: 2
+      in_channels: 16
+      out_channels: 16
+      hidden_size: 1920
+      adm_in_channels: 256
+      num_attention_heads: 30
+
+      transformer_args:
+        vocab_size: 1
+        max_sequence_length: 64
+        layernorm_order: pre
+        skip_init: false
+        model_parallel_size: 1
+        is_decoder: false
+
+      modules:
+        pos_embed_config:
+          target: dit_video_concat.Basic3DPositionEmbeddingMixin
+          params:
+            text_length: 235  # TODO: Need to be adjusted with traj feature length
+            # * 226 + 9 = 235
+            # height_interpolation: 1.875  # * cur_height // 256
+            # width_interpolation: 1.875   # * cur_width  // 384
+
+            # !!! DEBUG: For (512, 896) 
+            height_interpolation: 2.0   # * cur_height // 256
+            width_interpolation:  2.3333   # * cur_width  // 384
+
+        lora_config: ## Using Lora
+          target: sat.model.finetune.lora2.LoraMixin
+          params:
+            r: 128
+
+        patch_embed_config:
+          target: dit_video_concat.ImagePatchEmbeddingMixin
+          params:
+            text_hidden_size: 4096
+            cond_emb_in_dim: *t_emb_dim
+
+        adaln_layer_config:
+          target: dit_video_concat.AdaLNMixin
+          params:
+            qk_ln: True
+
+        final_layer_config:
+          target: dit_video_concat.FinalLayerMixin
+
+  conditioner_config:
+    target: sgm.modules.GeneralConditioner
+    params:
+      emb_models:
+        - is_trainable: false
+          input_key: txt
+          ucg_rate: 0.1
+          target: sgm.modules.encoders.modules.FrozenT5Embedder
+          params:
+            model_dir: "/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/ckpts/CogVideoX-2b-sat/t5-v1_1-xxl"
+            max_length: 226
+
+        # * traj enc
+        - is_trainable: true
+          input_key: fut_traj
+          ucg_rate: 0.5    # * action (world model) and no-action (planning model)
+          target: sgm.modules.encoders.traj_encoder.TrajEncoder
+          params:
+            # TODO: setup here
+            seq_len: 8
+            dim: 1024
+            out_dim: 4096
+            depth: 2   # * Lower depth, to speed up
+            mlp_dim: 2048
+            pos_emb: "sine"
+            avoid_first_ln: true
+            zero_init: true
+            use_all_tokens: true  # * 9 tokens
+
+  first_stage_config:
+    target: vae_modules.autoencoder.VideoAutoencoderInferenceWrapper
+    params:
+      cp_size: 1
+      ckpt_path: "/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/ckpts/CogVideoX-2b-sat/vae/3d-vae.pt"
+      ignore_keys: [ 'loss' ]
+
+      loss_config:
+        target: torch.nn.Identity
+
+      regularizer_config:
+        target: vae_modules.regularizers.DiagonalGaussianRegularizer
+
+      encoder_config:
+        target: vae_modules.cp_enc_dec.ContextParallelEncoder3D
+        params:
+          double_z: true
+          z_channels: 16
+          resolution: 256
+          in_channels: 3
+          out_ch: 3
+          ch: 128
+          ch_mult: [ 1, 2, 2, 4 ]
+          attn_resolutions: [ ]
+          num_res_blocks: 3
+          dropout: 0.0
+          gather_norm: True
+
+      decoder_config:
+        target: vae_modules.cp_enc_dec.ContextParallelDecoder3D
+        params:
+          double_z: True
+          z_channels: 16
+          resolution: 256
+          in_channels: 3
+          out_ch: 3
+          ch: 128
+          ch_mult: [ 1, 2, 2, 4 ]
+          attn_resolutions: [ ]
+          num_res_blocks: 3
+          dropout: 0.0
+          gather_norm: false
+
+  loss_fn_config:
+    target: sgm.modules.diffusionmodules.loss.VideoDiffusionLoss
+    params:
+      offset_noise_level: 0
+
+      cond_inds: 
+        - []
+        - [0]
+        - [0, 1]
+        - [0, 1, 2]
+      cond_inds_prob:
+        - 0.1
+        - 0.15
+        - 0.15
+        - 0.6  # * For [0, 1, 2]
+
+      apply_cond_aug: &cond_aug V2
+      sigma_sampler_config:
+        target: sgm.modules.diffusionmodules.sigma_sampling.DiscreteSampling
+        params:
+          uniform_sampling: false
+          custom_sampling: true
+          num_idx: 1000
+          discretization_config:
+            target: sgm.modules.diffusionmodules.discretizer.ZeroSNRDDPMDiscretization
+            params:
+              shift_scale: 3.0
+
+  sampler_config:
+    target: sgm.modules.diffusionmodules.sampling.VPSDEDPMPP2MSampler
+    params:
+      num_steps: &num_steps 50
+      verbose: True
+      fixed_frames: 3  # [0, 1, 2]
+      cond_inds_sampling: *cond_inds_sampling  # [0, 1, 2]
+      apply_cond_aug: *cond_aug # * sample aug_t in sampling, all 0
+      apply_cond_aug_chunk_inference: 'min'
+
+      discretization_config:
+        target: sgm.modules.diffusionmodules.discretizer.ZeroSNRDDPMDiscretization
+        params:
+          shift_scale: 3.0
+
+      guider_config:
+        target: sgm.modules.diffusionmodules.guiders.DynamicCFG
+        params:
+          scale: 6
+          exp: 5
+          num_steps: *num_steps

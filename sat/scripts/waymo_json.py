@@ -4,6 +4,7 @@ from tqdm import tqdm
 import argparse
 import numpy as np
 import math
+import random
 
 def load_json(json_path):
     print("Loading json: {}".format(json_path))
@@ -432,8 +433,69 @@ def downsample_waymo(json_path, n_downsample_per_cmd=375):
         print("cmd: {}, n_cmd_clips: {}, interval: {}, n_downsample: {}".format(cmd, n_cmd_clips, interval, len(cmd_clips_downsample)))
 
     data['clips'] = downsample_clips
-    out_path = json_path.replace(".json", "_sub.json")
+    out_path = json_path.replace(".json", "_sub_new.json")
     dump_json(data, out_path)
+
+
+def random_select_sample(json_path, n_samples):
+
+    data = load_json(json_path)
+    clips = data['clips']
+
+    assert n_samples <= len(clips), f"n_samples: {n_samples} > len(clips): {len(clips)}"
+
+    # selected_clips = np.random.choice(clips, n_samples, replace=False)
+    selected_clips = random.sample(clips, n_samples)
+    # data['clips'] = selected_clips.tolist()
+
+    data['clips'] = selected_clips
+    out_path = json_path.replace(".json", "_sub_new.json")
+    dump_json(data, out_path)
+
+def shuffle_traj(json_path, traj_key='traj_fut'):
+
+    # shuffled_traj_key = "shuffled_" + traj_key
+
+    data = load_json(json_path)
+    clips = data['clips']
+
+    trajs = [clip[traj_key] for clip in clips]
+    shuffled_traj = random.sample(trajs, len(trajs))
+
+    for i, clip in enumerate(clips):
+        # clip[shuffled_traj_key] = shuffled_traj[i]
+        clip[traj_key] = shuffled_traj[i]
+        clip['shuffled_traj'] = True
+
+    out_path = json_path.replace(".json", "_shuffled_traj.json")
+    dump_json(data, out_path)
+
+
+def add_input_vista_traj(json_path, traj_key='traj_fut'):
+    # newly add trajs that are converted to vista's format
+    data = load_json(json_path)
+    clips = data['clips']
+
+    vista_traj_len = 5  # * Hardcode
+
+    for i, clip in enumerate(clips):
+        traj = clip[traj_key]
+        traj_vista = np.zeros((vista_traj_len, 2), np.float64)
+        for k in range(1, vista_traj_len):
+            traj_vista[k, 0] = -traj[k - 1][1]
+            traj_vista[k, 1] =  traj[k - 1][0]
+        clip[f'vista_{traj_key}'] = traj_vista.flatten().tolist()
+
+    out_path = json_path.replace(".json", "_with_vista_traj.json")
+    dump_json(data, out_path)
+
+
+add_input_vista_traj('/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/custom_data/waymo/v2/waymo_val_traj_cmd_v2_mini_sub_uniform_540.json')
+add_input_vista_traj('/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/custom_data/waymo/v2/waymo_val_traj_cmd_v2_mini_sub_uniform_540_shuffled_traj.json')
+import pdb; pdb.set_trace()
+# shuffle_traj('/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/custom_data/waymo/v2/waymo_val_traj_cmd_v2_mini_sub_uniform_540.json')
+# # random_select_sample('/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/custom_data/waymo/v2/waymo_val_traj_cmd_v2_sub.json', 540)
+# import pdb; pdb.set_trace()
 
 
 if __name__ == '__main__':
@@ -448,27 +510,27 @@ if __name__ == '__main__':
     # import pdb; pdb.set_trace()
 
     # * Step3
-    parser = argparse.ArgumentParser()
+    # parser = argparse.ArgumentParser()
 
-    # store_true
-    parser.add_argument("--is_debug", action="store_true")
+    # # store_true
+    # parser.add_argument("--is_debug", action="store_true")
 
-    parser.add_argument("--n_split", type=int, default=None)
-    parser.add_argument("--split_ind", type=int, default=None)
-    args = parser.parse_args()
+    # parser.add_argument("--n_split", type=int, default=None)
+    # parser.add_argument("--split_ind", type=int, default=None)
+    # args = parser.parse_args()
     
-    # INTERVAL = 5  # * interval 2hz for first frames
-    INTERVAL = 1  # * Align with Vista
+    # # INTERVAL = 5  # * interval 2hz for first frames
+    # INTERVAL = 1  # * Align with Vista
 
     # create_waymo_traj_and_cmd('/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/custom_data/waymo/waymo_val_all.json', is_debug=args.is_debug, interval=INTERVAL, n_subset=args.n_split, ind_subset=args.split_ind)
-    create_waymo_traj_and_cmd('/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/custom_data/waymo/train/waymo_train_all.json', is_debug=args.is_debug, interval=INTERVAL, n_subset=args.n_split, ind_subset=args.split_ind)
+    # create_waymo_traj_and_cmd('/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/custom_data/waymo/train/waymo_train_all.json', is_debug=args.is_debug, interval=INTERVAL, n_subset=args.n_split, ind_subset=args.split_ind)
 
-    print("Done!")
+    # print("Done!")
 
     # * Step4 Merge json
     # merge_json_dir(json_dir='/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/custom_data/waymo/train/splits', merged_json_path='/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/custom_data/waymo/train/waymo_train_traj_cmd_v2.json', end_identifier='.json')
 
 
     # * Step4 Downsample
-    # downsample_waymo("/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/custom_data/waymo/v2/waymo_val_traj_cmd_v2.json", n_downsample_per_cmd=375)
-    # import pdb; pdb.set_trace()
+    downsample_waymo("/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/custom_data/waymo/v2/waymo_val_traj_cmd_v2.json", n_downsample_per_cmd=135)   # * 135 * 4 = 540
+    import pdb; pdb.set_trace()

@@ -2,40 +2,16 @@ import os
 import time
 import subprocess
 
-# EXP_NAME = "GROUP_base_planner_cmd_on_trainset"
-# EXP_NAME = "GROUP_ltf_on_trainset_round2"
-
-# EXP_NAME = "GROUP_ltf_init_on_testset"
-# EXP_NAME = "GROUP_add_carla_data_act"
-# EXP_NAME = "GROUP_add_carla_data_free"
-# EXP_NAME = "GROUP_add_carla_data_free2_early_carla"
-# EXP_NAME = "GROUP_add_carla_data_act"
-# EXP_NAME = "GROUP_add_carla_data_act2"
-EXP_NAME = "GROUP_abl_no_carla_data_act"
-
-
-# CONFIG = "/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/sat/configs/navsim_offline_rl/GROUP_ltf_init_on_trainset/ltf_init_on_trainset"
-# CONFIG = "/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/sat/configs/navsim_offline_rl/GROUP_ltf_init_on_testset/ltf_init_on_testset"
-# CONFIG = "/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/sat/configs/navsim_offline_rl/GROUP_base_planner_cmd_on_trainset/base_planner_cmd_on_trainset"
-
-# CONFIG = "/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/sat/configs/navsim_offline_rl/GROUP_ltf_on_trainset_round2/ltf_on_trainset"
-# CONFIG = "/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/sat/configs/waymo_action_control/GROUP_add_carla_data_act/infer_waymo_with_carla_data_action_center_split"
-# CONFIG = "/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/sat/configs/waymo_action_control/GROUP_add_carla_data_free/infer_waymo_with_carla_data_free_center_split"
-# CONFIG = "/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/sat/configs/waymo_action_control/GROUP_add_carla_data_free2_early_carla/infer_waymo_with_carla_data_free2_center_split"
-# CONFIG = "/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/world_model_evaluate/configs/GROUP_add_carla_data_act/action_center_add_carla_data"
-# CONFIG = "/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/world_model_evaluate/configs/GROUP_add_carla_data_act2/action_center_add_carla_data2_early"
-CONFIG = "/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/world_model_evaluate/configs/GROUP_abl_no_carla_data_act/action_center_abl_no_carla_data"
-
-N_TOTAL = 20
+# ! NOTE: Run this script in dir: /cpfs01/user/yangjiazhi
 
 
 TEMPLATE = f"""./dlc submit pytorchjob \
-    --name={EXP_NAME}_<ID> \
+    --name=<CFG_NAME> \
     --command='bash <<-EOF
 source /cpfs01/user/yangjiazhi/.bashrc
 conda activate /cpfs01/user/yangjiazhi/my_envs/cogvid
 cd /cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/world_model_evaluate
-./eval.sh {CONFIG}_<ID>.yaml
+./eval.sh <CFG>
 EOF' \
     --data_sources=d-ceg1efkflyg23vzhev,d-k8tu6brdfsyi2wj470,d-x135sr0ge79zzka647,d-fhse5rx2daxjz7k2t7 \
     --resource_id=quota6grhfqhj13o \
@@ -46,16 +22,36 @@ EOF' \
     --worker_cpu=12 \
     --worker_memory=200Gi \
     --worker_shared_memory=200Gi \
-    --worker_gpu=1
+    --worker_gpu=0
 """
-INTERVAL = 5
 
-for exp_id in range(N_TOTAL):
 
-    command = TEMPLATE.replace("<ID>", str(exp_id))
-    # exp_name = "scene_model_no_reg"
-    # config_path = f"digitaltwin/config/multi_traversal_exps/{exp_name}.py"
-    # output_dir = f"experiments/{task_name}/{exp_name}"
-    # command = TEMPLATE.replace("<ID>", f"{task_name}-{exp_name}").replace("<CONFIG_PATH>", config_path).replace("<OUTPUT_DIR>", output_dir).replace("<TASK_NAME>", task_name)
+
+
+
+INTERVAL = 10
+
+
+
+# GROUP_ROOT = "/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/sat/configs/waymo_action_control/GROUP_Action_Control_wo_sim_1cond"
+GROUP_ROOT = "/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/world_model_evaluate/configs/waymo_prepocess"
+
+jsons_to_eval = []
+
+for json_name in os.listdir(GROUP_ROOT):
+    json_path = os.path.join(GROUP_ROOT, json_name)
+    
+    
+    if json_path.endswith(".yaml"):
+        jsons_to_eval.append(json_path)
+
+
+print("Total jsons to evaluate:", len(jsons_to_eval))
+
+for ind, json in enumerate(jsons_to_eval):
+
+    print("Evaluating", json)
+
+    command = TEMPLATE.replace("<CFG_NAME>", os.path.basename(json).split(".")[0]).replace("<CFG>", json)
     subprocess.run(command, shell=True)
     time.sleep(INTERVAL)

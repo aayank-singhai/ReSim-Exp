@@ -30,7 +30,7 @@ args:
   valid_data: ["/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/custom_data/youtube_json/YouTube_svd_val_1080p_clip-len-49_interval-10_77k_flow.json"]
 
   sampling_video_size: [512, 896]
-  n_prediction_round: 1
+  n_prediction_round: 8
 
   save_gt: True
   concat_gt_for_demo: True

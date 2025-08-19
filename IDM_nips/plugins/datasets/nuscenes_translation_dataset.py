@@ -143,6 +143,11 @@ class NuScenesTranslationDataset(Custom3DDataset):
         for i in range(len(self.data_infos)):
             gt_trajs.append(self.data_infos[i]['gt_traj'])
 
+        # print mean distance of end point (similar to fde) of gt_traj
+        import pdb; pdb.set_trace()
+        print("GT_TRAJS, Mean end point distance", np.mean(np.sqrt(((np.array(gt_trajs)[:, -1, :2]) ** 2).sum(axis=-1))))
+        print("GT_TRAJS, MAX end point distance",  np.max(np.sqrt(((np.array(gt_trajs)[:, -1, :2]) ** 2).sum(axis=-1))))
+
         def ade_and_fde(pred_trajs, gt_trajs):
             pred_trajs = np.stack(pred_trajs, axis=0)[..., :2]  # (1500, 4, 2)
             gt_trajs = np.stack(gt_trajs, axis=0)[..., :2]      # (1500, 4, 2)
@@ -162,8 +167,64 @@ class NuScenesTranslationDataset(Custom3DDataset):
 
             return ADE_1s, ADE_2s, ADE, FDE
 
-        ADE_1s, ADE_2s, ADE, FDE = ade_and_fde(pred_trajs, gt_trajs)
-        
+        # ! Verified, Correct
+        def normalized_ade_and_fde(pred_trajs, gt_trajs):
+            pred_trajs = np.stack(pred_trajs, axis=0)[..., :2]  # (1500, 4, 2)  n_samples, n_points_per_traj, n_dim
+            gt_trajs = np.stack(gt_trajs, axis=0)[..., :2]      # (1500, 4, 2)
+
+
+            error_all_1s = np.sqrt(((pred_trajs[:, :2, :2] - gt_trajs[:, :2, :2]) ** 2).sum(axis=-1))  # (1500, 2) n_samples, n_points_per_traj
+            gt_traj_len_1s = np.sqrt(((gt_trajs[:, 1, :2]) ** 2).sum(axis=-1))  # (1500, )
+
+            epsilon = 1.
+
+            ADE_1s = np.mean(error_all_1s, axis=1)  # (1500, ) n_samples, average over (x, y)
+            Norm_ADE_1s = np.mean(ADE_1s / (gt_traj_len_1s + epsilon))  # (1500, )
+            ADE_1s = np.mean(ADE_1s)
+            
+            error_all_2s = np.sqrt(((pred_trajs[:, :4, :2] - gt_trajs[:, :4, :2]) ** 2).sum(axis=-1))  # (1500, 4)
+            gt_traj_len_2s = np.sqrt(((gt_trajs[:, 3, :2]) ** 2).sum(axis=-1))  # (1500, )
+            ADE_2s = np.mean(error_all_2s, axis=1)  # (1500, ) n_samples, average over (x, y)
+            Norm_ADE_2s = np.mean(ADE_2s / (gt_traj_len_2s + epsilon))  # (1500, )
+            ADE_2s = np.mean(ADE_2s)
+
+            error_all = np.sqrt(((pred_trajs[:, :, :2] - gt_trajs[:, :, :2]) ** 2).sum(axis=-1))  # (1500, 4)
+            gt_traj_len = np.sqrt(((gt_trajs[:, -1, :2]) ** 2).sum(axis=-1))  # (1500, )
+            ADE = np.mean(error_all, axis=1)  # (1500, ) n_samples, average over (x, y)
+            Norm_ADE = np.mean(ADE / (gt_traj_len + epsilon))  # (1500, )
+            ADE = np.mean(ADE)
+
+            # ADE_1s = np.mean(
+            #     np.sqrt(((pred_trajs[:, :2, :2] - gt_trajs[:, :2, :2]) ** 2).sum(axis=-1))
+            # )
+            # ADE_2s = np.mean(
+            #     np.sqrt(((pred_trajs[:, :4, :2] - gt_trajs[:, :4, :2]) ** 2).sum(axis=-1))
+            # )
+            # ADE = np.mean(
+            #     np.sqrt(((pred_trajs[:, :, :2] - gt_trajs[:, :, :2]) ** 2).sum(axis=-1))
+            # )
+
+            # FDE = np.mean(
+            #     np.sqrt(((pred_trajs[:, -1, :2] - gt_trajs[:, -1, :2]) ** 2).sum(axis=-1))
+            # )
+            
+            # ! Check the size of the traj
+            final_error_all = np.sqrt(((pred_trajs[:, -1, :2] - gt_trajs[:, -1, :2]) ** 2).sum(axis=-1))  # n_samples
+            Norm_FDE = np.mean(final_error_all / (gt_traj_len + epsilon))  # (1500, )
+            FDE = np.mean(final_error_all)  # (1500, )
+            
+            
+            # FDE = np.mean(
+            #     np.sqrt(((pred_trajs[:, -1, :2] - gt_trajs[:, -1, :2]) ** 2).sum(axis=-1)), axis=1
+            # )
+            # Norm_FDE = np.mean(FDE / (gt_traj_len + epsilon))  # (1500, )
+            # FDE = np.mean(FDE)
+
+            return ADE_1s, ADE_2s, ADE, FDE, Norm_ADE_1s, Norm_ADE_2s, Norm_ADE, Norm_FDE
+
+
+        ADE_1s, ADE_2s, ADE, FDE, Norm_ADE_1s, Norm_ADE_2s, Norm_ADE, Norm_FDE = normalized_ade_and_fde(pred_trajs, gt_trajs)
+
 
         pred_trajs_cmd = dict()
         gt_trajs_cmd = dict()
@@ -184,9 +245,12 @@ class NuScenesTranslationDataset(Custom3DDataset):
                 gt_trajs_cmd[cmd_vista].append(gt)
 
         for cmd in pred_trajs_cmd.keys():
-            _ADE_1s, _ADE_2s, _ADE, _FDE = ade_and_fde(pred_trajs_cmd[cmd], gt_trajs_cmd[cmd])
-            print(f"\nCommand: {cmd}-{cmd_vista_to_str[cmd]}, ADE_1s: {_ADE_1s}, ADE_2s: {_ADE_2s}, ADE: {_ADE}, FDE: {_FDE}")
+            # _ADE_1s, _ADE_2s, _ADE, _FDE = ade_and_fde(pred_trajs_cmd[cmd], gt_trajs_cmd[cmd])
+            # print(f"\nCommand: {cmd}-{cmd_vista_to_str[cmd]}, ADE_1s: {_ADE_1s}, ADE_2s: {_ADE_2s}, ADE: {_ADE}, FDE: {_FDE}")
 
+            _ADE_1s, _ADE_2s, _ADE, _FDE, _Norm_ADE_1s, _Norm_ADE_2s, _Norm_ADE, _Norm_FDE = normalized_ade_and_fde(pred_trajs_cmd[cmd], gt_trajs_cmd[cmd])
+            print(f"\nCommand: {cmd}-{cmd_vista_to_str[cmd]}, ADE_1s: {_ADE_1s}, ADE_2s: {_ADE_2s}, ADE: {_ADE}, FDE: {_FDE}, Norm_ADE_1s: {_Norm_ADE_1s}, Norm_ADE_2s: {_Norm_ADE_2s}, Norm_ADE: {_Norm_ADE}, Norm_FDE: {_Norm_FDE}")
+            
         if show:
             self.show(pred_trajs, gt_trajs, out_dir=out_dir, **kwargs)
 
@@ -194,7 +258,11 @@ class NuScenesTranslationDataset(Custom3DDataset):
             ADE_1s=ADE_1s,
             ADE_2s=ADE_2s,
             ADE=ADE,
-            FDE=FDE
+            FDE=FDE,
+            Norm_ADE_1s=Norm_ADE_1s,
+            Norm_ADE_2s=Norm_ADE_2s,
+            Norm_ADE=Norm_ADE,
+            Norm_FDE=Norm_FDE
         )
         return metrics
 
