@@ -25,3 +25,5 @@ sat/info_logs
 
 **/vis/
 **/nav_recon
+
+.egg-info
