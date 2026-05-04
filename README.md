@@ -1,13 +1,12 @@
 # ReSim
 
-**Reliable World Simulation for Autonomous Driving**
-
-> [!IMPORTANT]
-> Stay up to date at [opendrivelab.com](https://opendrivelab.com/#news).
-
 The official implementation of our **NeurIPS 2025 Spotlight** paper:
 
 **ReSim: Reliable World Simulation for Autonomous Driving**
+
+<img src="assets/comparison1.gif" width="1000px">
+<img src="assets/comparison2.gif" width="1000px">
+
 
 > [Jiazhi Yang](https://jiazyang.github.io/),
 > [Kashyap Chitta](https://kashyap7x.github.io/),
@@ -20,16 +19,11 @@ The official implementation of our **NeurIPS 2025 Spotlight** paper:
 > [Xiangyu Yue](https://xyue.io/),
 > [Li Chen](https://ilnehc.github.io/)
 >
-> [[technical report](https://arxiv.org/abs/2506.09981)],
+> [[arXiv](https://arxiv.org/abs/2506.09981)],
 > [[project page and video demos](https://opendrivelab.com/ReSim)]
 >
 > Primary contact: Jiazhi Yang, jzyang@link.cuhk.edu.hk
 
-<div align="center">
-  <img src="https://github.com/OpenDriveLab/ReSim/raw/main/assets/teaser.gif" width="1000px">
-  <br>
-  <sub>Reliable world simulation under diverse ego-driving behaviors. Best viewed on the <a href="https://opendrivelab.com/ReSim">project page</a>.</sub>
-</div>
 
 ## Highlights
 
@@ -45,23 +39,16 @@ driving videos under a wide range of ego behaviors.
 - **High-fidelity open-world prediction.** ReSim targets realistic future
   driving video generation while improving controllability for both expert and
   non-expert actions.
-- **Research-oriented release.** This repository contains the SAT-based ReSim
-  world-model training and inference pipeline, representative configs, data
-  loaders, and weight-conversion utilities.
 
 ## News
 
 - **[2026/05/05]** Initial public code release.
-- **[2026/04/28]** The technical report was updated on arXiv.
-- **[2025/06/11]** ReSim was released on arXiv.
 
 ## TODO List
 
 - [ ] Release pretrained ReSim world-model weights.
-- [ ] Release cleaned example configs with public paths.
-- [ ] Release or document public data annotations for reproduction.
-- [ ] Add minimal end-to-end inference examples.
-- [ ] Improve training and inference documentation as the public release matures.
+
+- [ ] Initial code release with training and inference scripts.
 
 ## Getting Started
 
@@ -226,34 +213,20 @@ Common inference options are config-driven:
 ## Trouble Shooting
 
 - `ModuleNotFoundError: No module named 'sat'`: install the vendored SAT package
-  with `pip install -e SwissArmyTransformer`, or run through the provided
-  `sat/*.sh` launchers, which export the required `PYTHONPATH`.
-- Internal paths such as `/cpfs01` or `/inspire` in example configs must be
+  with `pip install -e SwissArmyTransformer`.
+
+- Paths in example configs must be
   replaced with paths on your machine before running.
-- The current sampling script contains a default output root in code. If you need
-  custom output locations, update the script or patch the config path handling
-  before large-scale sampling.
+
 
 ## Acknowledgement
 
 This implementation builds on the SAT training stack from
-[SwissArmyTransformer](https://github.com/THUDM/SwissArmyTransformer) and
-open-source video diffusion components. We thank the authors and maintainers for
+[CogVideoX](https://github.com/zai-org/CogVideo),
+[SwissArmyTransformer](https://github.com/THUDM/SwissArmyTransformer), and
+other open-source video diffusion components. We thank all maintainers for
 their open-source contributions.
 
-## Code Release Notes
-
-This is an initial research-code release. A few practical details are worth
-checking before running experiments:
-
-- Example configs may still contain machine-specific paths. Copy a config and
-  replace all dataset, checkpoint, log, and output paths before launching jobs.
-- Large checkpoints and dataset annotations are expected to be distributed
-  separately from this source tree.
-- Dataset licensing is inherited from the original data providers; follow their
-  terms when preparing training or validation annotations.
-- For a new environment, first run a small inference job from a clean checkout
-  before launching large-scale sampling.
 
 ## Citation
 
