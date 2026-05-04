@@ -9,7 +9,6 @@ from PIL import Image
 from data_utils import *
 from data_share import SharedDataset
 
-# * TODO: Improve loading samples, per video clip, not per attribute
 class YouTubeDataset(SharedDataset):
 
     def __init__(self, 

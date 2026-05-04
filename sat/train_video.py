@@ -8,12 +8,9 @@ import argparse
 from functools import partial
 from PIL import Image
 import numpy as np
-# import torch.distributed
-# import torchvision
 from omegaconf import OmegaConf
 import imageio
 
-# import torch
 
 from sat import mpu
 from sat.training.deepspeed_training import training_main
@@ -116,7 +113,6 @@ def log_video(batch, model, args, only_log_video_latents=False):
                     save_video_as_grid_and_mp4(samples, path, num_frames // fps, fps, args, k)
 
 
-# TODO: Check this
 def broad_cast_batch(batch):
     mp_size = mpu.get_model_parallel_world_size()
     global_rank = torch.distributed.get_rank() // mp_size
@@ -130,7 +126,6 @@ def broad_cast_batch(batch):
     else:
         broadcast_shape = None
 
-    # obj_keys = ['txt', 'with_traj']
     obj_keys = ['txt', 'with_traj', 'with_human_drive_token']
     
     broadcast_obj = [{key: batch[key] for key in obj_keys}]
@@ -184,9 +179,6 @@ def forward_step_eval(data_iterator, model, args, timers, only_log_video_latents
         batch_video = {"mp4": None, "fps": None, "num_frames": None, "txt": None}
     broad_cast_batch(batch_video)
 
-    # TODO: No log_video in training to save memory
-    # if mpu.get_data_parallel_rank() == 0:
-    #     log_video(batch_video, model, args, only_log_video_latents=only_log_video_latents)
 
     batch_video["global_step"] = args.iteration
     loss, loss_dict = model.shared_step(batch_video)

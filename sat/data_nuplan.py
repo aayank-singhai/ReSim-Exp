@@ -9,7 +9,6 @@ from PIL import Image
 from data_utils import *
 from data_share import SharedDataset
 
-# TODO: Improve data loading: load clip as a dict, rather than each attributes separately
 class nuPlanDataset(SharedDataset):
 
     def __init__(self, 

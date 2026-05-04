@@ -29,7 +29,6 @@ class ImagePatchEmbeddingMixin(BaseMixin):
         patch_size,
         bias=True,
         text_hidden_size=None,
-        # use_cond_emb=False,
         cond_emb_in_dim=None,   # * Indicating conditional frames, related to t
         use_aug_cond_emb=False, # * Indicating the scale of noise for conditioning augmentation, related to t_aug
     ):
@@ -64,7 +63,6 @@ class ImagePatchEmbeddingMixin(BaseMixin):
         emb = self.proj(emb)  # ((b t),d,h/2,w/2) # * Conv2d(16, 1920, kernel_size=(2, 2), stride=(2, 2)), downsampling
 
         # NOTE: Currently directly added on images, inoptimal.
-        # TODO: Add cond_emb on intermediate embeddings, not on input images. (4 Oct: Not needed indeed.)
         if self.cond_emb_proj is not None:
             emb = rearrange(emb, '(b t) ... -> b t ...', b=B, t=T)  # [1, 13, 1920, 64, 112]
             cond_inds = kwargs["cond_inds"]
@@ -128,7 +126,6 @@ def get_3d_sincos_pos_embed(
     grid = grid.reshape([2, 1, grid_height, grid_width])
     pos_embed_spatial = get_2d_sincos_pos_embed_from_grid(embed_dim_spatial, grid)
 
-    # temporal
     grid_t = np.arange(t_size, dtype=np.float32) / time_interpolation
     pos_embed_temporal = get_1d_sincos_pos_embed_from_grid(embed_dim_temporal, grid_t)
 
@@ -139,7 +136,6 @@ def get_3d_sincos_pos_embed(
     pos_embed_spatial = np.repeat(pos_embed_spatial, t_size, axis=0)  # [T, H*W, D // 4 * 3]
 
     pos_embed = np.concatenate([pos_embed_temporal, pos_embed_spatial], axis=-1)
-    # pos_embed = pos_embed.reshape([-1, embed_dim])  # [T*H*W, D]
 
     return pos_embed  # [T, H*W, D]
 
@@ -756,7 +752,7 @@ class AdaLNMixin(BaseMixin):
                                                     gate_msa, aug_gate_msa, 
                                                     cond_inds, pred_inds)
         else:
-            img_hidden_states = img_hidden_states + gate_msa * img_attention_output  # (b,(t n),d)   # TODO: Split gating
+            img_hidden_states = img_hidden_states + gate_msa * img_attention_output
         text_hidden_states = text_hidden_states + text_gate_msa * text_attention_output  # (b,n,d)
 
         # mlp (b,(t n),d)
@@ -857,7 +853,6 @@ class DiffusionTransformer(BaseModel):
         zero_init_y_embed=False,
 
         allow_split_cond=True,
-        # with_cond_traj=False,
 
         **kwargs,
     ):
@@ -887,7 +882,6 @@ class DiffusionTransformer(BaseModel):
 
         # * Custom
         self.allow_split_cond = allow_split_cond
-        # self.with_cond_traj = with_cond_traj
 
         try:
             self.dtype = str_to_dtype[kwargs.pop("dtype")]
@@ -921,7 +915,6 @@ class DiffusionTransformer(BaseModel):
 
     def _build_modules(self, module_configs):
         model_channels = self.hidden_size
-        # time_embed_dim = model_channels * 4
         time_embed_dim = self.time_embed_dim
         self.time_embed = nn.Sequential(
             linear(model_channels, time_embed_dim),
@@ -1029,7 +1022,6 @@ class DiffusionTransformer(BaseModel):
         b, t, d, h, w = x.shape  # * [1, 13, 16, 64, 112]
         if x.dtype != self.dtype:
             x = x.to(self.dtype)
-        # import pdb; pdb.set_trace()
         assert (y is not None) == (
             self.num_classes is not None
         ), "must specify y if and only if the model is class-conditional"
@@ -1040,7 +1032,6 @@ class DiffusionTransformer(BaseModel):
             aug_t_emb = timestep_embedding(aug_timesteps, self.model_channels, repeat_only=False, dtype=self.dtype)
             aug_emb = self.time_embed(aug_t_emb)
 
-        # TODO: Why compress t_emb here??? 1920 -> 512, why not directly map it to 512
         emb = self.time_embed(t_emb)  # * [1, 512]
 
         if self.num_classes is not None:

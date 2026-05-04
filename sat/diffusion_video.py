@@ -49,7 +49,7 @@ class SATVideoDiffusionEngine(nn.Module):
         not_trainable_prefixes = model_config.get("not_trainable_prefixes", ["first_stage_model", "conditioner"])
         compile_model = model_config.get("compile_model", False)
         en_and_decode_n_samples_a_time = model_config.get("en_and_decode_n_samples_a_time", None)
-        en_and_decode_n_frames_a_time = model_config.get("en_and_decode_n_frames_a_time", None)  # TODO: Set this to avoid OOM.
+        en_and_decode_n_frames_a_time = model_config.get("en_and_decode_n_frames_a_time", None)
         lr_scale = model_config.get("lr_scale", None)
         lora_train = model_config.get("lora_train", False)
         self.use_pd = model_config.get("use_pd", False)  # progressive distillation
@@ -87,7 +87,6 @@ class SATVideoDiffusionEngine(nn.Module):
         network_config["params"]["dtype"] = dtype_str
         model = instantiate_from_config(network_config)
 
-        # * NOTE: Conditions are passed to the network_wrapper, go to OpenAIWrapper
         self.model = get_obj_from_str(default(network_wrapper, OPENAIUNETWRAPPER))(
             model, compile_model=compile_model, dtype=dtype
         )
@@ -177,7 +176,6 @@ class SATVideoDiffusionEngine(nn.Module):
 
         x = x.permute(0, 2, 1, 3, 4).contiguous()
 
-        # TODO: Memory Bottleneck (Takes a lot of memory)
         x = self.encode_first_stage(x, batch)
         x = x.permute(0, 2, 1, 3, 4).contiguous()
 
@@ -191,7 +189,6 @@ class SATVideoDiffusionEngine(nn.Module):
     def get_input(self, batch):
         return batch[self.input_key].to(self.dtype)
 
-    # TODO: Sliced video decoding
     @torch.no_grad()
     def decode_first_stage(self, z):
         z = 1.0 / self.scale_factor * z
@@ -208,7 +205,7 @@ class SATVideoDiffusionEngine(nn.Module):
         with torch.autocast("cuda", enabled=not self.disable_first_stage_autocast):
             for n in range(n_rounds):
                 if isinstance(self.first_stage_model.decoder, VideoDecoder):
-                    kwargs = {"timesteps": len(z[n * n_samples : (n + 1) * n_samples])}  # TODO: Check is it right?
+                    kwargs = {"timesteps": len(z[n * n_samples : (n + 1) * n_samples])}
                 else:
                     kwargs = {}
                 use_cp = False
@@ -236,7 +233,6 @@ class SATVideoDiffusionEngine(nn.Module):
 
         n_frame_per_round = default(self.en_and_decode_n_frames_a_time, x.shape[2])
         assert n_frame_per_round in [49, 17]
-        # n_frame_rounds = math.ceil(x.shape[2] / n_frame_per_round)
         
         all_out = []
         with torch.autocast("cuda", enabled=not self.disable_first_stage_autocast):
@@ -245,11 +241,7 @@ class SATVideoDiffusionEngine(nn.Module):
                 out = []
                 if n_frame_per_round == 17:
                     # slice the video, overlap: 1
-                    # tmp_chunks = [x_sample[:,:,:17], x_sample[:,:,16:33], x_sample[:,:,32:49]]
 
-                    # TODO: Think twice, will this slice effect training?
-                    # TODO: Bug??
-                    # TODO: Should we also adjust the decoding part?
                     chunk_left_right = [[0, 17], [16, 33], [32, 49]]
                     for ch_ind, (left, right) in enumerate(chunk_left_right):
                         chunk = x_sample[:,:,left:right].contiguous()
@@ -322,7 +314,6 @@ class SATVideoDiffusionEngine(nn.Module):
                 x = batch[embedder.input_key][:n]
                 if isinstance(x, torch.Tensor):
                     if x.dim() == 1:
-                        # class-conditional, convert integer to string
                         x = [str(x[i].item()) for i in range(x.shape[0])]
                         xc = log_txt_as_img((image_h, image_w), x, size=image_h // 4)
                     elif x.dim() == 2:
@@ -376,7 +367,6 @@ class SATVideoDiffusionEngine(nn.Module):
             log["inputs"] = x.to(torch.float32)
         x = x.permute(0, 2, 1, 3, 4).contiguous()
 
-        # print("x.shape", x.shape)  # [1, 3, 49, 480, 720], T=49
 
         z = self.encode_first_stage(x, batch)
         # [1, 16, 13, 60, 90]

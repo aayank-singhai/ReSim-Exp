@@ -56,7 +56,6 @@ def vae_demo(model_path, video_path, dtype, device):
     print(frames_tensor.shape)
     frames_tensor = frames_tensor[:, :, :25]
     # [1, 3, 65, 720, 1280]
-    # import pdb; pdb.set_trace()
 
     # Run the model with Encoder and Decoder
     with torch.no_grad():
@@ -81,7 +80,6 @@ def save_video(tensor, output_path, fps=30):
     frames = (frames * 255).astype(np.uint8)
 
     # Save frames to video
-    # writer = imageio.get_writer(output_path + "/output.mp4", fps=fps)
     writer = imageio.get_writer(output_path, fps=fps)
 
     for frame in frames:

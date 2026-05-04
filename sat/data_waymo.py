@@ -11,7 +11,6 @@ from data_share import SharedDataset
 
 
 
-# * TODO: Improve loading samples, per video clip, not per attribute
 class WaymoDataset(SharedDataset):
 
     def __init__(self, 

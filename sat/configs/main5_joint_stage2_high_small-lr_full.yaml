@@ -1,10 +1,3 @@
-# TODO: 
-# - Larger bs
-# - Grad Norm Clip
-# - Offset Noise
-# - Video Offset Noise
-
-# * Resumed from main5_joint_stage2_high_small-lr-12-08-06-48 (15000 steps)
 
 args:
   checkpoint_activations: True ## using gradient checkpointing
@@ -36,7 +29,6 @@ args:
   # * navsim: 40, 40 * 80k = 3.2M
 
   split: 1,0,0
-  # num_workers: 0  # !!! DEBUG
   num_workers: 8
   force_train: True
   # only_log_video_latents: True
@@ -73,7 +65,7 @@ deepspeed:
   train_micro_batch_size_per_gpu: 2  # * 4 will lead to error
   gradient_accumulation_steps: 1
   steps_per_print: 50
-  gradient_clipping: 0.1  # TODO: smaller grad clip??
+  gradient_clipping: 0.1
   zero_optimization:
     stage: 2
     cpu_offload: false
@@ -148,7 +140,6 @@ model:
       # latent_width: 90
       # latent_height: 60
 
-      # !!! DEBUG: For (512, 896)
       latent_width: 112
       latent_height: 64
 
@@ -173,12 +164,11 @@ model:
         pos_embed_config:
           target: dit_video_concat.Basic3DPositionEmbeddingMixin
           params:
-            text_length: 235  # TODO: Need to be adjusted with traj feature length
+            text_length: 235
             # * 226 + 9 = 235
             # height_interpolation: 1.875  # * cur_height // 256
             # width_interpolation: 1.875   # * cur_width  // 384
 
-            # !!! DEBUG: For (512, 896) 
             height_interpolation: 2.0   # * cur_height // 256
             width_interpolation:  2.3333   # * cur_width  // 384
 
@@ -275,7 +265,7 @@ model:
           gather_norm: false
 
   loss_fn_config:
-    target: sgm.modules.diffusionmodules.loss.VideoDiffusionLoss  # TODO: Dynamics Enhancement Loss + Per-sample Dynamics Weight (According to flow value?)
+    target: sgm.modules.diffusionmodules.loss.VideoDiffusionLoss
     params:
       offset_noise_level: 0
 
@@ -305,7 +295,7 @@ model:
   sampler_config:
     target: sgm.modules.diffusionmodules.sampling.VPSDEDPMPP2MSampler
     params:
-      num_steps: 50  # TODO: Can we use less steps to speed up?? (GameNGen only uses 4)
+      num_steps: 50
       verbose: True
       fixed_frames: 3  # [0, 1, 2]
       cond_inds_sampling: *cond_inds_sampling  # [0, 1, 2]

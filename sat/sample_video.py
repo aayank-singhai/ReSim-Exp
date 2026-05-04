@@ -27,18 +27,11 @@ from datetime import datetime
 import shutil
 
 
-# TODO: Visualize Same intermediate results for each timestep
 # * Optimize Sampling Quality for Short-term Sequence
-# Finished -  TODO: 1. For each video clip, optimize the timestep scheduler for denoising
-# Finished - TODO: 2. For each video clip, optimize the conditioning scheduler for denosing
-# TODO: 3. For each video clip, optimize the conditioning augmentation scheduler for denoising
 
 # * Optimize Sampling Quality for long-term Rollouts
-# TODO: 1. For multiple round rollouts, optimize the conditioning augmentation scheduler for different sequence in a roll
 
-# TODO: Simply code, remove all useless parts.
 
-# TODO: Align the VAE process used in training / sampling / reconstruction. Avoid inproper VAE use in training.
 
 
 def get_unique_embedder_keys_from_conditioner(conditioner):
@@ -128,8 +121,6 @@ def decode_latents(model, latents):
             latent = torch.load(latent_file).to(model.device)  # torch.Size([1, 16, 13, 90, 160])
             
             # * truncate
-            # TODO: RM Hard Code
-            # TRUNCATE = 5
             TRUNCATE = 7
             latent = latent[:, :, :TRUNCATE].contiguous()
             
@@ -199,9 +190,6 @@ def set_seed(seed: int):
 
 def sampling_main(args, model_cls):
 
-    # seed = 42   # * Specify your seed value here
-    # set_seed(seed)
-    # set_seed(args.seed)
 
     if isinstance(model_cls, type):
         model = get_model(args, model_cls)
@@ -249,7 +237,9 @@ def sampling_main(args, model_cls):
 
     device = model.device
 
-    out_root = "/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/outputs_hdd"
+    repo_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+    out_root = os.path.join(repo_root, "outputs")
+
     if isinstance(args.base, list):
         cfg_path = args.base[0]
     else:
@@ -260,7 +250,6 @@ def sampling_main(args, model_cls):
     else:
         cfg_name = os.path.join(*cfg_path.split("/")[-2:]).replace(".yaml", "")
 
-    # cfg_name = os.path.basename(cfg_path).replace(".yaml", "")
     out_dir = os.path.join(out_root, cfg_name)
 
     if "GROUP" not in cfg_path:
@@ -292,10 +281,8 @@ def sampling_main(args, model_cls):
 
                 z = model.encode_first_stage(x, batch)
                 z_origin = z.clone()  # * For logging
-                # torch.Size([1, 16, 13, 64, 112])
 
                 z = z.permute(0, 2, 1, 3, 4).contiguous()
-                # torch.Size([1, 13, 16, 64, 112])
             else:
                 z = None
                 z_origin = None
@@ -308,7 +295,7 @@ def sampling_main(args, model_cls):
                 "mp4": batch["mp4"].to(device),
                 "prompt": text,
                 "negative_prompt": "",
-                "num_frames": torch.tensor(T).unsqueeze(0),  # TODO: Check what's the use of num_frames
+                "num_frames": torch.tensor(T).unsqueeze(0),
             }
 
             if "fut_traj" in batch:
@@ -358,7 +345,7 @@ def sampling_main(args, model_cls):
                         cond_inds = get_cond_inds(N_COND_FRAMES, ind_round)
                         sampling_kwargs['prefix'] = z[:, cond_inds]
                         
-                        sampling_kwargs['cond_inds'] = cond_inds if ind_round == 0 else [0, 1, 2]  # ! DEBUG, delete later
+                        sampling_kwargs['cond_inds'] = cond_inds if ind_round == 0 else [0, 1, 2]
                         
                     # reload model on GPUp
                     model.to(device)
@@ -450,6 +437,6 @@ if __name__ == "__main__":
     args.model_config.first_stage_config.params.cp_size = 1
     args.model_config.network_config.params.transformer_args.model_parallel_size = 1
     args.model_config.network_config.params.transformer_args.checkpoint_activations = False
-    args.model_config.loss_fn_config.params.sigma_sampler_config.params.uniform_sampling = False  # TODO: Check why set this?
+    args.model_config.loss_fn_config.params.sigma_sampler_config.params.uniform_sampling = False
 
     sampling_main(args, model_cls=SATVideoDiffusionEngine)

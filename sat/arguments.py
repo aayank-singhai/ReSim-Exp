@@ -8,7 +8,6 @@ from omegaconf import OmegaConf
 from sat.helpers import print_rank0
 from sat import mpu
 from sat.arguments import set_random_seed
-# from sat.arguments import add_training_args, add_evaluation_args, add_data_args
 from sat.arguments import add_training_args, add_data_args
 import torch.distributed
 
@@ -214,7 +213,6 @@ def initialize_distributed(args):
     """Initialize torch.distributed."""
     if torch.distributed.is_initialized():
         if mpu.model_parallel_is_initialized():
-            # TODO: Check here.
             if args.model_parallel_size != mpu.get_model_parallel_world_size():
                 raise ValueError(
                     "model_parallel_size is inconsistent with prior configuration."

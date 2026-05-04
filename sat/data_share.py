@@ -9,7 +9,6 @@ from PIL import Image
 from data_utils import *
 
 
-# * TODO: Improve loading samples, per video clip, not per attribute
 class SharedDataset(Dataset):
 
     def __init__(self, 
@@ -17,7 +16,7 @@ class SharedDataset(Dataset):
                 video_size, 
                 fps, 
                 max_num_frames, 
-                skip_frms_num=0,   # TODO: Set to 7 for nuplan, 0 for others
+                skip_frms_num=0,   # * Set to 7 for nuplan, 0 for others
                 prefix_prompt="",
                 n_repeat_of_actions=None,
                 n_fut_traj_points=8,
@@ -69,7 +68,6 @@ class SharedDataset(Dataset):
         self.n_repeat_of_actions = n_repeat_of_actions
 
         self.n_fut_traj_points = n_fut_traj_points
-        # self.length = len(self.captions_list)
         self.p_mask_out_heading = p_mask_out_heading
         
         self.p_drop_action_caption = p_drop_action_caption
@@ -123,7 +121,6 @@ class SharedDataset(Dataset):
             end_ind = (ind_subset + 1) * length_per_subset
             clip_infos = clip_infos[start_ind:end_ind]
 
-        # TODO: We can derive PDMs here.
 
         print("Using {} clips".format(len(clip_infos)))
 
@@ -147,7 +144,6 @@ class SharedDataset(Dataset):
                 if 'extrapolated_traj_fut' in clip and random.random() < self.p_use_extrapolate_traj:
                     fut_traj = clip['extrapolated_traj_fut'][:self.n_fut_traj_points]
 
-                    # import pdb; pdb.set_trace()
 
 
             token_key = 'lidar_pc_token' if 'lidar_pc_token' in clip else 'token'
