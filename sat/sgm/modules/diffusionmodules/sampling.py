@@ -483,7 +483,6 @@ class VideoDDIMSampler(BaseDiffusionSampler):
                  directly_use_idx_as_timestep = False, # sampling_timestep for guider wrt. t: [25, 24, ...., 0]
                  **kwargs):
         super().__init__(**kwargs)
-        # self.fixed_frames = fixed_frames  # * Legacy
         self.sdedit = sdedit
         self.cond_inds = cond_inds_sampling
         self.apply_cond_aug = apply_cond_aug
@@ -516,38 +515,9 @@ class VideoDDIMSampler(BaseDiffusionSampler):
             do_append_zero=False,
         )
 
-        # linear - timesteps - len: 50
-        # array([ 19,  39,  59,  79,  99, 119, 139, 159, 179, 199, 219, 239, 259,
-        #     279, 299, 319, 339, 359, 379, 399, 419, 439, 459, 479, 499, 519,
-        #     539, 559, 579, 599, 619, 639, 659, 679, 699, 719, 739, 759, 779,
-        #     799, 819, 839, 859, 879, 899, 919, 939, 959, 979, 999])
-        # alpha_cumprod_sqrt - len: 50
-        # tensor([0.0000, 0.0052, 0.0109, 0.0171, 0.0239, 0.0312, 0.0390, 0.0474, 0.0565,
-        #         0.0661, 0.0764, 0.0873, 0.0988, 0.1110, 0.1239, 0.1374, 0.1516, 0.1664,
-        #         0.1819, 0.1982, 0.2151, 0.2327, 0.2510, 0.2700, 0.2897, 0.3101, 0.3313,
-        #         0.3531, 0.3757, 0.3990, 0.4231, 0.4478, 0.4733, 0.4996, 0.5265, 0.5541,
-        #         0.5823, 0.6112, 0.6407, 0.6706, 0.7010, 0.7317, 0.7627, 0.7938, 0.8249,
-        #         0.8558, 0.8864, 0.9164, 0.9456, 0.9739], device='cuda:0')
-
-        # import pdb; pdb.set_trace()
         alpha_cumprod_sqrt = torch.cat([alpha_cumprod_sqrt, alpha_cumprod_sqrt.new_ones([1])])
         timesteps = torch.cat([torch.tensor(list(timesteps)).new_zeros([1]) - 1, torch.tensor(list(timesteps))])
         
-        # alpha_cumprod_sqrt - len 50
-        # tensor([0.0000, 0.0052, 0.0109, 0.0171, 0.0239, 0.0312, 0.0390, 0.0474, 0.0565,
-        #         0.0661, 0.0764, 0.0873, 0.0988, 0.1110, 0.1239, 0.1374, 0.1516, 0.1664,
-        #         0.1819, 0.1982, 0.2151, 0.2327, 0.2510, 0.2700, 0.2897, 0.3101, 0.3313,
-        #         0.3531, 0.3757, 0.3990, 0.4231, 0.4478, 0.4733, 0.4996, 0.5265, 0.5541,
-        #         0.5823, 0.6112, 0.6407, 0.6706, 0.7010, 0.7317, 0.7627, 0.7938, 0.8249,
-        #         0.8558, 0.8864, 0.9164, 0.9456, 0.9739, 1.0000], device='cuda:0')
-        # timesteps - len 51
-        # tensor([ -1,  19,  39,  59,  79,  99, 119, 139, 159, 179, 199, 219, 239, 259,
-        #         279, 299, 319, 339, 359, 379, 399, 419, 439, 459, 479, 499, 519, 539,
-        #         559, 579, 599, 619, 639, 659, 679, 699, 719, 739, 759, 779, 799, 819,
-        #         839, 859, 879, 899, 919, 939, 959, 979, 999])   # TODO: Bugfix: The end should be 999 or 1000?
-
-        # import pdb; pdb.set_trace()
-
         uc = default(uc, cond)
 
         num_sigmas = len(alpha_cumprod_sqrt)
@@ -564,16 +534,14 @@ class VideoDDIMSampler(BaseDiffusionSampler):
             additional_model_inputs['cond_inds'] = self.cond_inds
 
         aug_t_chunk_sampling = additional_model_inputs.get('aug_t_chunk', 0)
-        # import pdb; pdb.set_trace()
         # * scale: None
         # * We don't need to pass the scale as it will be initialized in the guider
 
         if not isinstance(scale, torch.Tensor) and scale == 1:
-            additional_model_inputs["idx"] = x.new_ones([x.shape[0]]) * timestep  # TODO: Make sure this timestep is right
+            additional_model_inputs["idx"] = x.new_ones([x.shape[0]]) * timestep
 
-            # TODO: Check this?? A bug??? the conflict between apply_cond_aug and apply_cond_aug_chunk_inference
             if self.apply_cond_aug == 'V2':
-                additional_model_inputs["aug_t_chunk"] = x.new_ones([x.shape[0]]) * aug_t_chunk_sampling   # TODO: Make sure this aug_t_chunk_sampling is right
+                additional_model_inputs["aug_t_chunk"] = x.new_ones([x.shape[0]]) * aug_t_chunk_sampling
             if scale_emb is not None:
                 additional_model_inputs["scale_emb"] = scale_emb
             denoised = denoiser(x, alpha_cumprod_sqrt, cond, **additional_model_inputs).to(torch.float32)
@@ -599,14 +567,12 @@ class VideoDDIMSampler(BaseDiffusionSampler):
                     sampling_step = self.num_steps - timestep
                     # sampling_step: [-974, -934, -894, ..... ,0]
                 
-                # import pdb; pdb.set_trace()
-                # # TODO: A Bug???
                 # * In the beginning of sampling
                 # timesteps: 999
                 # self.num_steps: 25
                 denoised = self.guider(
                     denoised, (1 - alpha_cumprod_sqrt**2) ** 0.5, step_index=sampling_step, scale=scale
-                )  # TODO: Check the trend of the step_index
+                )
                 # step_index: -974, -934, -894
             else:
                 denoised = self.guider(denoised, (1 - alpha_cumprod_sqrt**2) ** 0.5, scale=scale)
@@ -729,17 +695,7 @@ class VPSDEDPMPP2MSampler(VideoDDIMSampler):
 
         return x, denoised
 
-    # TODO: Decreasing t_aug.
     def cond_aug_chunk_inference(self, x, prefix_frames, s_in, alpha_cumprod_sqrt, round_progress=None):
-
-        # TODO: Wrong order.
-        # alpha_cumprod_sqrt
-        # tensor([0.0000, 0.0052, 0.0109, 0.0171, 0.0239, 0.0312, 0.0390, 0.0474, 0.0565,
-        #        0.0661, 0.0764, 0.0873, 0.0988, 0.1110, 0.1239, 0.1374, 0.1516, 0.1664,
-        #        0.1819, 0.1982, 0.2151, 0.2327, 0.2510, 0.2700, 0.2897, 0.3101, 0.3313,
-        #        0.3531, 0.3757, 0.3990, 0.4231, 0.4478, 0.4733, 0.4996, 0.5265, 0.5541,
-        #        0.5823, 0.6112, 0.6407, 0.6706, 0.7010, 0.7317, 0.7627, 0.7938, 0.8249,
-        #        0.8558, 0.8864, 0.9164, 0.9456, 0.9739, 1.0000], device='cuda:0')
 
         if alpha_cumprod_sqrt[-1] > alpha_cumprod_sqrt[0]:
             # wrong order, fix it
@@ -758,20 +714,11 @@ class VPSDEDPMPP2MSampler(VideoDDIMSampler):
         elif self.apply_cond_aug_chunk_inference == 'min':
             aug_t_chunk, aug_t = 0, 0
 
-        # elif self.apply_cond_aug_chunk_inference == 'dynamic':
-        #     aug_t_chunk = int(round_progress * 6) * 100
-        #     aug_t = aug_t_chunk + 50  # * maximum 650
-        #     aug_t = int(aug_t / 1000 * len(alpha_cumprod_sqrt)) # scale to inference schedule
-        
-        # else:
-        #     raise NotImplementedError
-
         rd = torch.randn_like(prefix_frames)
         if self.apply_cond_aug_chunk_inference == 'v1':
             log_cond_aug_dist = torch.distributions.Normal(-3.0, 0.5)  # * Following SVD
             log_cond_aug = log_cond_aug_dist.sample()
             cond_aug = torch.exp(log_cond_aug)
-            # aug_input = aug_input + cond_aug * torch.randn_like(aug_input)
             noised_prefix_frames = prefix_frames + cond_aug * rd
             aug_t_chunk = 0 # just as a placeholder
         else:
@@ -780,7 +727,6 @@ class VPSDEDPMPP2MSampler(VideoDDIMSampler):
                 s_in * (1 - alpha_cumprod_sqrt[i] ** 2) ** 0.5, len(prefix_frames.shape)
             )
 
-        # x = torch.cat([noised_prefix_frames, x[:, self.fixed_frames :]], dim=1) # * BUG FIXED: NOT Using self.fixed_frames
         x = torch.cat([noised_prefix_frames, x[:, noised_prefix_frames.shape[1] :]], dim=1)
         return x, int(aug_t_chunk)
 
@@ -795,8 +741,6 @@ class VPSDEDPMPP2MSampler(VideoDDIMSampler):
             prefix_frames = x[:, :fixed_frames]
         old_denoised = None
 
-        # TODO: Check here!
-        # TODO: For first round, not applying cond_aug.
         for i in self.get_sigma_gen(num_sigmas):
             if fixed_frames is not None:
                 if self.sdedit:

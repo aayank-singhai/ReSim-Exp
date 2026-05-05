@@ -146,8 +146,6 @@ class TrajEncoder(AbstractEmbModel):
         super().__init__()
         # assert (seq_len % patch_size) == 0
 
-        # num_patches = seq_len // patch_size
-        # patch_dim = channels * patch_size
 
         if avoid_first_ln:
             self.to_patch_embedding = nn.Sequential(
@@ -156,7 +154,6 @@ class TrajEncoder(AbstractEmbModel):
             )
         else:
             self.to_patch_embedding = nn.Sequential(
-                # Rearrange('b c (n p) -> b n (p c)', p = patch_size),
                 nn.LayerNorm(channels),   # * Do we need this?
                 nn.Linear(channels, dim),
                 nn.LayerNorm(dim),
@@ -167,7 +164,6 @@ class TrajEncoder(AbstractEmbModel):
         if pos_emb == "learnable":
             self.pos_embedding = nn.Parameter(torch.randn(1, seq_len + 1, dim))
         else:
-            # TODO: Sine pos emb 1d
             grid_t = np.arange(1 + seq_len, dtype=np.float32)  # +1 for cls token
             sine_pos = get_1d_sincos_pos_embed_from_grid(dim, grid_t)
             self.pos_embedding = torch.tensor(sine_pos).unsqueeze(0)
@@ -221,17 +217,6 @@ class TrajEncoder(AbstractEmbModel):
 
 if __name__ == '__main__':
 
-    # v = ViT(
-    #     seq_len = 256,
-    #     patch_size = 16,
-    #     num_classes = 1000,
-    #     dim = 1024,
-    #     depth = 6,
-    #     heads = 8,
-    #     mlp_dim = 2048,
-    #     dropout = 0.1,
-    #     emb_dropout = 0.1
-    # )
     
     v = TrajEncoder(
         seq_len = 8,
@@ -248,4 +233,3 @@ if __name__ == '__main__':
 
     time_series = torch.randn(4, 8, 3)
     logits = v(time_series) # (4, 1024)
-    # import pdb; pdb.set_trace()

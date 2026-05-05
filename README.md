@@ -71,8 +71,7 @@ driving videos under a wide range of ego behaviors.
 |-- inference/              # Upstream text-to-video demos for dependency checks
 |-- tools/                  # Weight conversion and captioning utilities
 |-- SwissArmyTransformer/   # Vendored SAT dependency used by ReSim
-|-- requirements.txt        # Top-level runtime dependencies
-`-- sat/requirements.txt    # ReSim world-model dependencies
+`-- requirements.txt        # Runtime and ReSim world-model dependencies
 ```
 
 ## Installation
@@ -86,7 +85,6 @@ conda activate resim
 
 pip install torch==2.4.0 torchvision==0.19.0 --index-url https://download.pytorch.org/whl/cu124
 pip install -r requirements.txt
-pip install -r sat/requirements.txt
 
 cd SwissArmyTransformer
 pip install -e .

@@ -39,7 +39,7 @@ data:
       # video_size: [480, 720]
       video_size: [512, 896]
 
-      fps: *fps  # TODO: Change to 10
+      fps: *fps
       max_num_frames: 49
       # skip_frms_num: 7.
       skip_frms_num: 0.
@@ -88,7 +88,6 @@ model:
       # latent_width: 90
       # latent_height: 60
 
-      # !!! DEBUG: For (512, 896)
       latent_width: 112
       latent_height: 64
 
@@ -112,12 +111,11 @@ model:
         pos_embed_config:
           target: dit_video_concat.Basic3DPositionEmbeddingMixin
           params:
-            text_length: 235  # TODO: Need to be adjusted with traj feature length
+            text_length: 235
             # * 226 + 9 = 235
             # height_interpolation: 1.875  # * cur_height // 256
             # width_interpolation: 1.875   # * cur_width  // 384
 
-            # !!! DEBUG: For (512, 896) 
             height_interpolation: 2.0   # * cur_height // 256
             width_interpolation:  2.3333   # * cur_width  // 384
 
@@ -159,7 +157,6 @@ model:
           ucg_rate: 0.5    # * action (world model) and no-action (planning model)
           target: sgm.modules.encoders.traj_encoder.TrajEncoder
           params:
-            # TODO: setup here
             seq_len: 8
             dim: 1024
             out_dim: 4096

@@ -10,7 +10,6 @@ from ...modules.diffusionmodules.sampling import VideoDDIMSampler, VPSDEDPMPP2MS
 from ...util import append_dims, instantiate_from_config
 from ...modules.autoencoding.lpips.loss.lpips import LPIPS
 
-# import rearrange
 from einops import rearrange
 import random
 from sat import mpu
@@ -88,7 +87,7 @@ class VideoDiffusionLoss(StandardDiffusionLoss):
                  detach_dcl_prev=False,
                  detach_dcl_post=False,
                 **kwargs):
-        self.fixed_frames = fixed_frames  # TODO: Remove this?
+        self.fixed_frames = fixed_frames
         self.block_scale = block_scale
         self.block_size = block_size
         self.min_snr_value = min_snr_value
@@ -126,7 +125,6 @@ class VideoDiffusionLoss(StandardDiffusionLoss):
         alphas_cumprod_sqrt = alphas_cumprod_sqrt.to(input.device)  # a float
         idx = idx.to(input.device)  # indicating t. shape: [bs]. eg: [845, 10]
 
-        # print(f"idx:{idx}, alpha_t:{alphas_cumprod_sqrt}")
         # idx:tensor([26], device='cuda:0'), alpha_t:tensor([0.9631], device='cuda:0')
         # idx:tensor([335], device='cuda:0'), alpha_t:tensor([0.5044], device='cuda:0')
         # idx:tensor([510], device='cuda:1'), alpha_t:tensor([0.2985], device='cuda:1')
@@ -154,7 +152,7 @@ class VideoDiffusionLoss(StandardDiffusionLoss):
         torch.distributed.broadcast(noise, src=src, group=mpu.get_model_parallel_group())
         torch.distributed.broadcast(alphas_cumprod_sqrt, src=src, group=mpu.get_model_parallel_group())
 
-        additional_model_inputs["idx"] = idx  # TODO: Check idx
+        additional_model_inputs["idx"] = idx
 
         # Add traj here.
         additional_model_inputs["with_traj"] = batch["with_traj"]
@@ -162,7 +160,6 @@ class VideoDiffusionLoss(StandardDiffusionLoss):
 
         if self.offset_noise_level > 0.0:
             # * Original implementation, but is incorrect
-            # noise = (
             #     noise + append_dims(torch.randn(input.shape[0]).to(input.device), input.ndim) * self.offset_noise_level
             # )
             b, c, t, _, _ = input.shape
@@ -240,7 +237,6 @@ class VideoDiffusionLoss(StandardDiffusionLoss):
 
         # Tried, not working: min_snr
         if self.min_snr_value is not None:
-            # w = min(w, self.min_snr_value)  # Minor issue here: w might not be a tensor
             w = torch.where(w > self.min_snr_value, self.min_snr_value, w)
 
         loss = self.get_loss(model_output, input, w)
@@ -282,23 +278,19 @@ class VideoDiffusionLoss(StandardDiffusionLoss):
             if self.detach_dcl_post:
                 post_frames = post_frames.detach()
 
-            # import pdb; pdb.set_trace()
 
-            # dynamics_model_output = model_output[:, i:] - model_output[:, :-i]   # * torch.Size([2, 9, 16, 64, 112])  b, t, c, h, w
             dynamics_model_output = post_frames - prev_frames
 
             dynamics_target = target[:, i:] - target[:, :-i]     # * torch.Size([2, 9, 16, 64, 112])
 
             # * Consistency
             k_loss = torch.mean((w * (dynamics_model_output - dynamics_target) ** 2).reshape(target.shape[0], -1), 1)  # * Reshape to [bs]
-            # k_loss_copy = k_loss.clone()
 
             if self.normalize_dcl:
                 # * Normalize by the scale of target dynamics
                 # L1 norm
                 magnitude = dynamics_target.abs().mean(dim=(1, 2, 3, 4))
                 k_loss = k_loss / (magnitude + 1.)
-                # import pdb; pdb.set_trace()
 
             k_loss = k_loss * discount_factor
 

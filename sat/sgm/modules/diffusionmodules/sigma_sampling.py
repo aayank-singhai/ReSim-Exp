@@ -6,7 +6,6 @@ from sat import mpu
 from ...util import default, instantiate_from_config
 
 
-# TODO: Use SD3 sampling weights
 def weighted_randint(values, weight_function=None):
     """
     Generates weighted random integers within a specified range.
@@ -66,7 +65,6 @@ class DiscreteSampling:
         if self.custom_sampling:
             assert not self.uniform_sampling
             
-        # TODO: Check this. 
         if self.uniform_sampling:
             i = 1
             while True:
@@ -97,7 +95,6 @@ class DiscreteSampling:
         else:
             sampled_idx = torch.randint(0, self.num_idx, (n_samples,))  # !!!! Maximum 999, not 1000
             if self.custom_sampling:
-                # TODO: Check if the weighted_sampling is actually working, or it's just the uniform_sampling not working.
                 sampled_idx = weighted_randint(sampled_idx, weight_function=my_weight_function)
 
             idx = default(
@@ -124,7 +121,6 @@ class PartialDiscreteSampling:
     def __call__(self, n_samples, rand=None):
         idx = default(
             rand,
-            # torch.randint(self.total_num_idx-self.partial_num_idx, self.total_num_idx, (n_samples,)),
             torch.randint(0, self.partial_num_idx, (n_samples,)),
         )
         return self.idx_to_sigma(idx)

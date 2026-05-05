@@ -32,7 +32,6 @@ def make_data_loader(dataset, batch_size, args, split, collate_fn=None):
     rank = torch.distributed.get_rank(group=mpu.get_data_parallel_group())
     distributed = world_size > 1
 
-    # if IterableDataset, assume everything is properly configured. (pre-sharded) 
     if isinstance(dataset, IterableDataset):
         if split in ['val', 'test'] and args.strict_eval:
             raise ValueError('IterableDataset cannot be used for validation or testing if `args.strict_eval=True`, because we cannot infer the length of the final batch before reading out them.')
@@ -55,7 +54,7 @@ def make_data_loader(dataset, batch_size, args, split, collate_fn=None):
     drop_last = False # COMMENT: this is already solved by the complex logic of last_shape and drop_number.
 
     # the GPUs in the same model parallel group receive the same data
-    if distributed: # TODO reformat this, but it is not urgent
+    if distributed:
         gradient_accumulation_steps = getattr(args, 'gradient_accumulation_steps', 1)
         batch_sampler = DistributedBatchSampler(sampler,
                                                 batch_size,
@@ -113,7 +112,6 @@ def make_dataset_full(path, split, args, create_dataset_function,
             d = create_dataset_function(p, args)
             assert isinstance(d, valid_types)
             ds.append(d)
-        # ds = ChainDataset(ds) # please merge them in a url if chain
         if batch_from_same_dataset:
             assert args.num_workers <= 1, 'We cannot control the actual speed of different workers, may mix different iterable parts.'
         ds = AlterDataset(ds, weights=dataset_weights, seed=args.seed, batch_from_same_dataset=batch_from_same_dataset, batch_size=args.batch_size)
@@ -128,7 +126,7 @@ def make_dataset_full(path, split, args, create_dataset_function,
         for p in path:
             d = create_dataset_function(p, args)
             ds.append(d)
-        ds = ConcatDataset(ds, weights=dataset_weights)  # TODO: Use dataset_weights?
+        ds = ConcatDataset(ds, weights=dataset_weights)
         if random_mapping:
             # * Get in here.
             if args.epochs is not None: # not auto-scale, but use a given number of epoches.
@@ -203,7 +201,6 @@ def make_loaders(args, create_dataset_function, collate_fn=None):
     test = None
 
     if args.train_data is not None:
-        # TODO: Use dataset_weights?
         train = make_dataset(**data_set_args, args=args, dataset_weights=args.train_data_weights, is_train_data=True)
         if should_split(split):
             train, valid, test = train
@@ -435,7 +432,6 @@ class AlterDataset(IterableDataset):
         # sampling according to weights from streaming data
         while True:
             index = rng.choice(len(iterators), p=self.weights)
-            # if stop iteration, remove the iterator
             try:
                 if self.batch_from_same_dataset:
                     # we need to make sure the consecutive batch_size samples are from the same iterable dataset.
