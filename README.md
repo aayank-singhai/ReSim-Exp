@@ -1,11 +1,17 @@
 # ReSim
 
+
+<a href="https://opendrivelab.com/ReSim"><img src="https://img.shields.io/badge/Proj_Page-blue" alt="Project Page"></a>
+<a href="https://arxiv.org/abs/2506.09981"><img src="https://img.shields.io/badge/arXiv-2506.09981-b31b1b" alt="arXiv"></a>
+
+<img src="assets/comparison1.gif" width="1000px">
+<img src="assets/comparison2.gif" width="1000px">
+
+
 The official implementation of our **NeurIPS 2025 Spotlight** paper:
 
 **ReSim: Reliable World Simulation for Autonomous Driving**
 
-<img src="assets/comparison1.gif" width="1000px">
-<img src="assets/comparison2.gif" width="1000px">
 
 
 > [Jiazhi Yang](https://jiazyang.github.io/),
@@ -19,10 +25,7 @@ The official implementation of our **NeurIPS 2025 Spotlight** paper:
 > [Xiangyu Yue](https://xyue.io/),
 > [Li Chen](https://ilnehc.github.io/)
 >
-> [[arXiv](https://arxiv.org/abs/2506.09981)],
-> [[project page and video demos](https://opendrivelab.com/ReSim)]
->
-> Primary contact: Jiazhi Yang, jzyang@link.cuhk.edu.hk
+> Primary contact at Jiazhi Yang: jzyang@link.cuhk.edu.hk
 
 
 ## Highlights
@@ -60,20 +63,6 @@ OpenDV + NavSim + CARLA data (expert + non-expert actions).
 - [Inference](#inference)
 - [Trouble Shooting](#trouble-shooting)
 
-## Repository Layout
-
-```text
-.
-|-- sat/                    # ReSim world-model training and inference code
-|   |-- configs/            # Example training and inference configs
-|   |-- sgm/                # Diffusion, conditioning, sampling, and VAE modules
-|   |-- train_video.py      # Training entrypoint
-|   `-- sample_video.py     # Inference entrypoint
-|-- inference/              # Upstream text-to-video demos for dependency checks
-|-- tools/                  # Weight conversion and captioning utilities
-|-- SwissArmyTransformer/   # Vendored SAT dependency used by ReSim
-`-- requirements.txt        # Runtime and ReSim world-model dependencies
-```
 
 ## Installation
 
