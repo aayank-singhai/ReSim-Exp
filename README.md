@@ -81,13 +81,15 @@ SAT, and DeepSpeed-style distributed training.
 
 ```bash
 conda create -n resim python=3.10 -y
+
 conda activate resim
 
 pip install torch==2.4.0 torchvision==0.19.0 --index-url https://download.pytorch.org/whl/cu124
 pip install -r requirements.txt
 
+
 cd SwissArmyTransformer
-pip install -e .
+pip install -e . --no-build-isolation
 cd ..
 ```
 
@@ -198,14 +200,14 @@ Run ReSim training through `sat/train_video.py` and the provided launcher:
 cd sat
 
 # CFG, GPUS, NNODES, optional SEED
-bash finetune_multi_gpus_custom.sh configs/main5_joint_stage2_high_small-lr_full.yaml 8 1 42
+bash finetune_multi_gpus_custom.sh configs/train.yaml 8 1 42
 ```
 
 For single-GPU debugging:
 
 ```bash
 cd sat
-bash finetune_single_gpu_custom.sh configs/main5_joint_stage2_high_small-lr_full.yaml
+bash finetune_single_gpu_custom.sh configs/train.yaml
 ```
 
 Before launching a real run, check the copied config:
@@ -226,7 +228,7 @@ Run ReSim sampling through `sat/sample_video.py` and the provided launcher:
 
 ```bash
 cd sat
-bash inference_custom.sh configs/infer_nus_new.yaml
+bash inference_custom.sh configs/infer_nus.yaml
 ```
 
 The example inference config uses `input_type: dataset`; it loads validation

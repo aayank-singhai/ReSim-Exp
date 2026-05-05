@@ -19,7 +19,8 @@ SEED=${4:-42}  # * Need to change your seed if resume a model (trained with seed
 EXP_NAME=$(basename $CFG)
 EXP_NAME="${EXP_NAME%.yaml}"
 
-WORK_DIR="/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/sat/info_logs"
+WORK_DIR="${WORK_DIR:-${SCRIPT_DIR}/info_logs}"
+mkdir -p "${WORK_DIR}"
 
 python -m torch.distributed.launch \
     --nproc_per_node=${GPUS} \

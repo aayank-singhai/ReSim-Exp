@@ -3,7 +3,7 @@ args:
   model_parallel_size: 1
   experiment_name: nus
   mode: finetune
-  load: "/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/ckpts/CogVideoX-2b-sat/transformer"
+  load: "/path/to/CogVideoX-2b-sat/transformer"
   no_load_rng: True
   train_iters: 10000
   eval_iters: 1
@@ -12,8 +12,8 @@ args:
   save: ckpts
   save_interval: 1000
   log_interval: 100
-  train_data: ["/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/custom_data/nus_sweeps"]
-  valid_data: ["/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/custom_data/nus_sweeps"]
+  train_data: ["/path/to/nus_sweeps"]
+  valid_data: ["/path/to/nus_sweeps"]
   split: 1,0,0
   # num_workers: 0  # !!! DEBUG
   num_workers: 8
@@ -150,14 +150,14 @@ model:
           target: sgm.modules.encoders.modules.FrozenT5Embedder
           params:
             # model_dir: "google/t5-v1_1-xxl"
-            model_dir: "/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/ckpts/CogVideoX-2b-sat/t5-v1_1-xxl"
+            model_dir: "/path/to/t5-v1_1-xxl"
             max_length: 226
 
   first_stage_config:
     target: vae_modules.autoencoder.VideoAutoencoderInferenceWrapper
     params:
       cp_size: 1
-      ckpt_path: "/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/ckpts/CogVideoX-2b-sat/vae/3d-vae.pt"
+      ckpt_path: "/path/to/vae/3d-vae.pt"
       ignore_keys: [ 'loss' ]
 
       loss_config:

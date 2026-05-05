@@ -1,58 +1,106 @@
-# Latest checkpoint with more iterations
 
 args:
-  latent_channels: 16
-  mode: inference
-  # load: "/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/sat/ckpts/nuplan4_lora_not-contained_all_tokens-10-24-03-02"
-  load: "/inspire/hdd/project/roboticsystem2/public/resim/Ckpts/main6_joint_stage2_high_w_carla_bl-02-19-13-07"
+  checkpoint_activations: True ## using gradient checkpointing
+  model_parallel_size: 1
+  experiment_name: nus
+  mode: finetune
+  load: "/path/to/resim_or_base_transformer_checkpoint"
+  
+  no_load_rng: True
+  # train_iters: 10000
+  train_iters: 300000
+  eval_iters: 1
+  eval_interval: 10000  # * Log video every 100 iterations
+  eval_batch_size: 1
+  save: ckpts
+  save_interval: 2500  # * Save checkpoints
+  log_interval: 20   # * Log info
 
-  batch_size: 1
-  input_type: dataset
+  train_data: [
+    "/path/to/opendv_train.json",  # * OpenDV
+    "/path/to/navsim_train.json"  # * navsim
+  ]
+  valid_data: [
+   "/path/to/navsim_valid.json"
+  ]
 
-  # * Num of Latent frames
-  sampling_num_frames: 13  # Must be 13, 11 or 9
+  train_data_weights: [1, 40]
+  # * OpenDV: 1, 5M
+  # * navsim: 40, 40 * 80k = 3.2M
 
-  sampling_fps: &fps 10  # * For youtube
+  split: 1,0,0
+  num_workers: 8
+  force_train: True
+  # only_log_video_latents: True
+  only_log_video_latents: False
 
-  fp16: True
-  force_inference: True
-
-  epochs: 1
-
-  valid_data: ["/inspire/hdd/project/roboticsystem2/public/resim/data_jsons_sii/nus_val_4k.json"]
-
-  # sampling_video_size: [512, 896]
-  # n_prediction_round: 2
-  # apply_traj: False
-  # save_recon: False  # * Not saving recon to speed up.
-
-  sampling_video_size: [512, 896]
-  n_prediction_round: 1
-  apply_traj: True
-  save_gt: True
-  concat_gt_for_demo: True
+  lr_decay_style: 'constant'  # !!!!!! Using constant LR
 
 data:
-    target: data_waymo.WaymoDataset
+    target: data_multi.MultiSourceDataset
     params:
       # video_size: [480, 720]
+
       video_size: [512, 896]
-
-      fps: *fps
+      fps: 10
       max_num_frames: 49
-      skip_frms_num: 0.
+      skip_frms_num: 7.
       prefix_prompt: "This video depicts a realistic view from the driver's perspective of a car driving on the road."
+      
+      merge_static: True           # merging static to forward
+      exclude_highly_static: True  # exclude highly static
+      
+      p_mask_out_heading: 0.5     # * Inference: 0.
+      p_drop_action_caption: 0.5  # * Inference: 0.
 
-      p_drop_action_caption: 1.  # * Inference: 0.
-      # reshape_mode: 'lower'
+      # # navsim train: {'Moving_Forward': 54414, 'Turning_Right': 9128, 'Turning_Left': 21567}
+      n_repeat_of_actions:
+        Static: 1
+        Moving_Forward: 1
+        Turning_Left: 5
+        Turning_Right: 5
 
-      n_subset: 20
-      ind_subset: 2
+deepspeed:
+  # train_micro_batch_size_per_gpu: 1
+  train_micro_batch_size_per_gpu: 2  # * 4 will lead to error
+  gradient_accumulation_steps: 1
+  steps_per_print: 50
+  gradient_clipping: 0.1
+  zero_optimization:
+    stage: 2
+    cpu_offload: false
+    contiguous_gradients: false
+    overlap_comm: true
+    reduce_scatter: true
+    reduce_bucket_size: 1000000000
+    allgather_bucket_size: 1000000000
+    load_from_fp32_weights: false
+  zero_allow_untested_optimizer: true
+  bf16:
+    enabled: False
+  fp16:
+    enabled: True
+    loss_scale: 0
+    loss_scale_window: 400
+    hysteresis: 2
+    min_loss_scale: 1
+  optimizer:
+    type: sat.ops.FusedEmaAdam
+    params:
+      lr: 0.00001
+      betas: [0.9, 0.95]
+      eps: 1e-8
+      weight_decay: 1e-4
+  activation_checkpointing:
+    partition_activations: false
+    contiguous_memory_optimization: false
+  wall_clock_breakdown: false
+
 
 model:
   scale_factor: 1.15258426
   disable_first_stage_autocast: true
-  not_trainable_prefixes: ['model'] ## Using Lora, conditioners are trainable
+  # not_trainable_prefixes: ['model'] ## Using Lora, conditioners are trainable
   # [model.diffusion_model.xxx]
   # [conditioner.xxx]
 
@@ -60,8 +108,9 @@ model:
     - txt
 
   en_and_decode_n_samples_a_time: 1  # * split samples
-  # en_and_decode_n_frames_a_time: 17  # * split frames
-  # truncate_n_frames_decode: 8
+  en_and_decode_n_frames_a_time: 17  # * split frames
+  truncate_n_frames_decode: 8
+
   cond_inds_sampling: &cond_inds_sampling [0, 1, 2]  # * For log videos
   
   denoiser_config:
@@ -103,6 +152,7 @@ model:
       num_attention_heads: 30
 
       transformer_args:
+        checkpoint_activations: True ## using gradient checkpointing
         vocab_size: 1
         max_sequence_length: 64
         layernorm_order: pre
@@ -148,17 +198,18 @@ model:
         # * text enc
         - is_trainable: false
           input_key: txt
-          ucg_rate: 0.1
+          ucg_rate: 0.2  # * Higher dropout rate, to encourage learning from fut_traj
           target: sgm.modules.encoders.modules.FrozenT5Embedder
           params:
-            model_dir: "/inspire/hdd/project/roboticsystem2/public/resim/Ckpts/_official_ckpts/t5-v1_1-xxl"
+            model_dir: "/path/to/t5-v1_1-xxl"
             max_length: 226
 
         # * traj enc
         - is_trainable: true
           input_key: fut_traj
-          ucg_rate: 0.5    # * action (world model) and no-action (planning model)
+          ucg_rate: 0.5    # * stage1:0.2 -> stage2: 0.5, action (world model) and no-action (planning model)
           target: sgm.modules.encoders.traj_encoder.TrajEncoder
+          
           params:
             seq_len: 8
             dim: 1024
@@ -174,7 +225,7 @@ model:
     target: vae_modules.autoencoder.VideoAutoencoderInferenceWrapper
     params:
       cp_size: 1
-      ckpt_path: "/inspire/hdd/project/roboticsystem2/public/resim/Ckpts/_official_ckpts/vae/3d-vae.pt"
+      ckpt_path: "/path/to/vae/3d-vae.pt"
       ignore_keys: [ 'loss' ]
 
       loss_config:
@@ -244,7 +295,7 @@ model:
   sampler_config:
     target: sgm.modules.diffusionmodules.sampling.VPSDEDPMPP2MSampler
     params:
-      num_steps: &num_steps 50
+      num_steps: 50
       verbose: True
       fixed_frames: 3  # [0, 1, 2]
       cond_inds_sampling: *cond_inds_sampling  # [0, 1, 2]
@@ -261,4 +312,4 @@ model:
         params:
           scale: 6
           exp: 5
-          num_steps: *num_steps
+          num_steps: 50

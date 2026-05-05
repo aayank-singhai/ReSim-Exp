@@ -3,8 +3,7 @@
 args:
   latent_channels: 16
   mode: inference
-  # load: "/cpfs01/user/yangjiazhi/workspace/DVGen/CogVideo/sat/ckpts/nuplan4_lora_not-contained_all_tokens-10-24-03-02"
-  load: "/inspire/hdd/project/roboticsystem2/public/resim/Ckpts/main6_joint_stage2_high_w_carla_bl-02-19-13-07"
+  load: "/path/to/resim_transformer_checkpoint"
 
   batch_size: 1
   input_type: dataset
@@ -19,7 +18,7 @@ args:
 
   epochs: 1
 
-  valid_data: ["/inspire/hdd/project/roboticsystem2/public/resim/data_jsons_sii/nus_val_4k.json"]
+  valid_data: ["/path/to/nus_val_4k.json"]
 
   # sampling_video_size: [512, 896]
   # n_prediction_round: 2
@@ -148,7 +147,7 @@ model:
           ucg_rate: 0.1
           target: sgm.modules.encoders.modules.FrozenT5Embedder
           params:
-            model_dir: "/inspire/hdd/project/roboticsystem2/public/resim/Ckpts/_official_ckpts/t5-v1_1-xxl"
+            model_dir: "/path/to/t5-v1_1-xxl"
             max_length: 226
 
         # * traj enc
@@ -171,7 +170,7 @@ model:
     target: vae_modules.autoencoder.VideoAutoencoderInferenceWrapper
     params:
       cp_size: 1
-      ckpt_path: "/inspire/hdd/project/roboticsystem2/public/resim/Ckpts/_official_ckpts/vae/3d-vae.pt"
+      ckpt_path: "/path/to/vae/3d-vae.pt"
       ignore_keys: [ 'loss' ]
 
       loss_config:
