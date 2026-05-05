@@ -44,7 +44,7 @@ driving videos under a wide range of ego behaviors.
 
 - **[2026/05/05]** Initial public code release.
 
-## TODO List
+## Release Roadmap
 
 - [ ] Release pretrained ReSim world-model weights.
 
@@ -97,11 +97,22 @@ Python dependencies are installed.
 
 ## Checkpoint Preparation
 
-ReSim uses SAT-format video diffusion checkpoints plus the text encoder and VAE
-components required by the configs. A typical ReSim checkpoint bundle looks like:
+ReSim uses SAT-format CogVideoX video diffusion checkpoints plus the text
+encoder and VAE components required by the configs. Download the public asset
+bundle from Hugging Face:
+
+```bash
+pip install -U huggingface_hub
+huggingface-cli download OpenDriveLab-org/ReSim_Assets \
+  --repo-type model \
+  --local-dir checkpoints/CogVideoX-2b-sat
+```
+
+The deprecated Tsinghua mirror download for `vae.zip` and `transformer.zip` is
+no longer required. After downloading, the component directory should contain:
 
 ```text
-checkpoints/
+checkpoints/CogVideoX-2b-sat/
 |-- transformer/
 |   |-- latest
 |   `-- <iteration>/mp_rank_00_model_states.pt
@@ -115,12 +126,35 @@ checkpoints/
     `-- tokenizer_config.json
 ```
 
+The `transformer` directory stores the SAT checkpoint, `vae/3d-vae.pt` is used
+by the video autoencoder, and `t5-v1_1-xxl` provides the frozen text encoder and
+tokenizer files. If you place the assets elsewhere, keep the same internal
+directory structure and update the config paths accordingly.
+
 Before running training or inference, copy an example config and update:
 
 - `args.load`: ReSim or base transformer checkpoint directory.
 - `model.conditioner_config...FrozenT5Embedder.params.model_dir`: T5 directory.
 - `model.first_stage_config.params.ckpt_path`: VAE checkpoint path.
 - `args.train_data` and `args.valid_data`: dataset annotation files.
+
+For example, the checkpoint-related fields should point to the downloaded asset
+directory:
+
+```yaml
+args:
+  load: "checkpoints/CogVideoX-2b-sat/transformer"
+
+model:
+  conditioner_config:
+    params:
+      emb_models:
+        - params:
+            model_dir: "checkpoints/CogVideoX-2b-sat/t5-v1_1-xxl"
+  first_stage_config:
+    params:
+      ckpt_path: "checkpoints/CogVideoX-2b-sat/vae/3d-vae.pt"
+```
 
 ## Data Preparation
 
