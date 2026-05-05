@@ -46,9 +46,10 @@ driving videos under a wide range of ego behaviors.
 
 ## Release Roadmap
 
-- [ ] Release pretrained ReSim world-model weights.
-
-- [ ] Initial code release with training and inference scripts.
+- [x] Initial code release with training and inference scripts.
+- [x] Release pretrained ReSim world-model weights - pretrained on OpenDV + NavSim (expert actions only, without Carla data).
+- [ ] Release pretrained ReSim world-model weights - pretrained on 
+OpenDV + NavSim + CARLA data (expert + non-expert actions).
 
 ## Getting Started
 
