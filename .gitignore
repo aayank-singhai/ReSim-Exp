@@ -1,4 +1,4 @@
-output/
+
 *__pycache__/
 samples*/
 runs/
@@ -10,7 +10,7 @@ logs/
 local_save/
 ckpts/
 tmp*/
-outputs*
+
 nuscenes/
 nuscenes
 custom_data/
