@@ -1,7 +1,7 @@
 import json
 
 # Automatically generate a list of 49 frame filenames
-frames = [f"frame_{str(i).zfill(4)}.jpg" for i in range(1, 50)]
+frames = [f"frame_{str(i).zfill(4)}.jpg" for i in range(49, 100)]
 
 data = {
   "meta": {
