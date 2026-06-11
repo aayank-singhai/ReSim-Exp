@@ -35,9 +35,7 @@ data:
       fps: *fps
       max_num_frames: 49
       skip_frms_num: 0.
-      #prefix_prompt: "This video depicts a realistic view from the driver's perspective of a car driving forward in its own lane on a dark urban street at night. An oncoming car approaches safely in the adjacent opposite lane."
-      prefix_prompt: ""
-
+      prefix_prompt: "This video depicts a realistic view from the driver's perspective of a car driving forward in its own lane on a dark urban street at night. An oncoming car approaches safely in the adjacent opposite lane."
 
       p_drop_action_caption: 1.  # * Inference: 0.
       # reshape_mode: 'lower'

@@ -1,10 +1,14 @@
 {
   "meta": {
-    "data_root": "/home/aic7kor/Desktop/Bosch/ReSim/dataset/images/0abe118e-aa79-41f6-a719-f2df8abaf1ea.camera_front_wide_120fov"
+    "data_root": "/home/aic7kor/Desktop/Bosch/ReSim/dataset/images/1ce86e13-03cf-4cb5-99b2-a65400650117.camera_front_wide_120fov"
   },
   "clips": [
     {
       "img_seq": [
+        "frame_0045.jpg",
+        "frame_0046.jpg",
+        "frame_0047.jpg",
+        "frame_0048.jpg",
         "frame_0049.jpg",
         "frame_0050.jpg",
         "frame_0051.jpg",
@@ -49,13 +53,7 @@
         "frame_0090.jpg",
         "frame_0091.jpg",
         "frame_0092.jpg",
-        "frame_0093.jpg",
-        "frame_0094.jpg",
-        "frame_0095.jpg",
-        "frame_0096.jpg",
-        "frame_0097.jpg",
-        "frame_0098.jpg",
-        "frame_0099.jpg"
+        "frame_0093.jpg"
       ],
       "cmd": "Moving_Forward",
       "traj_fut": [

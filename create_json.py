@@ -1,12 +1,12 @@
 import json
 
 # Automatically generate a list of 49 frame filenames
-frames = [f"frame_{str(i).zfill(4)}.jpg" for i in range(49, 100)]
+frames = [f"frame_{str(i).zfill(4)}.jpg" for i in range(45, 94)]
 
 data = {
   "meta": {
     # CHANGE THIS to your actual absolute path where the video_01 folder lives
-    "data_root": "/home/aic7kor/Desktop/Bosch/ReSim/dataset/images/0abe118e-aa79-41f6-a719-f2df8abaf1ea.camera_front_wide_120fov" 
+    "data_root": "/home/aic7kor/Desktop/Bosch/ReSim/dataset/images/1ce86e13-03cf-4cb5-99b2-a65400650117.camera_front_wide_120fov" 
   },
   "clips": [
     {
